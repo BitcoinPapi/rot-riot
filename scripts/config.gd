@@ -559,7 +559,6 @@ const SECOND_WIND_INVULN := 1.5         # seconds of safety when the SECOND WIND
 const WEAPON_XP_BASE := 60.0            # weapon XP needed for its level 2 (needed = base * level ^ exponent)
 const WEAPON_XP_EXPONENT := 1.4
 const WEAPON_POINTS_PER_LEVEL := 1
-const WEAPON_RANK_COST_STEP := 10       # every N ranks, the next ranks cost one more weapon point
 # What a weapon's points can be spent on. "needs" says which weapons have the track:
 #   ""        every weapon
 #   "ranged"  not melee weapons (they have no spread or recoil)
@@ -569,12 +568,88 @@ const WEAPON_RANK_COST_STEP := 10       # every N ranks, the next ranks cost one
 #   "crate"   weapons that come from crates (not the single pistol)
 const WEAPON_TRACK_ORDER := ["power", "speed", "stability", "reload", "spawn", "duration"]
 const WEAPON_TRACKS := {
-	"power": {"name": "POWER", "desc": "More damage", "kind": "linear", "per_rank": 0.05, "needs": ""},
-	"speed": {"name": "SHOOTING SPEED", "desc": "Faster rate of fire", "kind": "curve", "max": 1.0, "half": 30.0, "needs": "burst"},
-	"stability": {"name": "STABILITY", "desc": "Tighter spread, less recoil", "kind": "curve", "max": 0.75, "half": 15.0, "needs": "ranged"},
-	"reload": {"name": "RELOAD SPEED", "desc": "Shorter reload", "kind": "curve", "max": 1.2, "half": 20.0, "needs": "mag"},
-	"spawn": {"name": "SPAWN RATE", "desc": "Its crate appears more often", "kind": "linear", "per_rank": 0.12, "needs": "crate"},
-	"duration": {"name": "DURATION", "desc": "Lasts longer when picked up", "kind": "curve", "max": 1.5, "half": 30.0, "needs": "crate"},
+	"power": {"name": "POWER", "desc": "More damage", "kind": "linear", "per_rank": 0.05, "needs": "", "color": Color("f0643c")},
+	"speed": {"name": "SHOOTING SPEED", "desc": "Faster rate of fire", "kind": "curve", "max": 1.0, "half": 30.0, "needs": "burst", "color": Color("f6d44a")},
+	"stability": {"name": "STABILITY", "desc": "Tighter spread, less recoil", "kind": "curve", "max": 0.75, "half": 15.0, "needs": "ranged", "color": Color("6aa7e8")},
+	"reload": {"name": "RELOAD SPEED", "desc": "Shorter reload", "kind": "curve", "max": 1.2, "half": 20.0, "needs": "mag", "color": Color("7ed957")},
+	"spawn": {"name": "SPAWN RATE", "desc": "Its crate appears more often", "kind": "linear", "per_rank": 0.12, "needs": "crate", "color": Color("c084fc")},
+	"duration": {"name": "DURATION", "desc": "Lasts longer when picked up", "kind": "curve", "max": 1.5, "half": 30.0, "needs": "crate", "color": Color("4fd8c9")},
+}
+
+# ----------------------------------------------------------------------------
+#  WEAPON TREES (Armory) - built from these numbers by scripts/game/weapon_tree.gd.
+#  Every weapon has its own tree: the weapon in the middle, one branch per
+#  upgrade it can have (WEAPON_TRACKS above), arcs of nodes between the
+#  branches, three perks, and an endless node at the tip of each branch. Nodes
+#  are bought with that weapon's points and need that weapon's level.
+# ----------------------------------------------------------------------------
+const WEAPON_TREE_TIERS := [
+	# level = weapon level needed    cost = weapon points for a small node    arc = nodes on each arc between branches
+	{"level": 1, "cost": 1, "arc": 0},
+	{"level": 6, "cost": 1, "arc": 2},
+	{"level": 14, "cost": 2, "arc": 3},
+]
+const WEAPON_TREE_PER_TIER := 3         # nodes along a branch per tier (the last one is the big node)
+const WEAPON_TREE_SMALL_RANKS := 1
+const WEAPON_TREE_BIG_RANKS := 2        # ranks from the big node that ends each tier
+const WEAPON_TREE_BIG_COST_MULT := 2    # ...which costs this many times the tier's price
+const WEAPON_TREE_ENDLESS_LEVEL := 20   # weapon level needed for the endless node at a branch's tip
+const WEAPON_TREE_ENDLESS_COST := 3     # weapon points for its first rank...
+const WEAPON_TREE_ENDLESS_COST_STEP := 4   # ...and one more every N ranks
+const WEAPON_TREE_START_RADIUS := 86.0  # layout: distance of a branch's first node from the middle
+const WEAPON_TREE_STEP := 60.0          # ...and between its nodes
+const WEAPON_RESPEC_COST_PER_LEVEL := 10   # coins to take a weapon's points back = this * its level
+# Perks: three per weapon, one on each tier, in that order. A perk needs its
+# tier's weapon level and a learned node next to it. "mods" changes the
+# weapon's own numbers: ["add", n] adds, ["mul", x] multiplies.
+# Keep each "desc" in step with its "mods".
+const WEAPON_PERK_COST := [2, 4, 6]
+const WEAPON_PERKS := {
+	"pistol": [
+		{"name": "HOLLOW POINTS", "desc": "Hits shove and stun zombies 50% more.", "mods": {"knockback": ["mul", 1.5], "stagger": ["mul", 1.5]}},
+		{"name": "EXTENDED MAGAZINE", "desc": "The magazine holds 50% more rounds.", "mods": {"mag": ["mul", 1.5]}},
+		{"name": "FULL METAL JACKET", "desc": "Bullets go through one more zombie.", "mods": {"pierce": ["add", 1]}},
+	],
+	"smg": [
+		{"name": "DRUM MAGAZINE", "desc": "The magazine holds 50% more rounds.", "mods": {"mag": ["mul", 1.5]}},
+		{"name": "LIGHT FRAME", "desc": "You move 10% faster while holding it.", "mods": {"move_mult": ["mul", 1.1]}},
+		{"name": "ARMOR PIERCING", "desc": "Bullets go through one more zombie.", "mods": {"pierce": ["add", 1]}},
+	],
+	"shotgun": [
+		{"name": "HEAVY LOAD", "desc": "Every shot fires 3 more pellets.", "mods": {"pellets": ["add", 3]}},
+		{"name": "LONG TUBE", "desc": "Holds 50% more shells.", "mods": {"mag": ["mul", 1.5]}},
+		{"name": "DOOR KICKER", "desc": "Pellets throw zombies back 60% harder.", "mods": {"knockback": ["mul", 1.6]}},
+	],
+	"machinegun": [
+		{"name": "BELT FEED", "desc": "The magazine holds 50% more rounds.", "mods": {"mag": ["mul", 1.5]}},
+		{"name": "SUPPRESSION", "desc": "Hits stop zombies in their tracks for twice as long.", "mods": {"stagger": ["mul", 2.0]}},
+		{"name": "HEAVY ROUNDS", "desc": "Bullets go through one more zombie.", "mods": {"pierce": ["add", 1]}},
+	],
+	"rifle": [
+		{"name": "STOPPING POWER", "desc": "Hits throw zombies back 60% harder.", "mods": {"knockback": ["mul", 1.6]}},
+		{"name": "BIG MAGAZINE", "desc": "The magazine holds 50% more rounds.", "mods": {"mag": ["mul", 1.5]}},
+		{"name": "TUNGSTEN CORE", "desc": "Bullets go through 3 more zombies.", "mods": {"pierce": ["add", 3]}},
+	],
+	"sledge": [
+		{"name": "WIDE SWING", "desc": "The swing covers a 30% wider arc.", "mods": {"arc_deg": ["mul", 1.3]}},
+		{"name": "LONG HANDLE", "desc": "Reaches 25% further.", "mods": {"range": ["mul", 1.25]}},
+		{"name": "EARTHSHAKER", "desc": "Hits throw and stun zombies 50% more.", "mods": {"knockback": ["mul", 1.5], "stagger": ["mul", 1.5]}},
+	],
+	"launcher": [
+		{"name": "BIG PAYLOAD", "desc": "The blast is 25% wider.", "mods": {"blast_radius": ["mul", 1.25]}},
+		{"name": "CONCUSSION", "desc": "The blast throws and stuns zombies 50% more.", "mods": {"blast_knockback": ["mul", 1.5], "blast_stagger": ["mul", 1.5]}},
+		{"name": "DOUBLE LOAD", "desc": "Holds two grenades instead of one.", "mods": {"mag": ["add", 1]}},
+	],
+	"flamethrower": [
+		{"name": "BIGGER TANK", "desc": "The tank holds 50% more fuel.", "mods": {"mag": ["mul", 1.5]}},
+		{"name": "STICKY FUEL", "desc": "Zombies burn for 50% longer.", "mods": {"burn_time": ["mul", 1.5]}},
+		{"name": "WHITE HEAT", "desc": "Burning does 50% more damage.", "mods": {"burn_dps": ["mul", 1.5]}},
+	],
+	"chainsaw": [
+		{"name": "LONG BAR", "desc": "Reaches 25% further.", "mods": {"range": ["mul", 1.25]}},
+		{"name": "WIDE BITE", "desc": "Cuts a 40% wider arc in front of you.", "mods": {"arc_deg": ["mul", 1.4]}},
+		{"name": "LIGHT ENGINE", "desc": "You move 12% faster while holding it.", "mods": {"move_mult": ["mul", 1.12]}},
+	],
 }
 
 # ----------------------------------------------------------------------------

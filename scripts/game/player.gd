@@ -325,7 +325,7 @@ func give_weapon(id: String) -> void:
 	var make_dual: bool = bool(cfg["dual"]) and (id == weapon_id or id == Config.STARTER_WEAPON)
 	_set_weapon(id)
 	dual = make_dual
-	mag_size = int(cfg["mag"]) * (Config.DUAL_MAG_MULT if dual else 1)
+	mag_size = int(weapon["mag"]) * (Config.DUAL_MAG_MULT if dual else 1)
 	ammo = mag_size
 	var duration: float = float(cfg["duration"]) * float(wmods["duration"])
 	if id == Config.STARTER_WEAPON:
@@ -350,7 +350,7 @@ func weapon_label() -> String:
 
 func _set_weapon(id: String) -> void:
 	weapon_id = id
-	weapon = Config.WEAPONS[id]
+	weapon = PlayerStats.weapon_def(id)     # the weapon's numbers, with its perks
 	weapon_time = 0.0
 	weapon_time_max = 0.0
 	dual = false

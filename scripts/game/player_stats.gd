@@ -84,6 +84,30 @@ static func weapon_mods(weapon_id: String) -> Dictionary:
 	}
 
 
+## A weapon's own numbers (Config.WEAPONS) with its learned perks applied.
+static func weapon_def(weapon_id: String) -> Dictionary:
+	var base: Dictionary = Config.WEAPONS[weapon_id]
+	var perks: Array = Config.WEAPON_PERKS.get(weapon_id, [])
+	var out := base
+	var copied := false
+	for i in perks.size():
+		if not SaveData.weapon_has_perk(weapon_id, i):
+			continue
+		if not copied:
+			out = base.duplicate()
+			copied = true
+		var mods: Dictionary = perks[i]["mods"]
+		for key: String in mods.keys():
+			var mod: Array = mods[key]
+			var value: Variant = out[key]
+			var result := float(value) + float(mod[1]) if String(mod[0]) == "add" else float(value) * float(mod[1])
+			if typeof(value) == TYPE_INT:
+				out[key] = int(round(result))
+			else:
+				out[key] = result
+	return out
+
+
 ## How a passive's current bonus reads on the character screen.
 static func describe_passive(id: String, value: float) -> String:
 	match id:

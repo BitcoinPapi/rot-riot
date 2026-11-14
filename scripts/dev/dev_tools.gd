@@ -62,9 +62,9 @@ func _ready() -> void:
 			SaveData.add_weapon_xp("pistol", 2500)
 			SaveData.add_weapon_xp("shotgun", 900)
 			SaveData.add_weapon_xp("launcher", 200)
-			SaveData.raise_weapon_track("pistol", "power")
-			SaveData.raise_weapon_track("pistol", "power")
-			SaveData.raise_weapon_track("shotgun", "spawn")
+			for node_id: String in ["power.0", "power.1", "power.2", "perk.0", "speed.0"]:
+				SaveData.learn_weapon_node("pistol", node_id)
+			SaveData.learn_weapon_node("shotgun", "spawn.0")
 		if _args.has("map"):
 			var map_index := clampi(int(_args["map"]) - 1, 0, Config.MAPS.size() - 1)
 			SaveData.maps_unlocked = maxi(SaveData.maps_unlocked, map_index + 1)
@@ -388,21 +388,83 @@ func _run_autotest() -> void:
 	app.close_screen()
 	await _frames(2)
 
-	# --- armory screen: weapon levels and weapon points ---
+	# --- armory screen: weapon levels and weapon trees ---
 	app.open_screen("armory")
 	await _frames(3)
-	_check(not SaveData.raise_weapon_track("shotgun", "power"), "cannot upgrade a weapon with 0 weapon points")
+	var armory: ArmoryScreen = (app.get("_screens") as Dictionary)["armory"]
+	_check(not SaveData.learn_weapon_node("shotgun", "power.0"), "cannot upgrade a weapon with 0 weapon points")
 	var shotgun_levels := SaveData.add_weapon_xp("shotgun", SaveData.weapon_xp_needed("shotgun"))
 	_check(shotgun_levels == 1 and SaveData.weapon_level("shotgun") == 2 and SaveData.weapon_points("shotgun") == 1,
 			"weapon XP gives a weapon level and a weapon point")
-	_check(SaveData.raise_weapon_track("shotgun", "power") and float(PlayerStats.weapon_mods("shotgun")["damage"]) > 1.0,
-			"a weapon point raises that weapon's power")
+	armory.call("_select", "shotgun")
+	armory.call("_on_node_activated", "power.0")
+	_check(SaveData.weapon_node_count("shotgun", "power.0") == 1 and SaveData.weapon_points("shotgun") == 0
+			and float(PlayerStats.weapon_mods("shotgun")["damage"]) > 1.0, "a weapon point learns a node of that weapon's tree")
 	_check(is_equal_approx(float(PlayerStats.weapon_mods("pistol")["damage"]), 1.0), "other weapons are not affected")
 	_check(Config.weapon_tracks("pistol") == ["power", "speed", "stability", "reload"], "the pistol has no crate-only upgrades")
 	_check(Config.weapon_tracks("shotgun").size() == 6, "crate guns have all six upgrades")
 	_check(Config.weapon_tracks("sledge") == ["power", "speed", "spawn", "duration"], "melee weapons have no stability or reload upgrade")
 	_check(Config.weapon_tracks("launcher") == ["power", "stability", "reload", "spawn", "duration"],
 			"the launcher's rate of fire is its reload upgrade")
+	await _frames(3)
+
+	# Every weapon's tree: one web, nothing overlapping, three perks.
+	var trees_ok := true
+	var trees_total := 0
+	var trees_closest := INF
+	for id: String in Config.WEAPON_ORDER:
+		var wnodes := WeaponTree.nodes(id)
+		var worder := WeaponTree.order(id)
+		trees_total += wnodes.size()
+		var wseen := {"start": true}
+		var wtodo: Array[String] = ["start"]
+		while not wtodo.is_empty():
+			var at: String = wtodo.pop_back()
+			for other: String in wnodes[at]["links"]:
+				if not wseen.has(other):
+					wseen[other] = true
+					wtodo.append(other)
+		var perk_count := 0
+		for i in worder.size():
+			if String(wnodes[worder[i]]["kind"]) == "perk":
+				perk_count += 1
+			for j in range(i + 1, worder.size()):
+				trees_closest = minf(trees_closest, (wnodes[worder[i]]["pos"] as Vector2).distance_to(wnodes[worder[j]]["pos"]))
+		if wseen.size() != wnodes.size() or perk_count != 3:
+			trees_ok = false
+			print("  ...  - tree of '%s': %d of %d nodes reached, %d perks" % [id, wseen.size(), wnodes.size(), perk_count])
+	_check(trees_ok and trees_closest >= 34.0, "every weapon has its own connected tree with three perks (%d nodes in all, closest pair %.0f px)" % [
+			trees_total, trees_closest])
+
+	# Weapon-level gates, perks, endless nodes, reset (on a borrowed, richer shotgun).
+	var keep_shotgun: Dictionary = (SaveData.weapons["shotgun"] as Dictionary).duplicate(true)
+	var shotgun: Dictionary = SaveData.weapons["shotgun"]
+	shotgun["points"] = 200
+	SaveData.learn_weapon_node("shotgun", "power.1")
+	SaveData.learn_weapon_node("shotgun", "power.2")
+	_check(SaveData.weapon_rank("shotgun", "power") == 2 * Config.WEAPON_TREE_SMALL_RANKS + Config.WEAPON_TREE_BIG_RANKS,
+			"a big weapon node gives several ranks")
+	_check(SaveData.weapon_node_status("shotgun", "power.3") == SkillTree.LEVEL and not SaveData.learn_weapon_node("shotgun", "power.3"),
+			"the next tier needs a higher weapon level")
+	var pellets_before: int = PlayerStats.weapon_def("shotgun")["pellets"]
+	_check(SaveData.learn_weapon_node("shotgun", "perk.0") and SaveData.weapon_has_perk("shotgun", 0)
+			and int(PlayerStats.weapon_def("shotgun")["pellets"]) == pellets_before + 3 and int(Config.WEAPONS["shotgun"]["pellets"]) == pellets_before,
+			"a perk changes how the weapon works (%d -> %d pellets)" % [pellets_before, int(PlayerStats.weapon_def("shotgun")["pellets"])])
+	shotgun["level"] = 30
+	for k in range(3, 9):
+		SaveData.learn_weapon_node("shotgun", "power.%d" % k)
+	SaveData.learn_weapon_node("shotgun", "power.endless")
+	SaveData.learn_weapon_node("shotgun", "power.endless")
+	_check(SaveData.weapon_node_count("shotgun", "power.endless") == 2, "a weapon's endless node can be learned again and again")
+	_check(SaveData.weapon_spent("shotgun") == 200 - SaveData.weapon_points("shotgun") + 1 and int(shotgun["spent"]) == SaveData.weapon_spent("shotgun"),
+			"every weapon point spent is accounted for")
+	var coins_keep := SaveData.coins
+	SaveData.add_coins(100000)
+	_check(SaveData.respec_weapon("shotgun") and SaveData.weapon_points("shotgun") == 201 and SaveData.weapon_rank("shotgun", "power") == 0
+			and not SaveData.weapon_has_perk("shotgun", 0), "resetting a weapon's tree gives its points back")
+	SaveData.coins = coins_keep
+	SaveData.weapons["shotgun"] = keep_shotgun
+	SaveData.set("_weapon_ranks", {})
 	app.close_screen()
 	await _frames(2)
 
@@ -528,15 +590,23 @@ func _run_autotest() -> void:
 	pl.start_reload()
 	var slow_reload: float = pl.get("_reload_total")
 	SaveData.add_weapon_xp("smg", 100000)
-	for i in 5:
-		SaveData.raise_weapon_track("smg", "reload")
+	for k in 5:
+		SaveData.learn_weapon_node("smg", "reload.%d" % k)
 	pl.give_weapon("smg")
 	pl.ammo = 1
 	pl.start_reload()
 	var fast_reload: float = pl.get("_reload_total")
-	_check(SaveData.weapon_rank("smg", "reload") == 5 and fast_reload < slow_reload * 0.9,
+	_check(SaveData.weapon_rank("smg", "reload") >= 5 and fast_reload < slow_reload * 0.9,
 			"the RELOAD SPEED upgrade shortens the reload (%.2fs -> %.2fs)" % [slow_reload, fast_reload])
 	_check(is_equal_approx(float(PlayerStats.weapon_mods("rifle")["reload"]), 1.0), "other weapons keep their own reload speed")
+	# A magazine perk shows up in the gun the player is handed.
+	((SaveData.weapons["smg"] as Dictionary)["tree"] as Dictionary)["perk.0"] = 1
+	pl.give_weapon("rifle")      # (put the SMG down first: a second SMG would be dual wielded)
+	pl.give_weapon("smg")
+	_check(pl.mag_size == int(round(smg_mag * 1.5)) and pl.ammo == pl.mag_size, "a magazine perk gives a bigger magazine (%d -> %d)" % [smg_mag, pl.mag_size])
+	((SaveData.weapons["smg"] as Dictionary)["tree"] as Dictionary).erase("perk.0")
+	pl.give_weapon("rifle")
+	pl.give_weapon("smg")
 	pl.refill_ammo()
 	_auto_bot = true
 
@@ -773,14 +843,17 @@ func _run_autotest() -> void:
 	_check(SaveData.maps_unlocked == 2 and SaveData.map_cleared(0) and SaveData.selected_map == 1,
 			"save file restores map progress")
 
-	# --- points in an upgrade a weapon no longer has are given back ---
-	var sledge_entry: Dictionary = SaveData.weapons["sledge"]
-	var sledge_points := int(sledge_entry["points"])
-	(sledge_entry["ranks"] as Dictionary)["stability"] = 3
+	# --- a save from before the weapon trees: the points spent on plain ranks come back ---
+	SaveData.weapons["sledge"] = {"level": 4, "xp": 0, "points": 1, "ranks": {"power": 12, "stability": 3}}
 	SaveData.save_game()
 	SaveData.load_game()
-	_check(SaveData.weapon_rank("sledge", "stability") == 0 and SaveData.weapon_points("sledge") == sledge_points + 3,
-			"points spent on an upgrade a weapon no longer has are refunded")
+	_check(SaveData.weapon_points("sledge") == 1 + 10 + 2 * 2 + 3 and SaveData.weapon_rank("sledge", "power") == 0
+			and SaveData.weapon_points_returned >= 17, "old weapon upgrades are handed back as weapon points")
+	# ...and so is a weapon tree whose learned nodes no longer join up.
+	SaveData.weapons["sledge"] = {"level": 4, "xp": 0, "points": 0, "tree": {"power.5": 1}, "spent": 7}
+	SaveData.save_game()
+	SaveData.load_game()
+	_check(SaveData.weapon_points("sledge") == 7 and SaveData.weapon_spent("sledge") == 0, "a broken weapon tree is refunded instead of kept")
 
 	# --- a save from before the skill tree: the points spent on the old stat list come back ---
 	var flat_file := FileAccess.open(SaveData.save_path, FileAccess.WRITE)

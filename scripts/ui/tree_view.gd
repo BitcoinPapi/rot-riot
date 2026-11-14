@@ -59,6 +59,27 @@ func _init() -> void:
 			grab_focus())
 
 
+## Put small "+", "-" and "ALL" buttons in the top left corner (for players
+## without a mouse wheel).
+func add_zoom_buttons() -> void:
+	var column := VBoxContainer.new()
+	column.position = Vector2(10, 10)
+	column.add_theme_constant_override("separation", 6)
+	add_child(column)
+	for entry: Array in [["+", 1.25], ["-", 0.8], ["ALL", 0.0]]:
+		var factor: float = entry[1]
+		var b := UiKit.button(String(entry[0]), func() -> void:
+			if factor > 0.0:
+				zoom_by(factor)
+			else:
+				fit(), 44.0)
+		b.custom_minimum_size = Vector2(44, 44)
+		b.focus_mode = Control.FOCUS_NONE
+		if factor <= 0.0:
+			b.add_theme_font_size_override("font_size", 14)
+		column.add_child(b)
+
+
 ## Give the view its nodes (see the top of this file).
 func set_tree(node_list: Array) -> void:
 	_nodes = {}
@@ -260,7 +281,7 @@ func _draw() -> void:
 		var text_size := int(clampf(15.0 / zoom, 13.0, 40.0))
 		for corner: float in [-PI * 0.375, PI * 0.625]:
 			var at := Vector2.from_angle(corner) * (radius + 6.0)
-			draw_string(font, at + Vector2(-100.0, text_size * 0.4), String(g["text"]), HORIZONTAL_ALIGNMENT_CENTER, 200.0,
+			draw_string(font, at + Vector2(-250.0, text_size * 0.4), String(g["text"]), HORIZONTAL_ALIGNMENT_CENTER, 500.0,
 					text_size, Color(0.6, 0.75, 0.5, 0.55) if open else Color(1.0, 0.45, 0.4, 0.85))
 
 	# Links.
@@ -337,7 +358,12 @@ func _draw() -> void:
 			icon = "ui_lock"
 		if icon != "" and r * zoom >= 6.0:
 			var s := r * (1.05 if shape == "circle" else 0.9)
-			draw_texture_rect(Art.t(icon), Rect2(pos - Vector2(s, s) * 0.5, Vector2(s, s)), false, icon_color)
+			var shape_size := Art.size_of(icon)
+			var icon_size := Vector2(s, s)
+			if not is_equal_approx(shape_size.x, shape_size.y):
+				s = r * 1.5
+				icon_size = Vector2(s, s * shape_size.y / shape_size.x)
+			draw_texture_rect(Art.t(icon), Rect2(pos - icon_size * 0.5, icon_size), false, icon_color)
 		var badge := String(_badges.get(id, ""))
 		if badge != "" and zoom >= 0.4:
 			draw_string(font, pos + Vector2(-60.0, r + 15.0), badge, HORIZONTAL_ALIGNMENT_CENTER, 120.0, 14, Color(1, 1, 1, 0.9))

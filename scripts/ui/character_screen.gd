@@ -45,21 +45,7 @@ func _init() -> void:
 	_tree.node_selected.connect(_show_node)
 	_tree.node_activated.connect(_on_node_activated)
 	row.add_child(_tree)
-	var zoom_col := VBoxContainer.new()
-	zoom_col.position = Vector2(10, 10)
-	zoom_col.add_theme_constant_override("separation", 6)
-	_tree.add_child(zoom_col)
-	for entry: Array in [["+", 1.25], ["-", 0.8]]:
-		var factor: float = entry[1]
-		var zb := UiKit.button(String(entry[0]), func() -> void: _tree.zoom_by(factor), 44.0)
-		zb.custom_minimum_size = Vector2(44, 44)
-		zb.focus_mode = Control.FOCUS_NONE
-		zoom_col.add_child(zb)
-	var fit := UiKit.button("ALL", func() -> void: _tree.fit(), 44.0)
-	fit.custom_minimum_size = Vector2(44, 44)
-	fit.focus_mode = Control.FOCUS_NONE
-	fit.add_theme_font_size_override("font_size", 14)
-	zoom_col.add_child(fit)
+	_tree.add_zoom_buttons()
 	_notice = UiKit.label("", 15, UiKit.GOLD)
 	_notice.position = Vector2(66, 14)
 	_tree.add_child(_notice)
