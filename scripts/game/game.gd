@@ -320,6 +320,8 @@ func _player_died() -> void:
 #  Feel helpers used by everything else
 # ----------------------------------------------------------------------------
 func shake(amount: float) -> void:
+	if rage_active:
+		amount *= Config.RAGE_SHAKE_MULT
 	cam.add_trauma(amount)
 
 

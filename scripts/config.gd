@@ -250,6 +250,7 @@ const RAGE_BURST_FORCE := 760.0
 const RAGE_BURST_DAMAGE := 30.0
 const RAGE_BURST_STAGGER := 0.5
 const RAGE_BURST_SHAKE := 0.8
+const RAGE_SHAKE_MULT := 0.5            # all screen shake is scaled by this while rage is active (faster fire = more shake)
 const RAGE_BURST_HITSTOP := 0.09
 
 # ----------------------------------------------------------------------------
