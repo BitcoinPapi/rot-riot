@@ -45,6 +45,10 @@ var RECIPES := {
 	"wave_start": [_make_wave_start, -4.0, 0.3],
 	"wave_clear": [_make_wave_clear, -4.0, 0.3],
 	"game_over": [_make_game_over, -2.0, 0.5],
+	"level_up": [_make_level_up, -2.0, 0.3],
+	"weapon_level": [_make_weapon_level, -4.0, 0.2],
+	"dodge": [_make_dodge, -5.0, 0.1],
+	"crit": [_make_crit, -7.0, 0.07],
 	"ui_move": [_make_ui_move, -10.0, 0.03],
 	"ui_click": [_make_ui_click, -6.0, 0.03],
 	"ui_buy": [_make_ui_buy, -4.0, 0.05],
@@ -562,6 +566,40 @@ func _make_game_over(s: Synth) -> void:
 		s.tone(i * 0.26, hold, 0.5, notes[i], notes[i] * 0.985, hold * 0.6, Synth.TRIANGLE, 0.01)
 		s.tone(i * 0.26, hold, 0.3, notes[i] * 0.5, notes[i] * 0.49, hold * 0.6, Synth.SAW, 0.01)
 	s.lowpass(2200.0)
+
+
+func _make_level_up(s: Synth) -> void:
+	# A bright rising fanfare with a shimmer on top.
+	s.length(1.0)
+	var notes := [523.3, 659.3, 784.0, 1046.5, 1318.5]
+	for i in notes.size():
+		s.tone(i * 0.075, 0.5, 0.5, notes[i], notes[i], 0.2, Synth.TRIANGLE)
+		s.tone(i * 0.075, 0.4, 0.2, notes[i] * 2.0, notes[i] * 2.0, 0.14)
+	s.tone(0.375, 0.6, 0.35, 1046.5, 1046.5, 0.3)
+	s.tone(0.375, 0.6, 0.3, 1568.0, 1568.0, 0.3)
+	s.reverb(0.3, 0.5)
+
+
+func _make_weapon_level(s: Synth) -> void:
+	# A weapon being racked, then two rising notes.
+	s.length(0.5)
+	s.noise(0.0, 0.04, 0.7, 0.01, 5000.0, 2500.0, 0.0005, 1200.0)
+	s.noise(0.07, 0.05, 0.9, 0.012, 4200.0, 2000.0, 0.0005, 900.0)
+	s.tone(0.14, 0.2, 0.5, 587.3, 587.3, 0.09, Synth.TRIANGLE)
+	s.tone(0.24, 0.26, 0.55, 880.0, 880.0, 0.12, Synth.TRIANGLE)
+
+
+func _make_dodge(s: Synth) -> void:
+	# A quick rush of air.
+	s.length(0.2)
+	s.noise(0.0, 0.18, 1.0, 0.05, 1200.0, 5000.0, 0.05, 700.0)
+
+
+func _make_crit(s: Synth) -> void:
+	# A sharp, bright snap on top of the normal hit.
+	s.length(0.12)
+	s.noise(0.0, 0.03, 1.0, 0.005, 12000.0, 7000.0, 0.0003, 3500.0)
+	s.noise(0.0, 0.1, 0.5, 0.02, 7000.0, 3000.0, 0.0005, 2000.0)
 
 
 func _make_ui_move(s: Synth) -> void:

@@ -139,6 +139,15 @@ func sparks(pos: Vector2, dir: Vector2, count: int) -> void:
 				randf_range(2.0, 4.0), 0.0, 6.0, Color(1.0, randf_range(0.7, 0.95), 0.4))
 
 
+## A critical hit: a burst of bright yellow sparks.
+func crit_spark(pos: Vector2, dir: Vector2) -> void:
+	_lights.append([pos, 70.0, 0.09, 0.09, Color(1.0, 0.9, 0.3, 0.6)])
+	for k in 6:
+		var d := dir.rotated(randf_range(-1.4, 1.4))
+		_emit(P_SPARK, pos, d * randf_range(160.0, 480.0), randf_range(0.1, 0.22),
+				randf_range(3.0, 5.0), 0.0, 6.0, Color(1.0, 0.92, 0.35))
+
+
 func smoke(pos: Vector2, count: int, size: float) -> void:
 	for k in count:
 		var d := Vector2.from_angle(randf() * TAU)

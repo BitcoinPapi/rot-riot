@@ -5,7 +5,8 @@ extends Node
 ##
 ##   --play             skip the menu and start a run
 ##   --bot              start a run and let a simple bot play (through GameInput's virtual sticks)
-##   --screen=NAME      open a menu screen (shop, settings, pause, gameover) for screenshots
+##   --screen=NAME      open a menu screen (character, armory, settings, pause, gameover) for screenshots
+##   --level=N          start as a level N character with points to spend (for screenshots)
 ##   --weapon=ID        the bot starts with this weapon (pistol, shotgun, ...)
 ##   --cycle            the bot is handed each weapon in turn every 6 seconds
 ##   --wave=N           jump straight to wave N
@@ -42,6 +43,20 @@ func _ready() -> void:
 		SaveData.apply_settings()
 		if _args.has("coins"):
 			SaveData.add_coins(int(_args["coins"]))
+		if _args.has("level"):
+			for i in int(_args["level"]) - 1:
+				SaveData.add_xp(SaveData.xp_needed())
+			SaveData.add_xp(int(SaveData.xp_needed() * 0.4))
+			for i in 3:
+				SaveData.raise_passive("vitality")
+				SaveData.raise_passive("strength")
+			SaveData.raise_passive("evasion")
+			SaveData.add_weapon_xp("pistol", 2500)
+			SaveData.add_weapon_xp("shotgun", 900)
+			SaveData.add_weapon_xp("launcher", 200)
+			SaveData.raise_weapon_track("pistol", "power")
+			SaveData.raise_weapon_track("pistol", "power")
+			SaveData.raise_weapon_track("shotgun", "spawn")
 	if _args.has("autotest"):
 		_run_autotest.call_deferred()
 	if _args.has("inputtest"):
@@ -87,6 +102,11 @@ func _process(_delta: float) -> void:
 				_frame, game.time_alive, game.director.wave, game.kills, game.score, game.coins_run, game.enemies.alive_count,
 				game.director.remaining(), game.player.hp, game.rage, game.player.weapon_id,
 				str(game.director.boss_alive()), game.state])
+			var weapon_levels: Array = []
+			for id: String in Config.WEAPON_ORDER:
+				weapon_levels.append("%s %d" % [id, SaveData.weapon_level(id)])
+			print("PROGRESS xp_run=%d level=%d skill_points=%d weapons=[%s]" % [
+				game.xp_run, SaveData.level, SaveData.skill_points, ", ".join(weapon_levels)])
 		_quit(0)
 
 
@@ -213,16 +233,36 @@ func _run_autotest() -> void:
 	await _frames(2)
 	_check(is_equal_approx(float(SaveData.get_setting("master_volume")), 0.5), "settings change is stored")
 
-	# --- shop ---
-	app.open_screen("shop")
+	# --- character screen: skill points and passive stats ---
+	app.open_screen("character")
 	await _frames(3)
-	_check(not SaveData.buy_upgrade("damage"), "cannot buy an upgrade with 0 coins")
+	_check(not SaveData.raise_passive("strength"), "cannot raise a stat with 0 skill points")
+	_check(not SaveData.buy_skill_point(), "cannot buy a skill point with 0 coins")
 	SaveData.add_coins(1000)
 	var before := SaveData.coins
-	_check(SaveData.buy_upgrade("damage") and SaveData.upgrade_level("damage") == 1, "buying an upgrade raises its level")
-	_check(SaveData.coins == before - Config.upgrade_cost("damage", 0), "buying an upgrade spends coins")
-	for id: String in Config.UPGRADE_ORDER:
-		SaveData.buy_upgrade(id)
+	var price := SaveData.skill_point_price()
+	_check(SaveData.buy_skill_point() and SaveData.skill_points == 1, "coins buy a skill point")
+	_check(SaveData.coins == before - price and SaveData.skill_point_price() > price, "the price is paid and the next point costs more")
+	_check(SaveData.raise_passive("vitality") and SaveData.passive_rank("vitality") == 1 and SaveData.skill_points == 0,
+			"a skill point raises a passive stat")
+	SaveData.buy_skill_point()
+	SaveData.raise_passive("strength")
+	_check(SaveData.spent_points() == 2, "spent points are counted")
+	app.close_screen()
+	await _frames(2)
+
+	# --- armory screen: weapon levels and weapon points ---
+	app.open_screen("armory")
+	await _frames(3)
+	_check(not SaveData.raise_weapon_track("shotgun", "power"), "cannot upgrade a weapon with 0 weapon points")
+	var shotgun_levels := SaveData.add_weapon_xp("shotgun", SaveData.weapon_xp_needed("shotgun"))
+	_check(shotgun_levels == 1 and SaveData.weapon_level("shotgun") == 2 and SaveData.weapon_points("shotgun") == 1,
+			"weapon XP gives a weapon level and a weapon point")
+	_check(SaveData.raise_weapon_track("shotgun", "power") and float(PlayerStats.weapon_mods("shotgun")["damage"]) > 1.0,
+			"a weapon point raises that weapon's power")
+	_check(is_equal_approx(float(PlayerStats.weapon_mods("pistol")["damage"]), 1.0), "other weapons are not affected")
+	_check(Config.weapon_tracks("pistol").size() == 3 and Config.weapon_tracks("shotgun").size() == 5,
+			"the pistol has no crate-only upgrades")
 	app.close_screen()
 	await _frames(2)
 
@@ -231,8 +271,33 @@ func _run_autotest() -> void:
 	await _frames(10)
 	var game := app.game
 	_check(app.state == Main.State.PLAYING and game != null, "Play starts a run")
-	_check(game.player.max_hp > Config.PLAYER_MAX_HP, "max health upgrade applies in the run")
-	_check(game.player.up_damage > 1.0, "damage upgrade applies in the run")
+	_check(game.player.max_hp > Config.PLAYER_MAX_HP, "vitality applies in the run")
+	_check(game.player.stats.damage_mult > 1.0, "strength applies in the run")
+
+	# --- defense, evasion, level up (checked directly, before the fighting starts) ---
+	game.director.intermission = 99999.0
+	var hp_before := game.player.hp
+	SaveData.passives["defense"] = 50          # 50 ranks = 40% less damage
+	game.player.refresh_stats()
+	game.damage_player(10.0, game.player.pos + Vector2.RIGHT)
+	_check(is_equal_approx(hp_before - game.player.hp, 6.0), "defense reduces damage taken (10 -> %.1f)" % (hp_before - game.player.hp))
+	SaveData.passives["defense"] = 0
+	game.player.refresh_stats()
+	game.player.stats.evasion = 1.0
+	game.player.invuln = 0.0
+	hp_before = game.player.hp
+	game.damage_player(50.0, game.player.pos + Vector2.RIGHT)
+	_check(is_equal_approx(game.player.hp, hp_before), "evasion dodges the hit completely")
+	game.player.refresh_stats()
+	game.player.invuln = 0.0
+	var level_before := SaveData.level
+	var points_before := SaveData.skill_points
+	var max_hp_before := game.player.max_hp
+	game.gain_xp(SaveData.xp_needed() - SaveData.xp, "")
+	_check(SaveData.level == level_before + 1 and SaveData.skill_points == points_before + Config.SKILL_POINTS_PER_LEVEL,
+			"enough XP levels the character up and gives a skill point")
+	_check(game.player.max_hp > max_hp_before, "a level up raises max health straight away")
+	game.director.intermission = 0.5
 	_auto_bot = true
 	await _frames(240)
 	_check(game.director.wave >= 1, "first wave starts")
@@ -332,14 +397,43 @@ func _run_autotest() -> void:
 	_check(app.state == Main.State.MENU and app.game == null and not get_tree().paused, "Quit to Menu returns to the main menu")
 	_check(SaveData.runs_played == 2, "abandoned run is still recorded")
 
+	# --- XP earned in play ---
+	_check(SaveData.weapon_xp("pistol") > 0 or SaveData.weapon_level("pistol") > 1, "kills give the weapon that made them XP")
+	_check(SaveData.level > 2 or SaveData.xp > 0, "kills give the character XP")
+
+	# --- respec ---
+	SaveData.add_coins(100000)
+	var spent := SaveData.spent_points()
+	var unspent := SaveData.skill_points
+	_check(spent > 0 and SaveData.respec() and SaveData.skill_points == unspent + spent and SaveData.passive_rank("vitality") == 0,
+			"resetting gives every spent skill point back")
+	SaveData.raise_passive("evasion")
+
 	# --- save file round trip ---
 	var coins_now := SaveData.coins
-	var damage_level := SaveData.upgrade_level("damage")
+	var level_now := SaveData.level
+	var xp_now := SaveData.xp
+	var points_now := SaveData.skill_points
+	var shotgun_power := SaveData.weapon_rank("shotgun", "power")
+	var pistol_level := SaveData.weapon_level("pistol")
 	SaveData.save_game()
-	SaveData.coins = 0
-	SaveData.upgrades["damage"] = 0
+	SaveData.call("_reset_to_defaults")
 	SaveData.load_game()
-	_check(SaveData.coins == coins_now and SaveData.upgrade_level("damage") == damage_level, "save file restores coins and upgrades")
+	_check(SaveData.coins == coins_now and SaveData.level == level_now and SaveData.xp == xp_now and SaveData.skill_points == points_now,
+			"save file restores coins, level, XP and skill points")
+	_check(SaveData.passive_rank("evasion") == 1 and SaveData.weapon_rank("shotgun", "power") == shotgun_power
+			and SaveData.weapon_level("pistol") == pistol_level, "save file restores passive ranks and weapon levels")
+
+	# --- an old (version 1) save: coins and upgrades are wiped once, records kept ---
+	var old_file := FileAccess.open(SaveData.save_path, FileAccess.WRITE)
+	old_file.store_string(JSON.stringify({"version": 1, "coins": 777, "upgrades": {"damage": 3}, "best_score": 4321,
+			"best_wave": 9, "total_kills": 50, "runs_played": 2, "settings": {"master_volume": 0.3}}))
+	old_file.close()
+	SaveData.call("_reset_to_defaults")
+	SaveData.load_game()
+	_check(SaveData.coins == 0 and SaveData.level == 1 and SaveData.was_reset_by_update, "an old save has its coins and upgrades reset")
+	_check(SaveData.best_score == 4321 and is_equal_approx(float(SaveData.get_setting("master_volume")), 0.3),
+			"an old save keeps its records and settings")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SaveData.save_path))
 
 	if _auto_failures.is_empty():

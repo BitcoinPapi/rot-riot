@@ -61,7 +61,8 @@ func _build_ui() -> void:
 	_ui_root.add_child(_dim)
 
 	_add_screen("main", MainMenu.new())
-	_add_screen("shop", ShopScreen.new())
+	_add_screen("character", CharacterScreen.new())
+	_add_screen("armory", ArmoryScreen.new())
 	_add_screen("settings", SettingsScreen.new())
 	_add_screen("pause", PauseMenu.new())
 	_add_screen("gameover", GameOverScreen.new())

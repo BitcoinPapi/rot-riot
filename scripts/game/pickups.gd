@@ -53,7 +53,7 @@ func _ready() -> void:
 # ----------------------------------------------------------------------------
 func drop_from_enemy(e: Enemy) -> void:
 	var c: Dictionary = Config.ENEMIES[e.kind]
-	if randf() < float(c["coin_chance"]):
+	if randf() < float(c["coin_chance"]) * (1.0 + game.player.stats.coin_luck):
 		spawn_coins(e.pos, randi_range(int(c["coins_min"]), int(c["coins_max"])))
 	if randf() < float(c["medkit_chance"]) and medkits.size() < Config.MEDKIT_MAX_ON_FIELD:
 		spawn_medkit(e.pos)
@@ -102,7 +102,20 @@ func _pick_crate_weapon() -> String:
 			options.append(id)
 	if options.is_empty():
 		options = Config.CRATE_WEAPONS.duplicate()
-	return options[randi() % options.size()]
+	# Weighted pick: rarer weapons have a lower "crate_weight" in Config, and
+	# each weapon's own SPAWN RATE upgrade raises its share.
+	var weights: Array = []
+	var total := 0.0
+	for id: String in options:
+		var weight: float = float(Config.WEAPONS[id]["crate_weight"]) * (1.0 + SaveData.weapon_value(id, "spawn"))
+		weights.append(weight)
+		total += weight
+	var roll := randf() * total
+	for i in options.size():
+		roll -= float(weights[i])
+		if roll <= 0.0:
+			return options[i]
+	return options[options.size() - 1]
 
 
 func _random_crate_spot() -> Vector2:

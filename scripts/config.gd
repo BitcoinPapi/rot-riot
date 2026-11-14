@@ -56,6 +56,7 @@ const AIM_ASSIST_RANGE := 620.0
 # ----------------------------------------------------------------------------
 #  WEAPONS
 #  duration      seconds a crate weapon lasts (0 = forever)
+#  crate_weight  how often its crate appears compared with the others (rarity)
 #  interval      seconds between shots (lower = faster)
 #  spread_deg    full width of the random cone
 #  knockback     shove speed given to a zombie that is hit
@@ -71,7 +72,7 @@ const CRATE_WEAPONS := ["shotgun", "machinegun", "launcher", "sledge"]
 
 const WEAPONS := {
 	"pistol": {
-		"name": "PISTOL", "kind": "bullet", "duration": 0.0,
+		"name": "PISTOL", "kind": "bullet", "duration": 0.0, "crate_weight": 0.0,
 		"damage": 14.0, "interval": 0.24, "pellets": 1, "spread_deg": 2.5,
 		"bullet_speed": 1500.0, "speed_var": 0.0, "range": 720.0, "pierce": 0,
 		"knockback": 170.0, "stagger": 0.11, "move_mult": 1.0,
@@ -81,7 +82,7 @@ const WEAPONS := {
 		"muzzle_dist": 30.0, "sound": "pistol", "color": Color(0.80, 0.82, 0.86),
 	},
 	"shotgun": {
-		"name": "SHOTGUN", "kind": "bullet", "duration": 20.0,
+		"name": "SHOTGUN", "kind": "bullet", "duration": 20.0, "crate_weight": 1.0,
 		"damage": 10.0, "interval": 0.72, "pellets": 9, "spread_deg": 26.0,
 		"bullet_speed": 1350.0, "speed_var": 0.18, "range": 400.0, "pierce": 1,
 		"knockback": 300.0, "stagger": 0.22, "move_mult": 1.0,
@@ -91,7 +92,7 @@ const WEAPONS := {
 		"muzzle_dist": 38.0, "sound": "shotgun", "color": Color(0.95, 0.55, 0.20),
 	},
 	"machinegun": {
-		"name": "MACHINE GUN", "kind": "bullet", "duration": 20.0,
+		"name": "MACHINE GUN", "kind": "bullet", "duration": 20.0, "crate_weight": 1.0,
 		"damage": 9.0, "interval": 0.062, "pellets": 1, "spread_deg": 8.0,
 		"bullet_speed": 1650.0, "speed_var": 0.05, "range": 760.0, "pierce": 0,
 		"knockback": 85.0, "stagger": 0.07, "move_mult": 1.0,
@@ -101,7 +102,7 @@ const WEAPONS := {
 		"muzzle_dist": 40.0, "sound": "machinegun", "color": Color(0.95, 0.85, 0.25),
 	},
 	"launcher": {
-		"name": "LAUNCHER", "kind": "grenade", "duration": 18.0,
+		"name": "LAUNCHER", "kind": "grenade", "duration": 18.0, "crate_weight": 0.45,
 		"damage": 95.0, "interval": 0.80, "pellets": 1, "spread_deg": 2.0,
 		"bullet_speed": 760.0, "speed_var": 0.0, "range": 620.0, "pierce": 0,
 		"knockback": 0.0, "stagger": 0.0, "move_mult": 1.0,
@@ -115,7 +116,7 @@ const WEAPONS := {
 		"muzzle_dist": 40.0, "sound": "launcher", "color": Color(0.45, 0.80, 0.35),
 	},
 	"sledge": {
-		"name": "SLEDGEHAMMER", "kind": "melee", "duration": 20.0,
+		"name": "SLEDGEHAMMER", "kind": "melee", "duration": 20.0, "crate_weight": 0.8,
 		"damage": 62.0, "interval": 0.34, "pellets": 1, "spread_deg": 0.0,
 		"bullet_speed": 0.0, "speed_var": 0.0, "range": 108.0, "pierce": 0,
 		"arc_deg": 160.0,             # width of the swing
@@ -130,6 +131,7 @@ const WEAPONS := {
 
 # ----------------------------------------------------------------------------
 #  ENEMIES
+#  xp            experience given to the character and to the weapon that killed it
 #  kb_mult       how much knockback they take (0 = immovable)
 #  stagger_mult  how long hits stop them (0 = unstoppable)
 #  mass          heavier zombies shove lighter ones aside
@@ -143,28 +145,28 @@ const BOSS := 3
 const ENEMIES := {
 	SHAMBLER: {
 		"name": "Shambler", "hp": 24.0, "speed": 86.0, "speed_var": 0.2, "radius": 14.0,
-		"damage": 10.0, "attack_cd": 0.8, "score": 10, "rage": 2.2,
+		"damage": 10.0, "attack_cd": 0.8, "score": 10, "rage": 2.2, "xp": 4,
 		"coin_chance": 0.18, "coins_min": 1, "coins_max": 1, "medkit_chance": 0.012,
 		"kb_mult": 1.0, "stagger_mult": 1.0, "mass": 1.0, "push_player": 1.0,
 		"hitstop_mult": 1.0, "shake_mult": 1.0, "blood": 1.0,
 	},
 	RUNNER: {
 		"name": "Runner", "hp": 14.0, "speed": 220.0, "speed_var": 0.12, "radius": 11.0,
-		"damage": 8.0, "attack_cd": 0.7, "score": 15, "rage": 2.6,
+		"damage": 8.0, "attack_cd": 0.7, "score": 15, "rage": 2.6, "xp": 5,
 		"coin_chance": 0.20, "coins_min": 1, "coins_max": 1, "medkit_chance": 0.012,
 		"kb_mult": 1.25, "stagger_mult": 1.0, "mass": 0.6, "push_player": 0.7,
 		"hitstop_mult": 0.8, "shake_mult": 0.8, "blood": 0.7,
 	},
 	BRUTE: {
 		"name": "Brute", "hp": 220.0, "speed": 58.0, "speed_var": 0.08, "radius": 26.0,
-		"damage": 26.0, "attack_cd": 1.1, "score": 60, "rage": 9.0,
+		"damage": 26.0, "attack_cd": 1.1, "score": 60, "rage": 9.0, "xp": 22,
 		"coin_chance": 1.0, "coins_min": 2, "coins_max": 3, "medkit_chance": 0.15,
 		"kb_mult": 0.28, "stagger_mult": 0.3, "mass": 6.0, "push_player": 2.5,
 		"hitstop_mult": 2.6, "shake_mult": 4.0, "blood": 2.5,
 	},
 	BOSS: {
 		"name": "THE GORGER", "hp": 2600.0, "speed": 72.0, "speed_var": 0.0, "radius": 52.0,
-		"damage": 30.0, "attack_cd": 1.0, "score": 1000, "rage": 40.0,
+		"damage": 30.0, "attack_cd": 1.0, "score": 1000, "rage": 40.0, "xp": 350,
 		"coin_chance": 1.0, "coins_min": 25, "coins_max": 25, "medkit_chance": 1.0,
 		"kb_mult": 0.04, "stagger_mult": 0.0, "mass": 60.0, "push_player": 2.5,
 		"hitstop_mult": 5.0, "shake_mult": 14.0, "blood": 8.0,
@@ -281,28 +283,65 @@ const MEDKIT_LIFETIME := 25.0
 const MEDKIT_PICKUP_RADIUS := 26.0
 
 # ----------------------------------------------------------------------------
-#  UPGRADE SHOP  (bought with coins between runs, saved to disk)
-#  per_level: damage / fire_rate / move_speed are fractions (0.15 = +15%),
-#             max_health is flat hit points.
+#  PROGRESSION - everything here is permanent and saved between sessions.
+#
+#  Three ways the character gets stronger, all feeding the same stats
+#  (see scripts/game/player_stats.gd):
+#    1. CHARACTER LEVEL  XP from kills. Each level raises base health and
+#                        damage a little and gives a skill point.
+#    2. SKILL POINTS     Spent on the passive stats below. Extra points can be
+#                        bought with coins, at a price that keeps rising.
+#    3. WEAPON LEVELS    Each weapon earns its own XP from kills made with it.
+#                        Each weapon level gives a point for that weapon only.
+#  Nothing has a hard ceiling: you can always get a bit stronger.
 # ----------------------------------------------------------------------------
-const UPGRADE_ORDER := ["damage", "fire_rate", "move_speed", "max_health"]
-const UPGRADES := {
-	"damage": {
-		"name": "DAMAGE", "desc": "+15% weapon damage per level",
-		"per_level": 0.15, "costs": [150, 350, 700, 1200, 2000],
-	},
-	"fire_rate": {
-		"name": "FIRE RATE", "desc": "+10% fire rate per level",
-		"per_level": 0.10, "costs": [150, 350, 700, 1200, 2000],
-	},
-	"move_speed": {
-		"name": "MOVE SPEED", "desc": "+6% move speed per level",
-		"per_level": 0.06, "costs": [120, 280, 560, 950, 1600],
-	},
-	"max_health": {
-		"name": "MAX HEALTH", "desc": "+20 max health per level",
-		"per_level": 20.0, "costs": [120, 280, 560, 950, 1600],
-	},
+const LEVEL_XP_BASE := 80.0             # XP needed to go from level 1 to 2...
+const LEVEL_XP_EXPONENT := 1.5          # ...and how steeply that grows (needed = base * level ^ exponent)
+const LEVEL_HP_PER_LEVEL := 3.0         # automatic max health per character level
+const LEVEL_DAMAGE_PER_LEVEL := 0.01    # automatic damage per character level (0.01 = +1%)
+const LEVEL_UP_HEAL := 0.25             # levelling up mid-run heals this fraction of max health
+const SKILL_POINTS_PER_LEVEL := 1
+const WAVE_CLEAR_XP_BASE := 10          # XP for clearing a wave...
+const WAVE_CLEAR_XP_PER_WAVE := 5       # ...plus this per wave number
+
+const SKILL_POINT_COST_BASE := 120.0    # coins for the first bought skill point...
+const SKILL_POINT_COST_GROWTH := 1.15   # ...each further one costs 15% more
+const RESPEC_COST_PER_LEVEL := 25       # coins to take all points back = this * character level
+
+# Passive stats.
+#   "linear": each rank adds per_rank, forever.
+#   "curve":  approaches "max" but never reaches it; "half" is the rank at which
+#             you have half of max. (Stops speed/dodge from becoming silly.)
+# Every RANK_COST_STEP ranks, the next ranks of that stat cost one more point.
+const PASSIVE_RANK_COST_STEP := 10
+const PASSIVE_ORDER := ["vitality", "strength", "dexterity", "agility", "defense", "evasion", "critical", "luck"]
+const PASSIVES := {
+	"vitality": {"name": "VITALITY", "desc": "More maximum health", "kind": "linear", "per_rank": 8.0},
+	"strength": {"name": "STRENGTH", "desc": "More damage with every weapon", "kind": "linear", "per_rank": 0.03},
+	"dexterity": {"name": "DEXTERITY", "desc": "Shoot and swing faster", "kind": "curve", "max": 1.5, "half": 60.0},
+	"agility": {"name": "AGILITY", "desc": "Move faster", "kind": "curve", "max": 0.8, "half": 40.0},
+	"defense": {"name": "DEFENSE", "desc": "Take less damage from every hit", "kind": "curve", "max": 0.8, "half": 50.0},
+	"evasion": {"name": "EVASION", "desc": "Chance to dodge a hit completely", "kind": "curve", "max": 0.6, "half": 40.0},
+	"critical": {"name": "CRITICAL", "desc": "Chance for a shot to deal double damage", "kind": "curve", "max": 0.6, "half": 40.0},
+	"luck": {"name": "LUCK", "desc": "Zombies drop coins more often", "kind": "linear", "per_rank": 0.03},
+}
+const CRIT_DAMAGE_MULT := 2.0
+const CRIT_KNOCKBACK_MULT := 1.4
+const DODGE_INVULN := 0.25              # seconds of safety after a dodge
+
+# Weapon levels.
+const WEAPON_XP_BASE := 60.0            # weapon XP needed for its level 2 (needed = base * level ^ exponent)
+const WEAPON_XP_EXPONENT := 1.4
+const WEAPON_POINTS_PER_LEVEL := 1
+const WEAPON_RANK_COST_STEP := 10       # every N ranks, the next ranks cost one more weapon point
+# What a weapon's points can be spent on. "crate_only" tracks do not apply to the pistol.
+const WEAPON_TRACK_ORDER := ["power", "speed", "stability", "spawn", "duration"]
+const WEAPON_TRACKS := {
+	"power": {"name": "POWER", "desc": "More damage", "kind": "linear", "per_rank": 0.05, "crate_only": false},
+	"speed": {"name": "SHOOTING SPEED", "desc": "Faster rate of fire", "kind": "curve", "max": 1.0, "half": 30.0, "crate_only": false},
+	"stability": {"name": "STABILITY", "desc": "Tighter spread, less recoil", "kind": "curve", "max": 0.75, "half": 15.0, "crate_only": false},
+	"spawn": {"name": "SPAWN RATE", "desc": "Its crate appears more often", "kind": "linear", "per_rank": 0.12, "crate_only": true},
+	"duration": {"name": "DURATION", "desc": "Lasts longer when picked up", "kind": "curve", "max": 1.5, "half": 30.0, "crate_only": true},
 }
 
 # ----------------------------------------------------------------------------
@@ -407,13 +446,37 @@ func combo_multiplier(combo: int) -> float:
 	return minf(1.0 + COMBO_MULT_PER_KILL * float(maxi(combo - 1, 0)), COMBO_MULT_MAX)
 
 
-func upgrade_max_level(id: String) -> int:
-	var costs: Array = UPGRADES[id]["costs"]
-	return costs.size()
+## XP needed to go from `level` to the next one.
+func level_xp_needed(level: int) -> int:
+	return int(round(LEVEL_XP_BASE * pow(float(level), LEVEL_XP_EXPONENT)))
 
 
-func upgrade_cost(id: String, current_level: int) -> int:
-	var costs: Array = UPGRADES[id]["costs"]
-	if current_level >= costs.size():
-		return -1
-	return int(costs[current_level])
+func weapon_xp_needed(level: int) -> int:
+	return int(round(WEAPON_XP_BASE * pow(float(level), WEAPON_XP_EXPONENT)))
+
+
+## Coins for the next bought skill point, after `already_bought` of them.
+func skill_point_cost(already_bought: int) -> int:
+	return int(round(SKILL_POINT_COST_BASE * pow(SKILL_POINT_COST_GROWTH, float(already_bought))))
+
+
+## Points needed to raise a stat that is currently at `rank`.
+func rank_cost(rank: int, step: int) -> int:
+	return 1 + int(float(rank) / float(step))
+
+
+## The bonus a stat gives at `rank`. `def` is an entry of PASSIVES or WEAPON_TRACKS.
+func stat_value(def: Dictionary, rank: int) -> float:
+	if String(def["kind"]) == "curve":
+		return float(def["max"]) * float(rank) / (float(rank) + float(def["half"]))
+	return float(def["per_rank"]) * float(rank)
+
+
+## Which upgrade tracks a weapon has (the pistol never comes from a crate).
+func weapon_tracks(weapon_id: String) -> Array:
+	var out: Array = []
+	var from_crate: bool = float(WEAPONS[weapon_id]["duration"]) > 0.0
+	for track: String in WEAPON_TRACK_ORDER:
+		if from_crate or not bool(WEAPON_TRACKS[track]["crate_only"]):
+			out.append(track)
+	return out

@@ -35,6 +35,7 @@ var stagger_mult := 1.0
 var inv_mass := 1.0
 var push_player := 1.0
 var score := 10
+var xp := 4
 var rage := 2.0
 var hitstop_mult := 1.0
 var shake_mult := 1.0

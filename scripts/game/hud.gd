@@ -82,6 +82,7 @@ func _draw() -> void:
 	_draw_crate_arrows()
 	_draw_health_and_rage(p)
 	_draw_weapon(p, h)
+	_draw_xp(w, h)
 	_draw_score(w)
 	_draw_wave(w)
 	_draw_announcement(w, h)
@@ -155,7 +156,13 @@ func _draw_weapon(p: Player, h: float) -> void:
 	draw_rect(Rect2(x - 6, y - 62, 300, 78), Color(0, 0, 0, 0.5))
 	draw_texture_rect(gun, Rect2(Vector2(x + 4, y - 30 - gsize.y * 0.5), gsize), false)
 	_text(Vector2(x + 128, y - 28), String(w["name"]), 20, color)
-	var duration: float = w["duration"]
+	# The weapon's own level and how close it is to the next one.
+	var wlevel := SaveData.weapon_level(p.weapon_id)
+	var wfrac := clampf(float(SaveData.weapon_xp(p.weapon_id)) / float(SaveData.weapon_xp_needed(p.weapon_id)), 0.0, 1.0)
+	_text(Vector2(x + 284, y + 10), "LV %d" % wlevel, 14, Color(1, 1, 1, 0.85), 2)
+	draw_rect(Rect2(x + 190, y + 2, 56, 4), Color(0, 0, 0, 0.6))
+	draw_rect(Rect2(x + 190, y + 2, 56 * wfrac, 4), Color(color.r, color.g, color.b, 0.9))
+	var duration: float = p.weapon_time_max
 	if duration > 0.0:
 		var frac := clampf(p.weapon_time / duration, 0.0, 1.0)
 		var blink := frac > 0.22 or fmod(_time, 0.3) < 0.18
@@ -165,6 +172,19 @@ func _draw_weapon(p: Player, h: float) -> void:
 		_text(Vector2(x + 128, y + 10), "%.0fs" % ceilf(p.weapon_time), 14, Color(1, 1, 1, 0.8))
 	else:
 		_text(Vector2(x + 128, y - 4), "unlimited", 14, Color(1, 1, 1, 0.6))
+
+
+## Character level and XP: a thin bar along the bottom edge of the screen.
+func _draw_xp(w: float, h: float) -> void:
+	var frac := clampf(float(SaveData.xp) / float(SaveData.xp_needed()), 0.0, 1.0)
+	var pulse := 0.5 + 0.5 * sin(_time * 6.0)
+	draw_rect(Rect2(0, h - 7, w, 7), Color(0, 0, 0, 0.7))
+	draw_rect(Rect2(0, h - 6, w * frac, 5), Color(0.35, 0.75, 1.0))
+	draw_rect(Rect2(0, h - 6, w * frac, 2), Color(1, 1, 1, 0.25))
+	_text(Vector2(w * 0.5, h - 14), "LEVEL %d" % SaveData.level, 16, Color(0.75, 0.9, 1.0), 1)
+	if SaveData.skill_points > 0:
+		_text(Vector2(w * 0.5, h - 34), "%d skill point%s to spend after this run" % [
+				SaveData.skill_points, "" if SaveData.skill_points == 1 else "s"], 13, Color(1.0, 0.85, 0.3, 0.55 + 0.35 * pulse), 1)
 
 
 func _draw_score(w: float) -> void:

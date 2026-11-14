@@ -38,15 +38,21 @@ works on 4.5 and later.
   seconds. An arrow at the edge of the screen points to crates out of view.
 - Kills fill the orange **rage** bar. When it is full, press Space: nearby
   zombies are blasted away and you are much stronger for 8 seconds.
-- Zombies drop **coins**. Spend them in **Upgrades** on the main menu
-  (damage, fire rate, move speed, max health). Upgrades and coins are saved.
+- Kills give **XP**. The blue bar along the bottom is your character level;
+  each level makes you a little stronger and gives a **skill point**. Spend
+  skill points on the **Character** screen (health, strength, speed, defense,
+  evasion and more). Extra skill points can be bought with coins.
+- Every weapon also has its **own level**, earned by killing with it. Spend a
+  weapon's points in the **Armory** on its power, shooting speed, stability,
+  how often its crate appears and how long it lasts.
+- Zombies drop **coins**. Everything you earn is saved.
 
 ## Tuning the game
 
 Open `scripts/config.gd` in Godot (double-click it in the FileSystem panel).
 Every number that matters is there with a comment: player speed, weapon
-damage and fire rates, zombie health, wave sizes, shop prices, and all the
-"feel" values - screen shake, hit stop, knockback, recoil. Change a number,
+damage and fire rates, zombie health, wave sizes, XP and skill point costs,
+and all the "feel" values - screen shake, hit stop, knockback, recoil. Change a number,
 press F5, try it.
 
 ## Replacing placeholder art and sounds
@@ -97,5 +103,5 @@ godot --headless --fixed-fps 60 -- --bench=250
 ```
 
 The first plays through the whole game automatically (menus, every weapon,
-rage, boss, death, shop, save file), the second checks every control, the
+rage, boss, death, levels, save file), the second checks every control, the
 third measures speed with 250 zombies. See `CLAUDE.md` for the design notes.

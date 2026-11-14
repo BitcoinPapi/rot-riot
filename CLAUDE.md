@@ -64,12 +64,13 @@ scripts/config.gd        ALL balance + feel numbers, plus the wave/shop formulas
 scripts/main.gd          app state machine: MENU / PLAYING / PAUSED / GAME_OVER, screen stack
 scripts/autoload/
   game_input.gd          all input, key bindings, device detection, virtual sticks (touch/bot)
-  save_data.gd           coins, upgrades, best scores, settings -> user://save.json
+  save_data.gd           coins, character level + skill points, weapon levels, bests, settings -> user://save.json
   art.gd                 placeholder sprites generated from SVG shapes at startup
   sfx.gd                 sounds synthesised at startup (worker thread) + pooled playback
 scripts/game/
   game.gd                one run: owns the world, runs the simulation loop, hit stop, slow-mo, rage, score
   player.gd              movement, aim, firing (bullets / grenade / melee), drawing
+  player_stats.gd        THE stat pipeline: level + passives (+ gear later) -> the numbers the game uses
   enemy.gd               one zombie = data + Sprite2D (no logic)
   enemy_manager.gd       ALL zombie logic in one loop: spatial grid, separation, attacks, boss AI, damage, queries
   wave_director.gd       waves, packs, enemy mix, boss waves
@@ -81,16 +82,17 @@ scripts/game/
   game_camera.gd         follow, aim lead, trauma shake, recoil kick
   hud.gd                 in-game overlay drawn in _draw
   draw_layer.gd          blank canvas whose _draw is forwarded to a manager
-scripts/ui/              ui_kit.gd (theme + helpers), menu_background, main_menu, shop_screen,
-                         settings_screen, pause_menu, game_over_screen
+scripts/ui/              ui_kit.gd (theme + helpers), menu_background, main_menu, character_screen,
+                         armory_screen, settings_screen, pause_menu, game_over_screen
 scripts/dev/dev_tools.gd bot, autotest, input test, benchmark, screenshots (only with CLI args)
 assets/sprites/, assets/sfx/   empty; drop-in overrides for generated art and sounds
 ```
 
 ## Design
 
-**Loop:** main menu -> run -> death -> game over (coins banked) -> upgrade
-shop -> next run. Quitting a run from pause also banks its coins.
+**Loop:** main menu -> run -> death -> game over (coins banked) -> spend
+points on the Character and Armory screens -> next run. Quitting a run from
+pause also banks its coins.
 
 **Arena:** a 2400x1500 clearing ringed by trees, with 9 random rocks/stumps.
 Zombies spawn outside the clearing under the tree canopy (never in view) and
@@ -125,8 +127,28 @@ multiplies score (up to x3). Taking damage resets it.
 LT / X: a blast throws the horde back, then for 8 s damage x3, fire rate
 x1.5, speed x1.25, damage taken x0.2. `RAGE_AUTO_ACTIVATE` exists in config.
 
-**Shop:** damage, fire rate, move speed, max health; 5 levels each; prices
-and effects in `Config.UPGRADES`; saved immediately.
+**Progression** (all permanent; numbers in the PROGRESSION section of
+config.gd; stored by `save_data.gd`; turned into game numbers only in
+`player_stats.gd`):
+- *Character level*: XP from kills and cleared waves (shown as the bar along
+  the bottom of the HUD). Each level: +3 max health, +1% damage, +1 skill
+  point. Levelling mid-run applies at once and heals 25%.
+- *Skill points* go into 8 passive stats on the Character screen: vitality,
+  strength, dexterity (fire rate), agility (move speed), defense (less damage
+  taken), evasion (dodge chance), critical (double-damage shots), luck (coin
+  drops). "linear" stats grow forever; "curve" stats approach a maximum. Every
+  10 ranks of a stat the next ranks cost one more point. More skill points
+  can be bought with coins (price x1.15 each time); a paid reset returns all
+  spent points.
+- *Weapon levels*: each weapon earns XP from kills made with it (kills carry a
+  `source` weapon id through `EnemyManager.damage`). Each weapon level gives a
+  point for that weapon only, spent in the Armory on power, shooting speed,
+  stability (spread + recoil), spawn rate (crate share) and duration. The
+  pistol has no crate-only tracks.
+- *Crate rarity*: `crate_weight` per weapon (launcher 0.45, sledge 0.8,
+  shotgun and machine gun 1.0), multiplied by that weapon's spawn-rate track.
+- Save format version 2. Version 1 saves keep records and settings but coins
+  and the old upgrades are wiped once (agreed with the owner).
 
 **Settings:** master volume, SFX volume, screen shake strength, fullscreen
 (also F11). The game auto-pauses when the window loses focus.
@@ -202,24 +224,24 @@ effects were ~280 draw calls. Not yet measured on the owner's hardware.
 
 Build one stage at a time; the owner plays each before the next starts.
 
-1. **Progression core.** New save format. Character level (XP from kills)
-   that raises base stats. One stat pipeline everything feeds into: max
-   health, strength (damage), move speed, defense, evasion, fire rate, ...
-   Coin upgrades become incremental with no real ceiling ("you can always get
-   stronger"), with a much slower economy. Per-weapon upgrade tracks: power,
-   spawn rate (how often its crate appears), stability (spread/recoil),
-   shooting speed, duration.
-2. **Weapons.** More weapons. Crate rarity tiers (the launcher must be rarer
-   than the machine gun). Dual wielding two of the same gun.
+1. **Progression core. DONE (awaiting the owner's playtest).** See
+   "Progression" above. Owner's decisions: coins are permanent; weapon
+   upgrades are permanent and earned by using the weapon.
+2. **Weapons.** More weapons. Crate rarity tiers (basic weights already
+   exist; the launcher must stay rarer than the machine gun). Dual wielding
+   two of the same gun: picking up a crate of the weapon already held.
 3. **Gear.** Character screen in the style of an action-RPG paper doll:
    helmet, chest, gloves, boots, pants, belt, two rings, amulet. Items drop
    rarely from zombies (never a flood); some pieces only from bosses. Merge
    two identical items of the same colour to get the next tier. Five tiers
-   (five colours). Attempts for tier 4 and tier 5 can destroy the item;
-   tier 5 succeeds 10% of the time.
+   (five colours). Success chance set by the owner: tier 2 100%, tier 3 90%,
+   tier 4 40%, tier 5 10%. A failed tier 4 or 5 attempt always uses up one of
+   the two items and has a chance to destroy the other as well. Gear bonuses
+   plug into `player_stats.gd`.
 4. **Big-map engine.** Much bigger maps (a large "farming map"), fog of war
    that clears as the player explores, a minimap, treasure chests to find
-   each round that give gear. Needs: spawning around the player instead of
+   each round that give gear. Waves stay: zombies hunt the player wherever
+   they are; exploring for chests happens during and between waves. Needs: spawning around the player instead of
    at the map edge, and the decal layer split into chunks (one never-cleared
    viewport cannot cover a huge map).
 5. **Five themed maps**, each telling a story through its scenery: forest

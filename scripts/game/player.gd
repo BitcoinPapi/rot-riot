@@ -15,14 +15,14 @@ var move_input := Vector2.ZERO
 var weapon_id: String = Config.STARTER_WEAPON
 var weapon: Dictionary = Config.WEAPONS[Config.STARTER_WEAPON]
 var weapon_time := 0.0          # seconds left on a crate weapon
+var weapon_time_max := 0.0      # what it started with (for the HUD bar)
 var fire_cd := 0.0
 var invuln := 0.0               # seconds of safety left after being hit
 var push_vel := Vector2.ZERO    # recoil shove
 
-# Permanent upgrades bought in the shop (read once when the run starts).
-var up_damage := 1.0
-var up_fire_rate := 1.0
-var up_speed := 1.0
+# Everything permanent (level, skill points, later gear) arrives through here.
+var stats: PlayerStats
+var wmods: Dictionary = {}      # the current weapon's own bonuses (see PlayerStats.weapon_mods)
 
 # Visual state
 var _flash := 0.0
@@ -36,13 +36,21 @@ var _gun_size := Vector2.ZERO
 
 
 func _ready() -> void:
-	up_damage = 1.0 + SaveData.upgrade_bonus("damage")
-	up_fire_rate = 1.0 + SaveData.upgrade_bonus("fire_rate")
-	up_speed = 1.0 + SaveData.upgrade_bonus("move_speed")
-	max_hp = Config.PLAYER_MAX_HP + SaveData.upgrade_bonus("max_health")
-	hp = max_hp
+	refresh_stats(true)
 	_set_weapon(Config.STARTER_WEAPON)
 	hold_fire(0.3)
+
+
+## Re-read the character's stats (at run start, and when levelling up mid-run).
+func refresh_stats(full_heal: bool = false) -> void:
+	var old_max := max_hp
+	stats = PlayerStats.current()
+	max_hp = stats.max_hp
+	if full_heal:
+		hp = max_hp
+	else:
+		hp = minf(hp + maxf(max_hp - old_max, 0.0), max_hp)
+	wmods = PlayerStats.weapon_mods(weapon_id)
 
 
 func place(at: Vector2) -> void:
@@ -60,7 +68,7 @@ func tick(delta: float) -> void:
 
 	# --- move: instant, no acceleration ---
 	move_input = GameInput.get_move()
-	var speed: float = Config.PLAYER_SPEED * up_speed * float(weapon["move_mult"])
+	var speed: float = Config.PLAYER_SPEED * stats.speed_mult * float(weapon["move_mult"])
 	if game.rage_active:
 		speed *= Config.RAGE_SPEED_MULT
 	pos += move_input * speed * delta + push_vel * delta
@@ -95,9 +103,10 @@ func tick(delta: float) -> void:
 
 func _fire() -> void:
 	var w := weapon
-	var rate := up_fire_rate
-	var dmg: float = float(w["damage"]) * up_damage
+	var rate: float = stats.fire_rate_mult * float(wmods["fire_rate"])
+	var dmg: float = float(w["damage"]) * stats.damage_mult * float(wmods["damage"])
 	var knock: float = w["knockback"]
+	var steady: float = wmods["steady"]      # 1 = normal spread/recoil, lower = tighter
 	if game.rage_active:
 		rate *= Config.RAGE_FIRE_RATE_MULT
 		dmg *= Config.RAGE_DAMAGE_MULT
@@ -117,10 +126,13 @@ func _fire() -> void:
 		_melee(w, dir, dmg, knock)
 	else:
 		var pellets: int = w["pellets"]
-		var spread := deg_to_rad(float(w["spread_deg"]))
+		var spread := deg_to_rad(float(w["spread_deg"])) * steady
 		var from := pos + dir * (radius + 2.0)
 		for k in pellets:
-			game.projectiles.spawn(from, dir.rotated(randf_range(-0.5, 0.5) * spread), w, dmg, knock)
+			var crit := randf() < stats.crit_chance
+			game.projectiles.spawn(from, dir.rotated(randf_range(-0.5, 0.5) * spread), w, weapon_id,
+					dmg * (Config.CRIT_DAMAGE_MULT if crit else 1.0),
+					knock * (Config.CRIT_KNOCKBACK_MULT if crit else 1.0), crit)
 		var muzzle := pos + dir * float(w["muzzle_dist"])
 		game.fx.muzzle_flash(muzzle, dir, float(w["flash_size"]), w["tracer_color"])
 		var casing_kind := String(w["casing"])
@@ -129,9 +141,9 @@ func _fire() -> void:
 
 	# Feel: recoil, camera jolt, shake, sound. All numbers come from Config.WEAPONS.
 	_gun_kick = float(w["recoil_gun"])
-	push_vel -= dir * float(w["recoil_push"])
+	push_vel -= dir * (float(w["recoil_push"]) * steady)
 	game.shake(float(w["shake"]))
-	game.cam.kick(-dir, float(w["kick"]))
+	game.cam.kick(-dir, float(w["kick"]) * steady)
 	game.hud.fired(float(w["recoil_gun"]))
 	Sfx.play(String(w["sound"]))
 
@@ -148,7 +160,9 @@ func _melee(w: Dictionary, dir: Vector2, dmg: float, knock: float) -> void:
 		var d := to.length()
 		var n := to / maxf(d, 0.001)
 		if n.dot(dir) >= cos_half or d < radius + e.radius + 4.0:
-			game.enemies.damage(e, dmg, (n * 0.7 + dir * 0.3).normalized(), knock, float(w["stagger"]), 0.0)
+			var crit := randf() < stats.crit_chance
+			game.enemies.damage(e, dmg * (Config.CRIT_DAMAGE_MULT if crit else 1.0), (n * 0.7 + dir * 0.3).normalized(),
+					knock * (Config.CRIT_KNOCKBACK_MULT if crit else 1.0), float(w["stagger"]), 0.0, weapon_id, crit)
 			hits += 1
 	game.fx.swing_arc(pos, dir, float(w["arc_deg"]), reach, _swing_side)
 	if hits > 0:
@@ -163,7 +177,8 @@ func _melee(w: Dictionary, dir: Vector2, dmg: float, knock: float) -> void:
 ## Equip a weapon from a crate. It lasts for the weapon's "duration".
 func give_weapon(id: String) -> void:
 	_set_weapon(id)
-	weapon_time = float(weapon["duration"])
+	weapon_time = float(weapon["duration"]) * float(wmods["duration"])
+	weapon_time_max = weapon_time
 	fire_cd = minf(fire_cd, 0.1)
 
 
@@ -171,6 +186,8 @@ func _set_weapon(id: String) -> void:
 	weapon_id = id
 	weapon = Config.WEAPONS[id]
 	weapon_time = 0.0
+	weapon_time_max = 0.0
+	wmods = PlayerStats.weapon_mods(id)
 	_gun_tex = Art.t("gun_" + id)
 	_gun_size = Art.size_of("gun_" + id)
 

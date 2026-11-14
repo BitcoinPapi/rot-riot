@@ -10,6 +10,24 @@ const RED := Color("d9382c")
 const GREEN := Color("9bd15a")
 
 
+## A simple progress strip (XP bars).
+class Bar extends Control:
+	var fraction := 0.0
+	var fill := Color(0.35, 0.75, 1.0)
+
+	func _init() -> void:
+		custom_minimum_size = Vector2(240, 14)
+
+	func set_fraction(value: float) -> void:
+		fraction = clampf(value, 0.0, 1.0)
+		queue_redraw()
+
+	func _draw() -> void:
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0, 0, 0, 0.65))
+		draw_rect(Rect2(1.0, 1.0, (size.x - 2.0) * fraction, size.y - 2.0), fill)
+		draw_rect(Rect2(1.0, 1.0, (size.x - 2.0) * fraction, (size.y - 2.0) * 0.4), Color(1, 1, 1, 0.2))
+
+
 static func make_theme() -> Theme:
 	var t := Theme.new()
 	t.default_font_size = 22
@@ -108,3 +126,19 @@ static func centered(child: Control) -> CenterContainer:
 	c.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	c.add_child(child)
 	return c
+
+
+## A coin picture followed by a number label (returned so it can be updated).
+static func coin_counter(font_size: int = 26) -> Array:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	var icon := TextureRect.new()
+	icon.texture = Art.t("coin")
+	icon.custom_minimum_size = Vector2(font_size, font_size)
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(icon)
+	var amount := label("0", font_size, GOLD)
+	row.add_child(amount)
+	return [row, amount]

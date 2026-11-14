@@ -24,6 +24,8 @@ var time_alive := 0.0
 var kills := 0
 var score := 0
 var coins_run := 0              # coins earned this run (banked when the run ends)
+var xp_run := 0                 # XP earned this run (already added to the character as it comes in)
+var levels_run := 0             # character levels gained this run
 var combo := 0                  # kills in quick succession
 var combo_timer := 0.0
 var rage := 0.0                 # 0..Config.RAGE_MAX
@@ -158,7 +160,8 @@ func _tick_combo_and_rage(dt: float) -> void:
 
 
 func get_stats() -> Dictionary:
-	return {"score": score, "wave": director.wave, "kills": kills, "coins": coins_run, "time": time_alive}
+	return {"score": score, "wave": director.wave, "kills": kills, "coins": coins_run, "time": time_alive,
+			"xp": xp_run, "levels": levels_run}
 
 
 # ----------------------------------------------------------------------------
@@ -172,7 +175,9 @@ func _on_wave_started(wave: int, is_boss: bool) -> void:
 
 
 func _on_wave_cleared(wave: int, coin_bonus: int) -> void:
-	hud.announce("WAVE %d CLEARED" % wave, "+%d coins" % coin_bonus, Color(0.6, 1.0, 0.5))
+	var xp_bonus: int = Config.WAVE_CLEAR_XP_BASE + Config.WAVE_CLEAR_XP_PER_WAVE * wave
+	hud.announce("WAVE %d CLEARED" % wave, "+%d coins   +%d XP" % [coin_bonus, xp_bonus], Color(0.6, 1.0, 0.5))
+	gain_xp(xp_bonus, "")
 
 
 func _on_boss_spawned(_boss: Enemy) -> void:
@@ -180,8 +185,9 @@ func _on_boss_spawned(_boss: Enemy) -> void:
 	hud.announce(boss_name, "", Color(1.0, 0.25, 0.2), 2.6)
 
 
-func on_enemy_killed(e: Enemy, dir: Vector2, kill_hitstop: float) -> void:
+func on_enemy_killed(e: Enemy, dir: Vector2, kill_hitstop: float, source: String = "") -> void:
 	kills += 1
+	gain_xp(e.xp, source)
 	# Gore: the body tumbles away, blood sprays and pools.
 	fx.corpse(e, dir)
 	fx.blood_burst(e.pos, int(Config.BLOOD_PER_KILL * e.blood), 1.0)
@@ -227,6 +233,30 @@ func _boss_killed(e: Enemy) -> void:
 	hitstop(Config.BOSS_DEATH_HITSTOP, true)
 	slow_motion(Config.BOSS_DEATH_SLOWMO, Config.BOSS_DEATH_SLOWMO_TIME)
 	Sfx.play("explosion")
+
+
+# ----------------------------------------------------------------------------
+#  Experience: the character always gains it; the weapon that made the kill
+#  gains the same amount for its own level.
+# ----------------------------------------------------------------------------
+func gain_xp(amount: int, weapon_id: String) -> void:
+	if amount <= 0:
+		return
+	xp_run += amount
+	var levels := SaveData.add_xp(amount)
+	if levels > 0:
+		levels_run += levels
+		player.refresh_stats()
+		player.heal(player.max_hp * Config.LEVEL_UP_HEAL)
+		hud.announce("LEVEL UP!", "level %d   -   skill point earned" % SaveData.level, Color(1.0, 0.85, 0.3), 2.2)
+		fx.ring(player.pos, 14.0, 170.0, 0.45, Color(1.0, 0.85, 0.3, 0.9))
+		fx.light(player.pos, 300.0, 0.3, Color(1.0, 0.8, 0.3, 0.6))
+		Sfx.play("level_up")
+	if weapon_id != "" and SaveData.add_weapon_xp(weapon_id, amount) > 0:
+		var w: Dictionary = Config.WEAPONS[weapon_id]
+		fx.text(player.pos + Vector2(0, -58), "%s LEVEL %d" % [String(w["name"]), SaveData.weapon_level(weapon_id)],
+				w["color"], 20, 1.4)
+		Sfx.play("weapon_level")
 
 
 # ----------------------------------------------------------------------------
@@ -283,6 +313,13 @@ func collect_medkit(at: Vector2) -> void:
 func damage_player(amount: float, from: Vector2) -> void:
 	if state != State.PLAYING or not player.alive or player.invuln > 0.0:
 		return
+	# Evasion: the hit misses completely.
+	if randf() < player.stats.evasion:
+		player.invuln = Config.DODGE_INVULN
+		fx.text(player.pos + Vector2(0, -36), "DODGE", Color(0.55, 0.9, 1.0), 18, 0.6)
+		Sfx.play("dodge")
+		return
+	amount *= player.stats.damage_taken_mult      # defense
 	if rage_active:
 		amount *= Config.RAGE_DAMAGE_TAKEN_MULT
 	player.hp -= amount

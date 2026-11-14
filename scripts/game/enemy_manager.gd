@@ -101,6 +101,7 @@ func spawn(kind: int, at: Vector2, hp_mult: float = 1.0, speed_mult: float = 1.0
 	e.inv_mass = 1.0 / float(c["mass"])
 	e.push_player = c["push_player"]
 	e.score = c["score"]
+	e.xp = c["xp"]
 	e.rage = c["rage"]
 	e.hitstop_mult = c["hitstop_mult"]
 	e.shake_mult = c["shake_mult"]
@@ -441,11 +442,16 @@ func _tick_boss(e: Enemy, dt: float) -> void:
 #  Damage
 # ----------------------------------------------------------------------------
 ## Hurt a zombie. `dir` is the direction of the hit (for knockback and blood).
+## `source` is the weapon id that did it (it earns the XP), "" for anything else.
 ## Returns true if this killed it.
-func damage(e: Enemy, amount: float, dir: Vector2, knockback: float, stagger: float, kill_hitstop: float) -> bool:
+func damage(e: Enemy, amount: float, dir: Vector2, knockback: float, stagger: float, kill_hitstop: float,
+		source: String = "", crit: bool = false) -> bool:
 	if not e.alive:
 		return false
 	e.hp -= amount
+	if crit:
+		game.fx.crit_spark(e.pos, dir)
+		Sfx.play("crit", -4.0)
 	e.flash_t = Config.HIT_FLASH_TIME
 	e.texture = e.tex_flash
 	if knockback > 0.0:
@@ -455,20 +461,20 @@ func damage(e: Enemy, amount: float, dir: Vector2, knockback: float, stagger: fl
 		e.stagger_t = st
 	game.fx.blood_spray(e.pos, dir, Config.BLOOD_PER_HIT, 1.0)
 	if e.hp <= 0.0:
-		_kill(e, dir, kill_hitstop)
+		_kill(e, dir, kill_hitstop, source)
 		return true
 	Sfx.play("zombie_hit", -6.0)
 	return false
 
 
-func _kill(e: Enemy, dir: Vector2, kill_hitstop: float) -> void:
+func _kill(e: Enemy, dir: Vector2, kill_hitstop: float, source: String) -> void:
 	e.alive = false
 	e.visible = false
 	_dead_count += 1
 	alive_count -= 1
 	if e.is_big:
 		bigs.erase(e)
-	game.on_enemy_killed(e, dir, kill_hitstop)
+	game.on_enemy_killed(e, dir, kill_hitstop, source)
 
 
 ## Radial blast: shoves (and optionally hurts) everything within `radius`.

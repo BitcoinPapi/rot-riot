@@ -14,6 +14,8 @@ class Shot:
 	var stagger := 0.0
 	var pierce := 0
 	var w: Dictionary            # weapon config (for feel values)
+	var wid := ""                # weapon id (gets the XP for kills)
+	var crit := false
 	var grenade := false
 	var hit: Array = []          # zombies already hit (piercing shots)
 
@@ -32,7 +34,7 @@ func _ready() -> void:
 	material = mat
 
 
-func spawn(from: Vector2, dir: Vector2, w: Dictionary, damage: float, knockback: float) -> void:
+func spawn(from: Vector2, dir: Vector2, w: Dictionary, weapon_id: String, damage: float, knockback: float, crit: bool = false) -> void:
 	var s := Shot.new()
 	var speed_var: float = w["speed_var"]
 	s.pos = from
@@ -44,6 +46,8 @@ func spawn(from: Vector2, dir: Vector2, w: Dictionary, damage: float, knockback:
 	s.stagger = w["stagger"]
 	s.pierce = w["pierce"]
 	s.w = w
+	s.wid = weapon_id
+	s.crit = crit
 	s.grenade = String(w["kind"]) == "grenade"
 	shots.append(s)
 
@@ -68,7 +72,7 @@ func tick(dt: float) -> void:
 				explode(at, s)
 				done = true
 			else:
-				enemies.damage(e, s.damage, s.dir, s.knockback, s.stagger, float(s.w["hitstop_kill"]))
+				enemies.damage(e, s.damage, s.dir, s.knockback, s.stagger, float(s.w["hitstop_kill"]), s.wid, s.crit)
 				if s.pierce > 0:
 					s.pierce -= 1
 					s.damage *= Config.PIERCE_DAMAGE_KEEP
@@ -118,7 +122,7 @@ func explode(at: Vector2, s: Shot) -> void:
 		var d := away.length()
 		var dir := away / d if d > 0.01 else s.dir
 		var f := clampf(d / radius, 0.0, 1.0)
-		game.enemies.damage(e, s.damage * lerpf(1.0, edge, f), dir, force * lerpf(1.0, Config.BLAST_EDGE_KNOCKBACK, f), stagger, 0.0)
+		game.enemies.damage(e, s.damage * lerpf(1.0, edge, f), dir, force * lerpf(1.0, Config.BLAST_EDGE_KNOCKBACK, f), stagger, 0.0, s.wid, s.crit)
 	game.fx.explosion(at, radius)
 	game.decals.scorch(at, radius * 0.75)
 	game.shake(float(w["blast_shake"]))
