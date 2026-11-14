@@ -95,18 +95,64 @@ func tick(delta: float) -> void:
 func _fire() -> void:
 	var w := weapon
 	var rate := up_fire_rate
+	var dmg: float = float(w["damage"]) * up_damage
+	var knock: float = w["knockback"]
 	if game.rage_active:
 		rate *= Config.RAGE_FIRE_RATE_MULT
+		dmg *= Config.RAGE_DAMAGE_MULT
+		knock *= Config.RAGE_KNOCKBACK_MULT
 	if fire_cd < -0.05:
 		fire_cd = 0.0
 	fire_cd += float(w["interval"]) / rate
 
-	# Feel: recoil, camera jolt, shake.
+	# Mild aim assist: bend the shot toward a zombie that is nearly lined up.
+	var sticks := GameInput.using_sticks()
+	var dir := game.enemies.assist_aim(pos, aim,
+			Config.AIM_ASSIST_CONE_DEG_GAMEPAD if sticks else Config.AIM_ASSIST_CONE_DEG_MOUSE,
+			Config.AIM_ASSIST_STRENGTH_GAMEPAD if sticks else Config.AIM_ASSIST_STRENGTH_MOUSE,
+			Config.AIM_ASSIST_RANGE)
+
+	if String(w["kind"]) == "melee":
+		_melee(w, dir, dmg, knock)
+	else:
+		var pellets: int = w["pellets"]
+		var spread := deg_to_rad(float(w["spread_deg"]))
+		var from := pos + dir * (radius + 2.0)
+		for k in pellets:
+			game.projectiles.spawn(from, dir.rotated(randf_range(-0.5, 0.5) * spread), w, dmg, knock)
+		var muzzle := pos + dir * float(w["muzzle_dist"])
+		game.fx.muzzle_flash(muzzle, dir, float(w["flash_size"]), w["tracer_color"])
+		var casing_kind := String(w["casing"])
+		if casing_kind != "":
+			game.fx.casing(pos + dir * 12.0, dir, casing_kind)
+
+	# Feel: recoil, camera jolt, shake, sound. All numbers come from Config.WEAPONS.
 	_gun_kick = float(w["recoil_gun"])
-	push_vel -= aim * float(w["recoil_push"])
+	push_vel -= dir * float(w["recoil_push"])
 	game.shake(float(w["shake"]))
-	game.cam.kick(-aim, float(w["kick"]))
+	game.cam.kick(-dir, float(w["kick"]))
 	Sfx.play(String(w["sound"]))
+
+
+## Melee swing: hits every zombie inside the arc in front of the player.
+func _melee(w: Dictionary, dir: Vector2, dmg: float, knock: float) -> void:
+	_swing = 1.0
+	_swing_side = -_swing_side
+	var reach: float = w["range"]
+	var cos_half := cos(deg_to_rad(float(w["arc_deg"])) * 0.5)
+	var hits := 0
+	for e: Enemy in game.enemies.in_radius(pos, reach):
+		var to := e.pos - pos
+		var d := to.length()
+		var n := to / maxf(d, 0.001)
+		if n.dot(dir) >= cos_half or d < radius + e.radius + 4.0:
+			game.enemies.damage(e, dmg, (n * 0.7 + dir * 0.3).normalized(), knock, float(w["stagger"]), 0.0)
+			hits += 1
+	game.fx.swing_arc(pos, dir, float(w["arc_deg"]), reach, _swing_side)
+	if hits > 0:
+		game.shake(float(w["shake_hit"]))
+		game.hitstop(float(w["hitstop_hit"]), true)
+		Sfx.play("sledge_hit")
 
 
 # ----------------------------------------------------------------------------

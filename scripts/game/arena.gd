@@ -162,3 +162,20 @@ func random_free_point(radius: float, margin: float = 80.0) -> Vector2:
 		if is_free(p, radius):
 			return p
 	return rect.get_center()
+
+
+## A random point outside the clearing, hidden under the trees, where zombies appear.
+func random_spawn_point() -> Vector2:
+	var d := randf_range(Config.SPAWN_DIST_MIN, Config.SPAWN_DIST_MAX)
+	var w := rect.size.x
+	var h := rect.size.y
+	var t := randf() * 2.0 * (w + h)
+	if t < w:
+		return Vector2(t, -d)
+	t -= w
+	if t < h:
+		return Vector2(w + d, t)
+	t -= h
+	if t < w:
+		return Vector2(t, h + d)
+	return Vector2(-d, t - w)

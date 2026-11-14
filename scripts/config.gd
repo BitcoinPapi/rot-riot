@@ -320,7 +320,7 @@ const CAM_FOLLOW_SPEED := 10.0
 const CAM_AIM_LEAD := 0.16              # camera drifts toward the crosshair by this fraction
 const CAM_AIM_LEAD_MAX := 120.0
 const CAM_KICK_RETURN := 16.0           # how fast a recoil jolt settles
-const CAM_ZOOM := 1.0
+const CAM_ZOOM := 1.2                    # higher = closer, chunkier view
 
 # ----------------------------------------------------------------------------
 #  GAME FEEL - gore and particles

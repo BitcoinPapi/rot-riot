@@ -152,6 +152,11 @@ func using_gamepad() -> bool:
 	return device == Device.GAMEPAD and not virtual_active
 
 
+## True when aiming with a stick (gamepad or touch) - those get stronger aim assist.
+func using_sticks() -> bool:
+	return virtual_active or device == Device.GAMEPAD or device == Device.TOUCH
+
+
 # ----------------------------------------------------------------------------
 #  Virtual input (touch controls later / test bot now)
 # ----------------------------------------------------------------------------
