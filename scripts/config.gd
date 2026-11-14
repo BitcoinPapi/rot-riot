@@ -266,13 +266,13 @@ const ENEMIES := {
 		"hitstop_mult": 2.6, "shake_mult": 4.0, "blood": 2.5,
 	},
 	BOSS: {
-		"name": "THE GORGER", "hp": 2600.0, "speed": 72.0, "speed_var": 0.0, "radius": 52.0,
+		"name": "THE GORGER", "hp": 1700.0, "speed": 72.0, "speed_var": 0.0, "radius": 52.0,
 		"damage": 30.0, "attack_cd": 1.0, "score": 1000, "rage": 40.0, "xp": 350,
 		"coin_chance": 1.0, "coins_min": 25, "coins_max": 25, "medkit_chance": 1.0,
 		"kb_mult": 0.04, "stagger_mult": 0.0, "mass": 60.0, "push_player": 2.5,
 		"hitstop_mult": 5.0, "shake_mult": 14.0, "blood": 8.0,
 		# boss-only behaviour
-		"hp_growth_per_boss": 0.6,     # each later boss has +60% health
+		"hp_growth_per_boss": 0.25,    # each later boss has +25% health (on top of the wave and map growth)
 		"charge_cooldown": 5.5,        # seconds between charges
 		"charge_windup": 0.85,         # warning time before it dashes
 		"charge_speed": 620.0,
@@ -308,26 +308,63 @@ const ENEMY_FIRST_ATTACK_DELAY := 0.25  # a zombie that just reached you needs t
 const SUMMON_RISE_TIME := 0.5           # summoned zombies take this long to claw out of the ground
 
 # ----------------------------------------------------------------------------
-#  WAVES
+#  MAPS
+#  Every map has WAVES_PER_MAP waves. Clearing the last one unlocks the next
+#  map, where the zombies are much tougher and the rewards bigger.
+#    hp / damage / speed  multiply every zombie's health / hits / walking speed
+#    xp                   multiplies the XP from kills and cleared waves
+#    coins                what one coin is worth; also multiplies the wave bonuses
+#    ground / trees       a colour wash that gives the map its mood (real scenery comes later)
+# ----------------------------------------------------------------------------
+const WAVES_PER_MAP := 100
+const CHECKPOINT_EVERY := 5             # every N cleared waves (= after each boss) a new starting wave is unlocked
+const CHECKPOINT_START_CRATE := true    # starting from a checkpoint drops a weapon crate beside you
+const MAP_CLEAR_COINS := 300            # bonus for clearing the last wave (times the map's "coins")
+const MAP_CLEAR_XP := 3000              # ...and XP (times the map's "xp")
+const MAP_CLEAR_CELEBRATION := 3.2      # seconds of slow-motion glory before the results screen
+const MAPS := [
+	{"name": "FOREST CAMP", "story": "A weekend in the woods. Nobody else came back to the fire.",
+		"hp": 1.0, "damage": 1.0, "speed": 1.0, "xp": 1.0, "coins": 1,
+		"color": Color(0.62, 0.82, 0.38), "ground": Color(0.0, 0.0, 0.0, 0.0), "trees": Color(1.0, 1.0, 1.0)},
+	{"name": "DEAD FARM", "story": "The harvest was left to rot. So were the farmhands.",
+		"hp": 4.0, "damage": 1.8, "speed": 1.04, "xp": 1.5, "coins": 2,
+		"color": Color(0.93, 0.76, 0.32), "ground": Color(0.62, 0.47, 0.16, 0.30), "trees": Color(1.0, 0.86, 0.5)},
+	{"name": "GRAVEYARD", "story": "The old graves are open. The new ones were never filled.",
+		"hp": 12.0, "damage": 3.0, "speed": 1.08, "xp": 2.0, "coins": 4,
+		"color": Color(0.62, 0.72, 0.9), "ground": Color(0.16, 0.2, 0.34, 0.42), "trees": Color(0.62, 0.7, 0.86)},
+	{"name": "CONVOY CRASH", "story": "The evacuation convoy made it nine miles.",
+		"hp": 35.0, "damage": 5.0, "speed": 1.12, "xp": 2.75, "coins": 7,
+		"color": Color(0.95, 0.5, 0.3), "ground": Color(0.1, 0.1, 0.11, 0.5), "trees": Color(0.78, 0.6, 0.5)},
+	{"name": "QUARANTINE LAB", "story": "This is where it started. Something down here is still running.",
+		"hp": 100.0, "damage": 8.0, "speed": 1.16, "xp": 3.5, "coins": 12,
+		"color": Color(0.4, 0.95, 0.85), "ground": Color(0.08, 0.3, 0.3, 0.42), "trees": Color(0.5, 0.9, 0.84)},
+]
+
+# ----------------------------------------------------------------------------
+#  WAVES - the same curve on every map (the map multiplies it, see MAPS).
+#  Tuned so that the numbers creep up over 100 waves: a new character gets a
+#  few waves in, and every bit of extra strength buys another wave or two.
 # ----------------------------------------------------------------------------
 const WAVE_BASE_COUNT := 22.0           # zombies in wave 1
-const WAVE_COUNT_PER_WAVE := 13.0       # + this many per wave...
-const WAVE_COUNT_ACCEL := 1.5           # ...+ this * (wave-1)^2  (makes late waves huge)
+const WAVE_COUNT_PER_WAVE := 9.0        # + this many per wave...
+const WAVE_COUNT_ACCEL := 0.0           # ...+ this * (wave-1)^2  (0 = steady growth)
 const WAVE_MAX_COUNT := 500
 const MAX_ENEMIES_ALIVE := 240          # hard cap on screen at once
 const WAVE_PACK_SIZE_BASE := 5.0        # zombies arrive in packs from one side
-const WAVE_PACK_SIZE_PER_WAVE := 1.2
-const WAVE_PACK_SIZE_MAX := 24.0
+const WAVE_PACK_SIZE_PER_WAVE := 0.6
+const WAVE_PACK_SIZE_MAX := 26.0
 const WAVE_PACK_INTERVAL_BASE := 1.2    # seconds between packs in wave 1
-const WAVE_PACK_INTERVAL_PER_WAVE := -0.09
+const WAVE_PACK_INTERVAL_PER_WAVE := -0.035
 const WAVE_PACK_INTERVAL_MIN := 0.35
-const WAVE_PACK_SIDES_EVERY := 3        # every N waves, packs arrive from one more direction at once...
+const WAVE_PACK_SIDES_EVERY := 5        # every N waves, packs arrive from one more direction at once...
 const WAVE_PACK_SIDES_MAX := 4          # ...up to this many, so later hordes surround you
 const WAVE_FIRST_DELAY := 1.6           # breathing room at the very start
 const WAVE_INTERMISSION := 3.5          # pause between waves
-const WAVE_HP_GROWTH := 0.08            # +8% zombie health per wave
-const WAVE_SPEED_GROWTH := 0.02         # +2% zombie speed per wave
+const WAVE_HP_GROWTH := 0.06            # +6% zombie health per wave (wave 100 = about x7)
+const WAVE_DAMAGE_GROWTH := 0.01        # +1% zombie damage per wave (wave 100 = about x2)
+const WAVE_SPEED_GROWTH := 0.005        # +0.5% zombie speed per wave
 const WAVE_SPEED_MAX_MULT := 1.45
+const WAVE_XP_GROWTH := 0.01            # +1% XP per kill per wave (tougher zombies are worth more)
 const RUNNER_START_WAVE := 2
 const RUNNER_WEIGHT_PER_WAVE := 0.10
 const RUNNER_WEIGHT_MAX := 0.45
@@ -407,8 +444,8 @@ const MEDKIT_PICKUP_RADIUS := 26.0
 # ----------------------------------------------------------------------------
 const LEVEL_CAP := 100                  # the character cannot go past this level
 const LEVEL_XP_BASE := 80.0             # XP needed to go from level 1 to 2...
-const LEVEL_XP_EXPONENT := 1.8          # ...and how steeply that grows (needed = base * level ^ exponent).
-                                        # With 80 and 1.8, level 100 takes about 11.2 million XP in total:
+const LEVEL_XP_EXPONENT := 2.0          # ...and how steeply that grows (needed = base * level ^ exponent).
+                                        # With 80 and 2.0, level 100 takes about 26 million XP in total:
                                         # the early levels come quickly, the last ones take many hours each.
 const LEVEL_HP_PER_LEVEL := 3.0         # automatic max health per character level
 const LEVEL_DAMAGE_PER_LEVEL := 0.01    # automatic damage per character level (0.01 = +1%)
@@ -545,6 +582,30 @@ func is_boss_wave(wave: int) -> bool:
 
 func wave_hp_mult(wave: int) -> float:
 	return 1.0 + WAVE_HP_GROWTH * float(wave - 1)
+
+
+func wave_damage_mult(wave: int) -> float:
+	return 1.0 + WAVE_DAMAGE_GROWTH * float(wave - 1)
+
+
+func wave_xp_mult(wave: int) -> float:
+	return 1.0 + WAVE_XP_GROWTH * float(wave - 1)
+
+
+## The waves a run may start from on a map whose best cleared wave is
+## `best_cleared`: wave 1, plus the wave after every checkpoint reached.
+func checkpoint_waves(best_cleared: int) -> Array[int]:
+	var out: Array[int] = [1]
+	var wave := CHECKPOINT_EVERY
+	while wave <= mini(best_cleared, WAVES_PER_MAP - 1):
+		out.append(wave + 1)
+		wave += CHECKPOINT_EVERY
+	return out
+
+
+## True if clearing `wave` unlocks a new starting wave.
+func is_checkpoint(wave: int) -> bool:
+	return wave > 0 and wave < WAVES_PER_MAP and wave % CHECKPOINT_EVERY == 0
 
 
 func wave_speed_mult(wave: int) -> float:

@@ -78,6 +78,11 @@ static func _box(bg: Color, border: Color, border_width: int, radius: int = 8, m
 	return sb
 
 
+## The frame of a selected card (map cards, tree panels).
+static func card_style(border: Color, lit: bool = false) -> StyleBoxFlat:
+	return _box(Color("3a4530") if lit else Color("2c3324"), border, 3)
+
+
 static func small_panel_style() -> StyleBoxFlat:
 	return _box(Color(0.11, 0.13, 0.09, 0.9), Color("343a2b"), 2, 8, 16)
 

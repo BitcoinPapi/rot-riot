@@ -26,6 +26,12 @@ var passives: Dictionary = {}    # passive id -> rank
 # Weapons: id -> {"level": int, "xp": int, "points": int, "ranks": {track: rank}}
 var weapons: Dictionary = {}
 
+# Maps: how many are open, and the highest wave cleared on each one.
+var maps_unlocked: int = 1
+var map_best: Array[int] = []
+var selected_map: int = 0        # what the Play screen was last set to
+var selected_start: int = 1      # ...and the wave that run starts from
+
 var best_score: int = 0
 var best_wave: int = 0
 var total_kills: int = 0
@@ -69,6 +75,12 @@ func _reset_progress() -> void:
 	weapons = {}
 	for id: String in Config.WEAPON_ORDER:
 		weapons[id] = _new_weapon_entry()
+	maps_unlocked = 1
+	map_best = []
+	for i in Config.MAPS.size():
+		map_best.append(0)
+	selected_map = 0
+	selected_start = 1
 
 
 func _new_weapon_entry() -> Dictionary:
@@ -141,6 +153,15 @@ func load_game() -> void:
 				for track: String in Config.WEAPON_TRACK_ORDER:
 					ranks[track] = maxi(int((saved_ranks as Dictionary).get(track, 0)), 0)
 
+	maps_unlocked = clampi(int(data.get("maps_unlocked", 1)), 1, Config.MAPS.size())
+	var saved_best: Variant = data.get("map_best", [])
+	if typeof(saved_best) == TYPE_ARRAY:
+		for i in mini((saved_best as Array).size(), map_best.size()):
+			map_best[i] = clampi(int((saved_best as Array)[i]), 0, Config.WAVES_PER_MAP)
+	selected_map = clampi(int(data.get("selected_map", 0)), 0, maps_unlocked - 1)
+	selected_start = int(data.get("selected_start", 1))
+	if not map_checkpoints(selected_map).has(selected_start):
+		selected_start = 1
 
 	_refund_unusable_tracks()
 
@@ -172,6 +193,10 @@ func save_game() -> void:
 		"points_bought": points_bought,
 		"passives": passives,
 		"weapons": weapons,
+		"maps_unlocked": maps_unlocked,
+		"map_best": map_best,
+		"selected_map": selected_map,
+		"selected_start": selected_start,
 		"best_score": best_score,
 		"best_wave": best_wave,
 		"total_kills": total_kills,
@@ -376,18 +401,68 @@ func total_weapon_points() -> int:
 
 
 # ----------------------------------------------------------------------------
+#  Maps
+# ----------------------------------------------------------------------------
+func map_unlocked(index: int) -> bool:
+	return index >= 0 and index < maps_unlocked
+
+
+## Highest wave cleared on a map (0 = none yet).
+func map_best_wave(index: int) -> int:
+	return map_best[index] if index >= 0 and index < map_best.size() else 0
+
+
+func map_cleared(index: int) -> bool:
+	return map_best_wave(index) >= Config.WAVES_PER_MAP
+
+
+## The waves a run on this map may start from.
+func map_checkpoints(index: int) -> Array[int]:
+	return Config.checkpoint_waves(map_best_wave(index))
+
+
+## Remember which map and starting wave the next run uses. Returns false (and
+## changes nothing) if that map is locked or that checkpoint is not reached.
+func select_map(index: int, start_wave: int = 1) -> bool:
+	if not map_unlocked(index) or not map_checkpoints(index).has(start_wave):
+		return false
+	selected_map = index
+	selected_start = start_wave
+	return true
+
+
+## Called by the game each time a wave is cleared. Returns what that opened up:
+## {"checkpoint": wave a run can now start from (0 = nothing new),
+##  "unlocked": index of the map that was just unlocked (-1 = none)}.
+func note_wave_cleared(index: int, wave: int) -> Dictionary:
+	var result := {"checkpoint": 0, "unlocked": -1}
+	if index < 0 or index >= map_best.size() or wave <= map_best[index]:
+		return result
+	map_best[index] = mini(wave, Config.WAVES_PER_MAP)
+	if Config.is_checkpoint(wave):
+		result["checkpoint"] = wave + 1
+	if wave >= Config.WAVES_PER_MAP and index + 1 < Config.MAPS.size() and maps_unlocked < index + 2:
+		maps_unlocked = index + 2
+		result["unlocked"] = index + 1
+	progress_changed.emit()
+	return result
+
+
+# ----------------------------------------------------------------------------
 #  Runs
 # ----------------------------------------------------------------------------
-## Called at the end of every run. Returns true if it was a new best score.
-## (XP is added as it is earned; this banks the coins and saves everything.)
-func record_run(score: int, wave: int, kills: int, coins_earned: int) -> bool:
+## Called at the end of every run with Game.get_stats(). Returns true if it
+## was a new best score. (XP and cleared waves are counted as they happen;
+## this banks the coins and saves everything.)
+func record_run(stats: Dictionary) -> bool:
+	var score := int(stats.get("score", 0))
 	runs_played += 1
-	total_kills += kills
-	coins += coins_earned
+	total_kills += int(stats.get("kills", 0))
+	coins += int(stats.get("coins", 0))
 	var is_best := score > best_score
 	if is_best:
 		best_score = score
-	best_wave = maxi(best_wave, wave)
+	best_wave = maxi(best_wave, int(stats.get("wave", 0)))
 	coins_changed.emit()
 	save_game()
 	return is_best

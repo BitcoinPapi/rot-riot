@@ -12,6 +12,8 @@ const T_GROUND := 0
 const T_TEX := 1
 const T_RECT := 2
 
+var ground_tint := Color(0, 0, 0, 0)   # the map's colour wash over the ground (set before the first frame)
+
 var _viewport: SubViewport
 var _stamper: DrawLayer
 var _sprite: Sprite2D
@@ -171,6 +173,10 @@ func _paint_ground(ci: CanvasItem) -> void:
 		ci.draw_texture_rect(_dot, Rect2(p + Vector2(1.0, 1.5), Vector2(s, s)), false, Color(0.1, 0.09, 0.07, 0.5))
 		var grey := rng.randf_range(0.42, 0.6)
 		ci.draw_texture_rect(_dot, Rect2(p, Vector2(s, s)), false, Color(grey, grey, grey * 0.96, 0.9))
+
+	# The map's mood: a wash of colour over everything painted so far.
+	if ground_tint.a > 0.0:
+		ci.draw_rect(full, ground_tint)
 
 	# Darken the ground outside the playable clearing (under the trees).
 	var shade := Color(0.02, 0.04, 0.02, 0.62)

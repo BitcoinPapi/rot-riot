@@ -1,6 +1,6 @@
 class_name MainMenu
 extends Control
-## Title screen: Play, Character, Armory, Settings, Quit.
+## Title screen: Play (opens the map screen), Character, Armory, Settings, Quit.
 
 var main: Main
 var _first: Button
@@ -27,7 +27,7 @@ func _init() -> void:
 	col.add_child(UiKit.heading("SURVIVE THE HORDE", 22, UiKit.GOLD))
 	col.add_child(UiKit.spacer(8))
 
-	_first = _add_button(col, "PLAY", func() -> void: main.start_run())
+	_first = _add_button(col, "PLAY", func() -> void: main.open_screen("maps"))
 	_character = _add_button(col, "CHARACTER", func() -> void: main.open_screen("character"))
 	_armory = _add_button(col, "ARMORY", func() -> void: main.open_screen("armory"))
 	_add_button(col, "SETTINGS", func() -> void: main.open_screen("settings"))
@@ -65,8 +65,10 @@ func opened() -> void:
 	_armory.text = "ARMORY" if weapon_points <= 0 else "ARMORY  (%d)" % weapon_points
 	_progress.text = "LEVEL %d      COINS: %d" % [SaveData.level, SaveData.coins]
 	if SaveData.runs_played > 0:
-		_stats.text = "BEST SCORE %d   -   BEST WAVE %d   -   ZOMBIES KILLED %d" % [
-			SaveData.best_score, SaveData.best_wave, SaveData.total_kills]
+		var map_index := SaveData.maps_unlocked - 1
+		_stats.text = "MAP %d: %s  -  BEST WAVE %d / %d   -   BEST SCORE %d   -   ZOMBIES KILLED %d" % [
+			map_index + 1, String(Config.MAPS[map_index]["name"]), SaveData.map_best_wave(map_index), Config.WAVES_PER_MAP,
+			SaveData.best_score, SaveData.total_kills]
 	else:
 		_stats.text = "WASD move  -  MOUSE aim  -  LEFT CLICK shoot  -  R reload  -  SPACE rage  (gamepad works too)"
 	_notice.text = "New progression system: your old coins and upgrades were reset." if SaveData.was_reset_by_update else ""

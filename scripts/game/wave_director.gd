@@ -2,14 +2,17 @@ class_name WaveDirector
 extends RefCounted
 ## Decides what attacks and when. Waves get bigger, faster and tougher over
 ## time; zombies arrive in packs from one side so they form hordes; every few
-## waves a boss shows up. All the numbers come from Config (WAVES section).
+## waves a boss shows up. A map ends when its last wave is cleared. All the
+## numbers come from Config (MAPS and WAVES sections).
 
 signal wave_started(wave: int, is_boss: bool)
 signal wave_cleared(wave: int, coin_bonus: int)
 signal boss_spawned(boss: Enemy)
 
 var game: Game
-var wave := 0
+var wave := 0                     # the wave being fought (0 before the first; set to start_wave - 1 to begin later)
+var cleared := 0                  # the last wave that was cleared in this run
+var finished := false             # true once the map's last wave is cleared
 var in_wave := false
 var to_spawn := 0                 # regular zombies still to arrive this wave
 var wave_total := 0
@@ -21,7 +24,7 @@ var _boss_delay := -1.0           # > 0 while a boss is on its way
 
 
 func tick(dt: float) -> void:
-	if game.state != Game.State.PLAYING:
+	if game.state != Game.State.PLAYING or finished:
 		return
 	if not in_wave:
 		intermission -= dt
@@ -61,8 +64,12 @@ func _start_wave() -> void:
 	in_wave = true
 	wave_total = Config.wave_enemy_count(wave)
 	to_spawn = wave_total
-	game.enemy_hp_mult = Config.wave_hp_mult(wave)
-	game.enemy_speed_mult = Config.wave_speed_mult(wave)
+	# Zombie strength = the map's multiplier times this wave's.
+	var map: Dictionary = game.map
+	game.enemy_hp_mult = float(map["hp"]) * Config.wave_hp_mult(wave)
+	game.enemy_speed_mult = float(map["speed"]) * Config.wave_speed_mult(wave)
+	game.enemy_damage_mult = float(map["damage"]) * Config.wave_damage_mult(wave)
+	game.enemy_xp_mult = float(map["xp"]) * Config.wave_xp_mult(wave)
 	_pack_timer = 0.4
 	var is_boss := Config.is_boss_wave(wave)
 	_boss_delay = float(Config.ENEMIES[Config.BOSS]["arrive_delay"]) if is_boss else -1.0
@@ -72,8 +79,10 @@ func _start_wave() -> void:
 
 func _end_wave() -> void:
 	in_wave = false
+	cleared = wave
+	finished = wave >= Config.WAVES_PER_MAP
 	intermission = Config.WAVE_INTERMISSION
-	var bonus: int = Config.WAVE_CLEAR_COINS_BASE + Config.WAVE_CLEAR_COINS_PER_WAVE * wave
+	var bonus: int = (Config.WAVE_CLEAR_COINS_BASE + Config.WAVE_CLEAR_COINS_PER_WAVE * wave) * game.coin_value
 	game.coins_run += bonus
 	wave_cleared.emit(wave, bonus)
 	Sfx.play("wave_clear")
@@ -126,8 +135,8 @@ func _pick_kind() -> int:
 func _spawn_boss() -> void:
 	var cfg: Dictionary = Config.ENEMIES[Config.BOSS]
 	var boss_number := maxi(int(float(wave) / Config.BOSS_EVERY), 1)
-	var hp_mult := 1.0 + float(cfg["hp_growth_per_boss"]) * float(boss_number - 1)
-	boss = game.enemies.spawn(Config.BOSS, game.arena.random_spawn_point(), hp_mult, 1.0)
+	var hp_mult := game.enemy_hp_mult * (1.0 + float(cfg["hp_growth_per_boss"]) * float(boss_number - 1))
+	boss = game.enemies.spawn(Config.BOSS, game.arena.random_spawn_point(), hp_mult, float(game.map["speed"]))
 	_boss_delay = -1.0
 	boss_spawned.emit(boss)
 	Sfx.play("boss_roar")

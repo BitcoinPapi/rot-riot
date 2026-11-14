@@ -61,6 +61,7 @@ func _build_ui() -> void:
 	_ui_root.add_child(_dim)
 
 	_add_screen("main", MainMenu.new())
+	_add_screen("maps", MapScreen.new())
 	_add_screen("character", CharacterScreen.new())
 	_add_screen("armory", ArmoryScreen.new())
 	_add_screen("settings", SettingsScreen.new())
@@ -124,11 +125,18 @@ func _enter_menu() -> void:
 	_show_only("main")
 
 
-func start_run() -> void:
+## Start a run on a map, from one of its unlocked starting waves. Without
+## arguments it repeats the last choice (see the Play screen).
+func start_run(map_index: int = -1, start_wave: int = -1) -> void:
+	if map_index >= 0:
+		if not SaveData.select_map(map_index, maxi(start_wave, 1)):
+			SaveData.select_map(0, 1)
 	_free_game()
 	get_tree().paused = false
 	state = State.PLAYING
 	game = Game.new()
+	game.map_index = SaveData.selected_map
+	game.start_wave = SaveData.selected_start
 	game.run_ended.connect(_on_run_ended)
 	add_child(game)
 	move_child(game, 0)
@@ -186,21 +194,20 @@ func quit_game(exit_code: int = 0) -> void:
 
 
 func _on_run_ended(stats: Dictionary) -> void:
-	var is_best := SaveData.record_run(int(stats["score"]), int(stats["wave"]), int(stats["kills"]), int(stats["coins"]))
+	var is_best := SaveData.record_run(stats)
 	state = State.GAME_OVER
 	game.hud.visible = false
 	GameInput.set_gameplay_mode(false)
 	var screen: GameOverScreen = _screens["gameover"]
 	_show_only("gameover")
 	screen.show_results(stats, is_best)
-	Sfx.play("game_over")
+	Sfx.play("level_up" if bool(stats.get("victory", false)) else "game_over")
 
 
 ## Leaving a run early (quit / restart) still keeps the coins and score so far.
 func _bank_current_run() -> void:
 	if game != null and is_instance_valid(game) and game.state != Game.State.OVER and (state == State.PLAYING or state == State.PAUSED):
-		var stats := game.get_stats()
-		SaveData.record_run(int(stats["score"]), int(stats["wave"]), int(stats["kills"]), int(stats["coins"]))
+		SaveData.record_run(game.get_stats())
 
 
 func _free_game() -> void:

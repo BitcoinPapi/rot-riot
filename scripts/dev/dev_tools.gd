@@ -5,7 +5,8 @@ extends Node
 ##
 ##   --play             skip the menu and start a run
 ##   --bot              start a run and let a simple bot play (through GameInput's virtual sticks)
-##   --screen=NAME      open a menu screen (character, armory, settings, pause, gameover) for screenshots
+##   --screen=NAME      open a menu screen (maps, character, armory, settings, pause, gameover, victory) for screenshots
+##   --map=N            play map N (unlocks it); --best=W sets the best wave cleared there, --start=W the starting wave
 ##   --level=N          start as a level N character with points to spend (for screenshots)
 ##   --armory-weapon=ID with --screen=armory: show this weapon
 ##   --weapon=ID        the bot starts with this weapon (pistol, shotgun, ...)
@@ -65,6 +66,13 @@ func _ready() -> void:
 			SaveData.raise_weapon_track("pistol", "power")
 			SaveData.raise_weapon_track("pistol", "power")
 			SaveData.raise_weapon_track("shotgun", "spawn")
+		if _args.has("map"):
+			var map_index := clampi(int(_args["map"]) - 1, 0, Config.MAPS.size() - 1)
+			SaveData.maps_unlocked = maxi(SaveData.maps_unlocked, map_index + 1)
+			for i in map_index:
+				SaveData.map_best[i] = Config.WAVES_PER_MAP
+			SaveData.map_best[map_index] = clampi(int(_args.get("best", "0")), 0, Config.WAVES_PER_MAP)
+			SaveData.select_map(map_index, int(_args.get("start", "1")))
 	if _args.has("gallery"):
 		_show_gallery.call_deferred()
 	if _args.has("autotest"):
@@ -174,11 +182,23 @@ func _open_screen(app: Main, screen: String) -> void:
 			if app.game != null:
 				app.game.player.invuln = 0.0
 				app.game.damage_player(99999.0, app.game.player.pos + Vector2.RIGHT)
+		"victory":
+			if app.game != null:
+				_finish_wave(app.game, Config.WAVES_PER_MAP)
 		_:
 			app.open_screen(screen)
 			if screen == "armory" and _args.has("armory-weapon"):
 				var screens: Dictionary = app.get("_screens")
 				(screens["armory"] as ArmoryScreen).call("_select", String(_args["armory-weapon"]))
+
+
+## Pretend the player just killed the last zombie of `wave`.
+func _finish_wave(game: Game, wave: int) -> void:
+	game.enemies.clear_all()
+	game.director.wave = wave
+	game.director.in_wave = true
+	game.director.to_spawn = 0
+	game.director.set("_boss_delay", -1.0)
 
 
 ## Performance test: hold a fixed horde around the player while the bot shoots.
@@ -565,6 +585,65 @@ func _run_autotest() -> void:
 	_check(app.state == Main.State.MENU and app.game == null and not get_tree().paused, "Quit to Menu returns to the main menu")
 	_check(SaveData.runs_played == 2, "abandoned run is still recorded")
 
+	# --- maps: checkpoints, clearing a map, the next and tougher map ---
+	var every: int = Config.CHECKPOINT_EVERY
+	var last_wave: int = Config.WAVES_PER_MAP
+	_check(Config.checkpoint_waves(0) == [1] and Config.checkpoint_waves(every - 1) == [1], "no later starting wave before a boss is beaten")
+	_check(Config.checkpoint_waves(every) == [1, every + 1] and Config.checkpoint_waves(every * 2 + 2) == [1, every + 1, every * 2 + 1],
+			"each boss beaten unlocks the next starting wave")
+	var all_starts := Config.checkpoint_waves(last_wave)
+	_check(all_starts[all_starts.size() - 1] == last_wave - every + 1, "the last starting wave is just before the final boss")
+	SaveData.map_best[0] = 0
+	SaveData.maps_unlocked = 1
+	SaveData.select_map(0, 1)
+	_check(not SaveData.map_unlocked(1) and not SaveData.select_map(1, 1), "map 2 starts locked")
+	_check(not SaveData.select_map(0, every + 1), "a starting wave that is not unlocked is refused")
+	app.open_screen("maps")
+	await _frames(3)
+	app.start_run(0, 1)
+	await _frames(10)
+	game = app.game
+	_check(app.state == Main.State.PLAYING and game.map_index == 0 and game.start_wave == 1, "the map screen starts a run on map 1")
+	game.director.intermission = 99999.0
+	_finish_wave(game, every)
+	await _until(func() -> bool: return game.director.cleared == every)
+	_check(SaveData.map_best_wave(0) == every and game.new_checkpoint == every + 1, "clearing a boss wave is a checkpoint")
+	_check(SaveData.map_checkpoints(0) == [1, every + 1], "...which unlocks the next starting wave")
+	game.director.intermission = 99999.0
+	var coins_before_win := game.coins_run
+	_finish_wave(game, last_wave)
+	await _until(func() -> bool: return game.state == Game.State.WON)
+	_check(game.victory and game.coins_run >= coins_before_win + Config.MAP_CLEAR_COINS, "clearing wave %d wins the map and pays a bonus" % last_wave)
+	_check(SaveData.maps_unlocked == 2 and SaveData.map_cleared(0) and game.unlocked_map == 1, "...and unlocks the next map")
+	await _until(func() -> bool: return app.state == Main.State.GAME_OVER, 900)
+	_check(app.state == Main.State.GAME_OVER, "the results screen follows a victory")
+	await _frames(5)
+	app.start_run(0, every + 1)
+	await _frames(10)
+	game = app.game
+	_check(game.start_wave == every + 1 and not game.pickups.crates.is_empty(), "a checkpoint run starts with a weapon crate beside you")
+	game.director.intermission = 0.05
+	await _until(func() -> bool: return game.director.in_wave, 300)
+	_check(game.director.wave == every + 1, "...and begins at wave %d" % (every + 1))
+	app.start_run(1, 1)
+	await _frames(10)
+	game = app.game
+	_check(game.map_index == 1 and game.coin_value == int(Config.MAPS[1]["coins"]), "map 2 can be played once unlocked, and its coins are worth more")
+	game.director.intermission = 0.05
+	await _until(func() -> bool: return game.enemies.alive_count > 0, 600)
+	var tough := game.enemies.nearest(game.player.pos, 99999.0)
+	if tough != null:
+		var base: Dictionary = Config.ENEMIES[tough.kind]
+		_check(is_equal_approx(tough.max_hp, float(base["hp"]) * float(Config.MAPS[1]["hp"]))
+				and is_equal_approx(tough.damage, float(base["damage"]) * float(Config.MAPS[1]["damage"])),
+				"map 2 zombies are tougher (%.0f health, %.0f damage)" % [tough.max_hp, tough.damage])
+	else:
+		_check(false, "map 2 zombies arrive")
+	app.pause_game()
+	await _frames(3)
+	app.quit_to_menu()
+	await _frames(5)
+
 	# --- XP earned in play ---
 	_check(SaveData.weapon_xp("pistol") > 0 or SaveData.weapon_level("pistol") > 1, "kills give the weapon that made them XP")
 	_check(SaveData.level > 2 or SaveData.xp > 0, "kills give the character XP")
@@ -604,6 +683,8 @@ func _run_autotest() -> void:
 			"save file restores coins, level, XP and skill points")
 	_check(SaveData.passive_rank("evasion") == 1 and SaveData.weapon_rank("shotgun", "power") == shotgun_power
 			and SaveData.weapon_level("pistol") == pistol_level, "save file restores passive ranks and weapon levels")
+	_check(SaveData.maps_unlocked == 2 and SaveData.map_cleared(0) and SaveData.selected_map == 1,
+			"save file restores map progress")
 
 	# --- points in an upgrade a weapon no longer has are given back ---
 	var sledge_entry: Dictionary = SaveData.weapons["sledge"]

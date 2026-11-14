@@ -11,6 +11,7 @@ var _obs_sprite := PackedStringArray()
 var _obs_rot := PackedFloat32Array()
 
 var canopy: DrawLayer          # tree tops, drawn above everything in the world
+var tree_tint := Color(1, 1, 1)   # the map's colour for the tree tops
 var _trees: Array = []         # [pos, scale, rotation, tint]
 
 
@@ -89,7 +90,7 @@ func _paint_canopy(ci: CanvasItem) -> void:
 	for tree: Array in _trees:
 		var s: float = tree[1]
 		ci.draw_set_transform(tree[0], tree[2], Vector2(s, s))
-		Art.draw(ci, "canopy", Vector2.ZERO, 1.0, tree[3])
+		Art.draw(ci, "canopy", Vector2.ZERO, 1.0, (tree[3] as Color) * tree_tint)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 

@@ -6,7 +6,12 @@ extends Node2D
 
 signal run_ended(stats: Dictionary)
 
-enum State { PLAYING, DYING, OVER }
+enum State { PLAYING, DYING, WON, OVER }
+
+# Set by Main before the game is added to the scene.
+var map_index := 0              # which entry of Config.MAPS
+var start_wave := 1             # the first wave of this run (a checkpoint)
+var map: Dictionary = Config.MAPS[0]
 
 var arena: Arena
 var decals: Decals
@@ -31,23 +36,38 @@ var combo_timer := 0.0
 var rage := 0.0                 # 0..Config.RAGE_MAX
 var rage_active := false
 var rage_time := 0.0
-var enemy_hp_mult := 1.0        # set per wave
+var enemy_hp_mult := 1.0        # set per wave (map x wave growth)
 var enemy_speed_mult := 1.0
+var enemy_damage_mult := 1.0
+var enemy_xp_mult := 1.0
+var coin_value: int = Config.COIN_VALUE   # what one coin is worth on this map
+var victory := false            # the map's last wave was cleared
+var new_checkpoint := 0         # a starting wave unlocked during this run (0 = none)
+var unlocked_map := -1          # a map unlocked by this run (-1 = none)
 var sim_usec := 0               # how long the last simulation step took (for the benchmark)
 
 var _hitstop := 0.0
 var _hitstop_cooldown := 0.0
 var _time_scale := 1.0
-var _death_timer := 0.0
+var _end_timer := 0.0           # counts down to the results screen after death or victory
 var _slowmo_timer := 0.0
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_PAUSABLE
+	map_index = clampi(map_index, 0, Config.MAPS.size() - 1)
+	map = Config.MAPS[map_index]
+	coin_value = Config.COIN_VALUE * int(map["coins"])
+	enemy_hp_mult = float(map["hp"])
+	enemy_speed_mult = float(map["speed"])
+	enemy_damage_mult = float(map["damage"])
+	enemy_xp_mult = float(map["xp"])
 
 	# Children are added bottom layer first.
 	arena = Arena.new()
+	arena.tree_tint = map["trees"]
 	decals = Decals.new()
+	decals.ground_tint = map["ground"]
 	add_child(decals)          # ground + blood
 	add_child(arena)           # rocks and stumps
 
@@ -82,6 +102,8 @@ func _ready() -> void:
 
 	director = WaveDirector.new()
 	director.game = self
+	director.wave = clampi(start_wave, 1, Config.WAVES_PER_MAP) - 1
+	director.cleared = director.wave
 	director.wave_started.connect(_on_wave_started)
 	director.wave_cleared.connect(_on_wave_cleared)
 	director.boss_spawned.connect(_on_boss_spawned)
@@ -95,6 +117,10 @@ func _ready() -> void:
 
 	GameInput.rage_pressed.connect(try_activate_rage)
 	GameInput.reload_pressed.connect(_on_reload_pressed)
+
+	# Starting deep into a map: a weapon is waiting beside you.
+	if start_wave > 1 and Config.CHECKPOINT_START_CRATE:
+		pickups.spawn_crate(player.pos + Vector2(0.0, 80.0))
 
 
 func _process(delta: float) -> void:
@@ -121,9 +147,9 @@ func _process(delta: float) -> void:
 		_simulate(dt)
 		sim_usec = Time.get_ticks_usec() - started
 
-	if state == State.DYING:
-		_death_timer -= real_dt
-		if _death_timer <= 0.0:
+	if state == State.DYING or state == State.WON:
+		_end_timer -= real_dt
+		if _end_timer <= 0.0:
 			state = State.OVER
 			run_ended.emit(get_stats())
 
@@ -162,7 +188,8 @@ func _tick_combo_and_rage(dt: float) -> void:
 
 func get_stats() -> Dictionary:
 	return {"score": score, "wave": director.wave, "kills": kills, "coins": coins_run, "time": time_alive,
-			"xp": xp_run, "levels": levels_run}
+			"xp": xp_run, "levels": levels_run, "map": map_index, "start": start_wave, "cleared": director.cleared,
+			"victory": victory, "checkpoint": new_checkpoint, "unlocked": unlocked_map}
 
 
 # ----------------------------------------------------------------------------
@@ -176,9 +203,41 @@ func _on_wave_started(wave: int, is_boss: bool) -> void:
 
 
 func _on_wave_cleared(wave: int, coin_bonus: int) -> void:
-	var xp_bonus: int = Config.WAVE_CLEAR_XP_BASE + Config.WAVE_CLEAR_XP_PER_WAVE * wave
-	hud.announce("WAVE %d CLEARED" % wave, "+%d coins   +%d XP" % [coin_bonus, xp_bonus], Color(0.6, 1.0, 0.5))
+	var xp_bonus := int(round(float(Config.WAVE_CLEAR_XP_BASE + Config.WAVE_CLEAR_XP_PER_WAVE * wave) * float(map["xp"])))
+	var opened := SaveData.note_wave_cleared(map_index, wave)
+	if int(opened["unlocked"]) >= 0:
+		unlocked_map = int(opened["unlocked"])
+	if wave >= Config.WAVES_PER_MAP:
+		gain_xp(xp_bonus, "")
+		_map_cleared()
+		return
+	if int(opened["checkpoint"]) > 0:
+		new_checkpoint = int(opened["checkpoint"])
+		hud.announce("CHECKPOINT REACHED", "+%d coins   +%d XP   -   you can now start from wave %d" % [
+				coin_bonus, xp_bonus, new_checkpoint], Color(1.0, 0.85, 0.3), 3.2)
+	else:
+		hud.announce("WAVE %d CLEARED" % wave, "+%d coins   +%d XP" % [coin_bonus, xp_bonus], Color(0.6, 1.0, 0.5))
 	gain_xp(xp_bonus, "")
+
+
+## The last wave of the map is cleared: a moment of glory, then the results.
+func _map_cleared() -> void:
+	victory = true
+	var coins_bonus: int = Config.MAP_CLEAR_COINS * int(map["coins"])
+	var xp_bonus := int(round(float(Config.MAP_CLEAR_XP) * float(map["xp"])))
+	coins_run += coins_bonus
+	gain_xp(xp_bonus, "")
+	state = State.WON
+	_end_timer = Config.MAP_CLEAR_CELEBRATION
+	_time_scale = Config.BOSS_DEATH_SLOWMO
+	_slowmo_timer = 0.0
+	hud.announce("MAP CLEARED!", "%s is yours   -   +%d coins   +%d XP" % [String(map["name"]), coins_bonus, xp_bonus],
+			Color(1.0, 0.85, 0.3), 6.0)
+	for k in 3:
+		fx.ring(player.pos, 20.0 + 30.0 * k, 320.0 + 140.0 * k, 0.6 + 0.2 * k, Color(1.0, 0.85, 0.3, 0.9))
+	fx.light(player.pos, 900.0, 0.6, Color(1.0, 0.8, 0.3, 0.7))
+	shake(Config.BOSS_DEATH_SHAKE)
+	Sfx.play("level_up")
 
 
 func _on_boss_spawned(_boss: Enemy) -> void:
@@ -294,7 +353,7 @@ func try_activate_rage() -> void:
 #  Pickups
 # ----------------------------------------------------------------------------
 func collect_coin(at: Vector2, with_feedback: bool) -> void:
-	coins_run += Config.COIN_VALUE
+	coins_run += coin_value
 	if with_feedback:
 		fx.sparks(at, Vector2.UP, 2)
 		Sfx.play_pitched("coin", pickups.next_coin_pitch(), -8.0)
@@ -355,7 +414,7 @@ func _player_died() -> void:
 	player.alive = false
 	player.visible = false
 	_time_scale = Config.DEATH_SLOWMO
-	_death_timer = Config.DEATH_SLOWMO_TIME
+	_end_timer = Config.DEATH_SLOWMO_TIME
 	fx.blood_burst(player.pos, 40, 1.6)
 	decals.blood_splat(player.pos, 90.0)
 	fx.ring(player.pos, 10.0, 220.0, 0.5, Color(1.0, 0.2, 0.15, 0.8))

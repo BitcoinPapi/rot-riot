@@ -87,7 +87,7 @@ func spawn(kind: int, at: Vector2, hp_mult: float = 1.0, speed_mult: float = 1.0
 	e.hp = e.max_hp
 	e.radius = c["radius"]
 	e.speed = float(c["speed"]) * speed_mult * (1.0 + randf_range(-speed_var, speed_var))
-	e.damage = c["damage"]
+	e.damage = float(c["damage"]) * game.enemy_damage_mult
 	e.attack_cd = c["attack_cd"]
 	e.attack_t = Config.ENEMY_FIRST_ATTACK_DELAY
 	e.flash_t = 0.0
@@ -105,7 +105,7 @@ func spawn(kind: int, at: Vector2, hp_mult: float = 1.0, speed_mult: float = 1.0
 	e.inv_mass = 1.0 / float(c["mass"])
 	e.push_player = c["push_player"]
 	e.score = c["score"]
-	e.xp = c["xp"]
+	e.xp = maxi(int(round(float(c["xp"]) * game.enemy_xp_mult)), 1)
 	e.rage = c["rage"]
 	e.hitstop_mult = c["hitstop_mult"]
 	e.shake_mult = c["shake_mult"]
@@ -409,7 +409,7 @@ func _tick_boss(e: Enemy, dt: float) -> void:
 			game.fx.dust(e.pos - e.charge_dir * e.radius, 2)
 			if not e.charge_hit and dist < e.radius + player.radius + 8.0 and player.alive:
 				e.charge_hit = true
-				game.damage_player(float(cfg["charge_damage"]), e.pos)
+				game.damage_player(float(cfg["charge_damage"]) * game.enemy_damage_mult, e.pos)
 			var hit_wall := e.pos.distance_squared_to(before) > 1.0
 			if hit_wall:
 				game.shake(float(cfg["wall_slam_shake"]))
