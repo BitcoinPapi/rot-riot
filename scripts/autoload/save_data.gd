@@ -42,6 +42,11 @@ var gear_new: int = 0            # pieces found since the Gear screen was last o
 
 var _gear_ranks := {}            # worked out from gear_worn: passive id -> ranks
 
+# Pets (Config.PETS).
+var pets_owned: Array[String] = []
+var pet_active: String = ""      # the pet that comes along ("" = none)
+var pet_seen: bool = false       # the Pet screen has been opened since the first pet joined (menu badge)
+
 # Maps: how many are open, and the highest wave cleared on each one.
 var maps_unlocked: int = 1
 var map_best: Array[int] = []
@@ -106,6 +111,9 @@ func _reset_progress() -> void:
 	gear_seen = {}
 	gear_new = 0
 	_gear_ranks = {}
+	pets_owned = []
+	pet_active = ""
+	pet_seen = false
 	maps_unlocked = 1
 	map_best = []
 	for i in Config.MAPS.size():
@@ -175,6 +183,15 @@ func load_game() -> void:
 			_load_weapon_tree(id, entry)
 
 	_load_gear(data)
+	var saved_pets: Variant = data.get("pets_owned")
+	if typeof(saved_pets) == TYPE_ARRAY:
+		for id: Variant in (saved_pets as Array):
+			if Config.PETS.has(String(id)) and not pets_owned.has(String(id)):
+				pets_owned.append(String(id))
+	pet_active = String(data.get("pet_active", ""))
+	if not pets_owned.has(pet_active):
+		pet_active = ""
+	pet_seen = bool(data.get("pet_seen", false))
 	maps_unlocked = clampi(int(data.get("maps_unlocked", 1)), 1, Config.MAPS.size())
 	var saved_best: Variant = data.get("map_best")
 	if typeof(saved_best) == TYPE_ARRAY:
@@ -188,6 +205,7 @@ func load_game() -> void:
 	selected_start = int(data.get("selected_start", 1))
 	if not map_checkpoints(selected_map).has(selected_start):
 		selected_start = 1
+	_grant_free_pets()
 
 
 func save_game() -> void:
@@ -205,6 +223,9 @@ func save_game() -> void:
 		"gear_worn": gear_worn,
 		"gear_seen": gear_seen.keys(),
 		"gear_new": gear_new,
+		"pets_owned": pets_owned,
+		"pet_active": pet_active,
+		"pet_seen": pet_seen,
 		"maps_unlocked": maps_unlocked,
 		"map_best": map_best,
 		"selected_map": selected_map,
@@ -259,6 +280,7 @@ func add_xp(amount: int) -> int:
 	if at_level_cap():
 		xp = 0
 	if gained > 0:
+		_grant_free_pets()
 		progress_changed.emit()
 	return gained
 
@@ -415,6 +437,10 @@ func deed_progress(deed: Dictionary) -> int:
 			return best_score
 		"bought":
 			return points_bought
+		"level":
+			return level
+		"pets":
+			return pets_owned.size()
 		"map":
 			return int(deed["value"]) if map_cleared(int(deed["value"]) - 1) else 0
 	return 0
@@ -862,6 +888,71 @@ func forges_ready() -> int:
 		if gear_count(key) >= 2 and Config.gear_tier_of(key) < Config.GEAR_TIERS.size():
 			total += 1
 	return total
+
+
+# ----------------------------------------------------------------------------
+#  Pets (described in Config, PETS section)
+# ----------------------------------------------------------------------------
+## True once the character is high enough for pets at all.
+func pets_unlocked() -> bool:
+	return level >= Config.PET_UNLOCK_LEVEL
+
+
+func has_pet(id: String) -> bool:
+	return pets_owned.has(id)
+
+
+## A pet that costs nothing joins by itself as soon as its condition is met
+## (the first one: at character level PET_UNLOCK_LEVEL). If no pet is coming
+## along yet, it does.
+func _grant_free_pets() -> void:
+	if not pets_unlocked():
+		return
+	for id: String in Config.PET_ORDER:
+		var def: Dictionary = Config.PETS[id]
+		if int(def["price"]) <= 0 and not has_pet(id) and deed_done(def["needs"]):
+			pets_owned.append(id)
+			if pet_active == "":
+				pet_active = id
+
+
+## Where a pet stands: "owned", "ready" (can be bought now), "poor" (not
+## enough coins) or "locked" (its condition is not met, or pets are not open yet).
+func pet_status(id: String) -> String:
+	if has_pet(id):
+		return "owned"
+	var def: Dictionary = Config.PETS[id]
+	if not pets_unlocked() or not deed_done(def["needs"]):
+		return "locked"
+	return "ready" if coins >= int(def["price"]) else "poor"
+
+
+func buy_pet(id: String) -> bool:
+	if not Config.PETS.has(id) or pet_status(id) != "ready":
+		return false
+	coins -= int(Config.PETS[id]["price"])
+	pets_owned.append(id)
+	pet_active = id
+	coins_changed.emit()
+	progress_changed.emit()
+	save_game()
+	return true
+
+
+## Choose which pet comes along ("" = none).
+func choose_pet(id: String) -> bool:
+	if id != "" and not has_pet(id):
+		return false
+	pet_active = id
+	progress_changed.emit()
+	save_game()
+	return true
+
+
+## True if the pet trick number `index` (Config.PET_TRICKS) has been learned
+## in the BOND branch of the skill tree.
+func has_pet_trick(index: int) -> bool:
+	return node_count(SkillTree.trick_node(index)) > 0
 
 
 # ----------------------------------------------------------------------------

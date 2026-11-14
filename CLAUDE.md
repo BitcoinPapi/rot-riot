@@ -52,13 +52,18 @@ Other dev flags (all after `--`, see `scripts/dev/dev_tools.gd`): `--play`,
 `--start=W` starting wave), `--screen=maps|character|armory|gear|settings|pause|gameover|victory`,
 `--armory-weapon=ID`, `--tree-node=ID --tree-zoom=N` (skill tree / gear screen: highlight a node, zoom;
 0 = whole tree), `--gear=N` (start with N random pieces), `--drop-gear` (drop a piece of every tier in a run),
+`--pets=N` (own the first N pets; needs `--level=18` or more), `--screen=pets`,
 `--shot=PATH --shot-frame=N` (screenshot; needs a real display, e.g. `xvfb-run`),
 `--dump-sfx=DIR` (writes every generated sound as .wav),
 `--gallery=PREFIX[,PREFIX] --gallery-scale=N` (shows generated sprites enlarged, e.g.
 `--gallery=icon_` or `--gallery=boss_0,player`; combine with `--shot` to review art).
 
 Definition of done for any change: `--autotest` and `--inputtest` pass, and
-the `-d` run prints zero `WARNING` / `SCRIPT ERROR` lines. Run the autotest a
+the `-d` run prints zero `WARNING` / `SCRIPT ERROR` lines. **Drawing code
+does not run headless**: after touching anything that draws (a screen, the
+HUD, a sprite name) also open it once with a real renderer
+(`xvfb-run -a godot --rendering-driver opengl3 ... -- --screen=NAME --shot=...`)
+and check for `SCRIPT ERROR` - a missing sprite name only shows up there. Run the autotest a
 few times: it plays a real fight, so a check that counts frames or relies on
 what the bot happens to do will fail now and then. In test code, wait with
 `_until(condition)` (hit stop can delay game updates by several frames) and
@@ -75,17 +80,18 @@ scripts/main.gd          app state machine: MENU / PLAYING / PAUSED / GAME_OVER,
 scripts/autoload/
   game_input.gd          all input, key bindings, device detection, virtual sticks (touch/bot)
   save_data.gd           coins, character level + skill points + learned tree nodes, weapon levels + weapon
-                         trees, gear (bag, worn, seen), map progress, bests, settings -> user://save.json
+                         trees, gear (bag, worn, seen), pets, map progress, bests, settings -> user://save.json
   art.gd                 placeholder sprites generated from SVG shapes at startup
   sfx.gd                 sounds synthesised at startup (worker thread) + pooled playback
 scripts/game/
   game.gd                one run: owns the world, runs the simulation loop, hit stop, slow-mo, rage, score
   player.gd              movement, aim, firing (bullets / grenade / melee), drawing
-  player_stats.gd        THE stat pipeline: level + skill tree + gear + keystones + weapon trees/perks
+  player_stats.gd        THE stat pipeline: level + skill tree + gear + pet + keystones + weapon trees/perks
                          -> the numbers the game uses
   skill_tree.gd          builds the character's skill tree (257 nodes) from Config; describes nodes only
   weapon_tree.gd         builds each weapon's upgrade tree (63-93 nodes) from Config
   gear_tree.gd           layout of the Gear screen: 9 body slots + every piece x 5 tiers (177 nodes)
+  pet.gd                 the companion in a run: heel, bite, fetch, guard (numbers arrive via PlayerStats)
   enemy.gd               one zombie = data + Sprite2D (no logic)
   enemy_manager.gd       ALL zombie logic in one loop: spatial grid, separation, attacks, boss AI, damage, queries
   wave_director.gd       waves, packs, enemy mix, boss waves, map multipliers, end of the map
@@ -99,7 +105,7 @@ scripts/game/
   draw_layer.gd          blank canvas whose _draw is forwarded to a manager
 scripts/ui/              ui_kit.gd (theme + helpers), menu_background, main_menu, map_screen (Play),
                          tree_view (pannable/zoomable node web used by both trees),
-                         character_screen (skill tree), armory_screen (weapon trees), gear_screen,
+                         character_screen (skill tree), armory_screen (weapon trees), gear_screen, pet_screen,
                          settings_screen, pause_menu, game_over_screen (also the victory screen)
 scripts/dev/dev_tools.gd bot, autotest, input test, benchmark, screenshots (only with CLI args)
 assets/sprites/, assets/sfx/   empty; drop-in overrides for generated art and sounds
@@ -112,7 +118,8 @@ Update Rot Riot.command  double-click updater for the owner's Mac (downloads mai
 **Loop:** main menu -> PLAY opens the map screen (choose map + starting wave)
 -> run -> death or map cleared -> results (coins banked) -> spend points in
 the skill tree (Character) and the weapon trees (Armory), wear and forge
-gear (Gear) -> next run.
+gear (Gear), choose a pet (Pets) -> next run. The main menu is PLAY on top,
+then two columns: CHARACTER, ARMORY, GEAR, PETS, SETTINGS, QUIT.
 Quitting a run from pause also banks its coins.
 
 **Maps** (`Config.MAPS`, five of them): every map has 100 waves
@@ -219,15 +226,16 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   times that - which is why the exponent went from 1.8 to 2.0 when maps
   were added). Re-check this pacing whenever XP sources change.
 - *Skill tree* (Character screen; built by `skill_tree.gd` from the SKILL
-  TREE section of config.gd): a web of 257 nodes around the survivor. Eight
+  TREE section of config.gd): a web of 289 nodes around the survivor. Nine
   branches, one per passive stat (vitality, strength, dexterity = fire rate,
-  agility = move speed, defense, evasion, critical, luck = coin drops). Per
+  agility = move speed, defense, evasion, critical, luck = coin drops, and
+  BOND = the pet's branch, which needs level 18; see Pets). Per
   branch: four rings of small nodes (+1 rank) ending in a big node (+3), a
   side twig per ring ending in a **sealed** node (opens after a deed such as
   "clear wave 12" or "kill 3000 zombies", `TREE_SEAL_DEEDS`), arcs of nodes
   that link neighbouring branches, and at the tip a **keystone** (a special
   power, `Config.KEYSTONES`: second wind, executioner, adrenaline, breakaway,
-  thick skin, ghost, deadeye, scavenger) and an **endless** node (repeatable,
+  thick skin, ghost, deadeye, scavenger, feral) and an **endless** node (repeatable,
   rising price - this keeps progression endless). A node can be learned when
   it touches a learned node, the character level is high enough for its ring
   (1 / 5 / 12 / 22) and its deed is done. Rings cost 1 / 2 / 3 / 4 points per
@@ -276,6 +284,26 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   lit, never found = padlock, glowing = two of the tier below are in the bag
   and can be forged. Click a piece to wear it, a worn slot to take it off, a
   glowing node to forge (anything that can fail asks twice).
+- *Pets* (Pets screen; PETS section of config.gd). The feature opens at
+  character level 18 (`PET_UNLOCK_LEVEL`): the first pet, SCRAPS the stray
+  dog, joins by itself (mid-run if that is where the level is reached). Five
+  pets, one per rarity: Scraps (common), Soot the alley cat (uncommon,
+  level 25 + 1,500 coins), Brutus the bulldog (rare, level 35 + 6,000),
+  Ash the wolf (epic, clear map 1 + 20,000), Cinder the hellhound
+  (legendary, clear map 2 + 60,000; its bites ignite). One comes along at a
+  time (`SaveData.pet_active`). **Owner's rules:** a pet adds to the
+  character's damage, at most its rarity's cap - 3 / 6 / 9 / 12 / **15%**
+  for legendary (`PET_RARITIES`, "lower rarity = less damage") - and the pet
+  has **its own branch of the skill tree**: BOND, the ninth branch. With no
+  BOND a pet gives 30% of its cap, at 30 BOND ranks all of it
+  (`Config.pet_damage_bonus`); never more. BOND also makes the pet's own
+  bite stronger without limit, and the four big nodes of the branch teach
+  tricks (`PET_TRICKS`: fetch coins and gear, maul, guardian, frenzy); the
+  keystone is FERAL. In a run the pet (`scripts/game/pet.gd`) walks at heel,
+  bites zombies that come within `PET_GUARD_RANGE` of the player (bite =
+  `PET_BITE_DAMAGE` x rarity x BOND x the character's damage bonuses) and
+  cannot be hurt (zombies ignore it), so pets need no `_hurt` sprite. Pet
+  pictures are generated from the colours in `Config.PETS[...]["look"]`.
 - All three screens are shown by `scripts/ui/tree_view.gd` (drag / scroll / pinch,
   arrow keys or stick to walk the nodes, Enter / A to learn, gamepad Y or Tab
   to reach the buttons beside it). Tree node ids are stored in the save:
@@ -338,8 +366,8 @@ effects were ~280 draw calls. Not yet measured on the owner's hardware.
 
 - How it actually feels to play - all feel values are first guesses.
 - The balance of the 100-wave maps, the tree prices, the keystones, the
-  perks, gear drop rates and gear stats: all first guesses, only checked with
-  the bot and the tests.
+  perks, gear drop rates and gear stats, pet prices and pet strength: all
+  first guesses, only checked with the bot and the tests.
 - The tree screens with a real mouse / trackpad / gamepad (only simulated
   input was tested).
 - How the synthesised sounds sound; Claude can only check them numerically
@@ -386,6 +414,11 @@ effects were ~280 draw calls. Not yet measured on the owner's hardware.
   drops, boss-only pieces, merging two identical pieces of the same colour,
   five tiers with 100/90/40/10% odds and a chance to destroy at tiers 4-5)
   -> built (awaiting feedback).
+- Pets (the owner's design: unlock at level 18; several pets of different
+  rarity; each adds to the character's damage with a cap by rarity, legendary
+  at most 15%; pet damage and perks in their own skill tree branch) -> built
+  (awaiting feedback). How pets are obtained (levels / map clears + coins)
+  was Claude's choice - ask the owner if they would rather find them as drops.
 - The owner's Mac: browser downloads do not work there, so updates go through
   Terminal (curl) or the double-click updater. Always give the full update
   command and say plainly that Return must be pressed.
@@ -406,6 +439,9 @@ Build one stage at a time; the owner plays each before the next starts.
    Progression. Still open from the owner's wishes: treasure chests that give
    gear (comes with the big map, step 4). Ideas if the owner wants more:
    more pieces per kind, set bonuses, a way to sell or break down spare gear.
+3b. **Pets. DONE (awaiting the owner's playtest).** See "Pets" under
+   Progression. Ideas if the owner wants more: more pets per rarity, pets as
+   rare boss drops, a pet that flies and fetches from far away.
 4. **Big-map engine.** Much bigger maps (a large "farming map"), fog of war
    that clears as the player explores, a minimap, treasure chests to find
    each round that give gear. Waves stay: zombies hunt the player wherever

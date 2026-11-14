@@ -5,8 +5,9 @@ extends Node
 ##
 ##   --play             skip the menu and start a run
 ##   --bot              start a run and let a simple bot play (through GameInput's virtual sticks)
-##   --screen=NAME      open a menu screen (maps, character, armory, gear, settings, pause, gameover, victory) for screenshots
+##   --screen=NAME      open a menu screen (maps, character, armory, gear, pets, settings, pause, gameover, victory) for screenshots
 ##   --gear=N           start with N random pieces of gear, some of them worn
+##   --pets=N           own the first N pets and take the last of them along (use with --level=18 or more)
 ##   --drop-gear        one second into a run, drop a piece of every tier around the player (and one on top of them)
 ##   --map=N            play map N (unlocks it); --best=W sets the best wave cleared there, --start=W the starting wave
 ##   --level=N          start as a level N character with points to spend (for screenshots)
@@ -76,6 +77,12 @@ func _ready() -> void:
 			for key: String in SaveData.gear_bag.keys().duplicate():
 				if rng.randf() < 0.45:
 					SaveData.wear_gear(key)
+		if _args.has("pets"):
+			for i in mini(int(_args["pets"]), Config.PET_ORDER.size()):
+				var pet_id: String = Config.PET_ORDER[i]
+				if not SaveData.has_pet(pet_id):
+					SaveData.pets_owned.append(pet_id)
+				SaveData.pet_active = pet_id
 		if _args.has("map"):
 			var map_index := clampi(int(_args["map"]) - 1, 0, Config.MAPS.size() - 1)
 			SaveData.maps_unlocked = maxi(SaveData.maps_unlocked, map_index + 1)
@@ -487,6 +494,67 @@ func _run_autotest() -> void:
 	app.close_screen()
 	await _frames(2)
 
+	# --- pets: unlocking, rarity caps, buying, the BOND branch ---
+	app.open_screen("pets")
+	await _frames(3)
+	_check(not SaveData.pets_unlocked() and SaveData.pets_owned.is_empty() and SaveData.pet_status("scraps") == "locked",
+			"there are no pets before level %d" % Config.PET_UNLOCK_LEVEL)
+	_check(not SaveData.buy_pet("soot") and not SaveData.choose_pet("scraps"), "a locked pet cannot be bought or taken along")
+	_check(SaveData.node_status("bond.0") == SkillTree.LEVEL, "the pet's branch of the skill tree is locked until then")
+	var caps_ok := true
+	var last_cap := 0.0
+	for rarity: String in Config.PET_RARITY_ORDER:
+		var cap := float(Config.PET_RARITIES[rarity]["damage"])
+		if cap <= last_cap:
+			caps_ok = false
+		last_cap = cap
+	_check(caps_ok and is_equal_approx(last_cap, 0.15), "rarer pets add more damage, and legendary tops out at 15%")
+	_check(is_equal_approx(Config.pet_damage_bonus("cinder", Config.PET_BOND_FULL), 0.15) and is_equal_approx(Config.pet_damage_bonus("cinder", 999), 0.15)
+			and Config.pet_damage_bonus("cinder", 0) < 0.15 and Config.pet_damage_bonus("scraps", 999) < Config.pet_damage_bonus("soot", 999),
+			"BOND raises a pet's bonus up to its rarity's cap and no further")
+	var pet_keep_tree := SaveData.tree.duplicate()
+	var pet_keep_points := SaveData.skill_points
+	var pet_keep_coins := SaveData.coins
+	SaveData.level = Config.PET_UNLOCK_LEVEL - 1
+	SaveData.xp = 0
+	SaveData.add_xp(SaveData.xp_needed())
+	_check(SaveData.pets_unlocked() and SaveData.has_pet("scraps") and SaveData.pet_active == "scraps",
+			"the first pet joins by itself at level %d" % Config.PET_UNLOCK_LEVEL)
+	var with_pet := PlayerStats.current()
+	_check(with_pet.pet == "scraps" and is_equal_approx(with_pet.pet_damage, 0.03 * Config.PET_BOND_BASE) and with_pet.pet_bite > 0.0,
+			"a pet adds to the character's damage (+%.1f%%)" % (with_pet.pet_damage * 100.0))
+	SaveData.choose_pet("")
+	_check(PlayerStats.current().pet == "" and PlayerStats.current().damage_mult < with_pet.damage_mult, "leaving the pet at home removes its bonus")
+	SaveData.choose_pet("scraps")
+	SaveData.bonus_ranks["bond"] = Config.PET_BOND_FULL
+	_check(is_equal_approx(PlayerStats.current().pet_damage, 0.03), "full BOND gives a common pet its whole 3%")
+	SaveData.bonus_ranks.erase("bond")
+	_check(SaveData.pet_status("soot") == "locked", "the next pet has its own condition")
+	SaveData.level = 25
+	SaveData.coins = 100
+	_check(SaveData.pet_status("soot") == "poor" and not SaveData.buy_pet("soot"), "a pet has to be paid for")
+	SaveData.coins = 2000
+	_check(SaveData.buy_pet("soot") and SaveData.coins == 2000 - int(Config.PETS["soot"]["price"]) and SaveData.pet_active == "soot"
+			and SaveData.pets_owned.size() == 2, "buying a pet takes the coins and brings it along")
+	_check(PlayerStats.current().pet_damage > with_pet.pet_damage, "a rarer pet adds more damage")
+	SaveData.skill_points = 50
+	for k in 3:
+		SaveData.learn_node("bond.%d" % k)
+	_check(SaveData.has_pet_trick(0) and PlayerStats.current().pet_fetch and not PlayerStats.current().pet_maul
+			and SaveData.passive_rank("bond") == 2 * Config.TREE_SMALL_RANKS + Config.TREE_NOTABLE_RANKS,
+			"the BOND branch raises the bonus and teaches the pet tricks")
+	await _frames(3)
+	SaveData.tree = pet_keep_tree
+	SaveData.call("_recount_tree")
+	SaveData.skill_points = pet_keep_points
+	SaveData.coins = pet_keep_coins
+	SaveData.level = 1
+	SaveData.xp = 0
+	SaveData.pets_owned.clear()
+	SaveData.pet_active = ""
+	app.close_screen()
+	await _frames(2)
+
 	# --- gear: the bag, wearing, forging ---
 	app.open_screen("gear")
 	await _frames(3)
@@ -834,6 +902,41 @@ func _run_autotest() -> void:
 				boss_piece = key
 		_check(boss_piece != "", "a boss always drops a ring or an amulet (%s)" % boss_piece)
 
+	# --- the pet in a run ---
+	_auto_bot = false
+	GameInput.set_virtual_input(Vector2.ZERO, Vector2.RIGHT, false)
+	game.enemies.clear_all()
+	game.director.to_spawn = 0
+	await _frames(4)
+	game.director.intermission = 99999.0
+	_check(game.pet == null, "no pet comes along before level %d" % Config.PET_UNLOCK_LEVEL)
+	var run_level := SaveData.level
+	var run_xp := SaveData.xp
+	var run_points := SaveData.skill_points
+	SaveData.level = Config.PET_UNLOCK_LEVEL - 1
+	SaveData.xp = 0
+	game.gain_xp(SaveData.xp_needed(), "")
+	_check(game.pet != null and game.pet.id == "scraps" and pl.stats.pet_damage > 0.0, "reaching level %d mid-run brings the first pet in at once" % Config.PET_UNLOCK_LEVEL)
+	var chew := game.enemies.spawn(Config.BRUTE, game.arena.clamp_inside(pl.pos + Vector2(150.0, 0.0), 40.0))
+	var chew_hp := chew.hp
+	await _until(func() -> bool: return chew.hp < chew_hp or not chew.alive, 300)
+	_check(chew.pet_marked and chew.hp < chew_hp, "the pet bites zombies that come close")
+	game.enemies.clear_all()
+	pl.stats.pet_fetch = true
+	var toward := game.arena.rect.get_center() - pl.pos
+	var far := game.arena.clamp_inside(pl.pos + (toward.normalized() if toward.length() > 1.0 else Vector2.RIGHT) * 420.0, 60.0)
+	game.pickups.spawn_gear(far, "cargo_pants:1")
+	await _until(func() -> bool: return game.gear_run.has("cargo_pants:1"), 400)
+	_check(game.gear_run.has("cargo_pants:1") and pl.pos.distance_to(far) > 200.0, "a pet that knows FETCH brings dropped gear")
+	game.pet.queue_free()
+	game.pet = null
+	SaveData.level = run_level
+	SaveData.xp = run_xp
+	SaveData.skill_points = run_points
+	SaveData.pets_owned.clear()
+	SaveData.pet_active = ""
+	pl.refresh_stats()
+
 	# --- death and game over ---
 	_auto_bot = false
 	GameInput.clear_virtual_input()
@@ -963,11 +1066,14 @@ func _run_autotest() -> void:
 	SaveData.gear_bag.clear()
 	SaveData.add_gear("snake_ring:2", 3)
 	SaveData.wear_gear("snake_ring:2")
+	SaveData.pets_owned = ["scraps", "soot"]
+	SaveData.pet_active = "soot"
 	SaveData.save_game()
 	SaveData.call("_reset_to_defaults")
 	SaveData.load_game()
 	_check(SaveData.gear_in_slot("ring1") == "snake_ring:2" and SaveData.gear_count("snake_ring:2") == 2
 			and SaveData.gear_seen.has("snake_ring:2") and SaveData.gear_rank("evasion") == 6, "save file restores gear, worn and in the bag")
+	_check(SaveData.pets_owned == ["scraps", "soot"] and SaveData.pet_active == "soot", "save file restores the pets")
 	_check(SaveData.coins == coins_now and SaveData.level == level_now and SaveData.xp == xp_now and SaveData.skill_points == points_now,
 			"save file restores coins, level, XP and skill points")
 	_check(SaveData.tree_rank("evasion") == 1 and SaveData.node_count("evasion.0") == 1

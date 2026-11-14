@@ -88,7 +88,7 @@ func _init() -> void:
 	card.add_theme_stylebox_override("panel", UiKit.small_panel_style())
 	col.add_child(card)
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(0, 196)
+	scroll.custom_minimum_size = Vector2(0, 178)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	card.add_child(scroll)
 	var info := VBoxContainer.new()
@@ -235,7 +235,7 @@ func _refresh() -> void:
 				SaveData.xp, SaveData.xp_needed(), SaveData.level + 1, Config.LEVEL_CAP]
 	_points.text = "SKILL POINTS: %d" % SaveData.skill_points
 	_coins.text = "%d" % SaveData.coins
-	_notice.text = "The skill tree is new: %d skill points were handed back to you. Spend them here." % SaveData.points_returned \
+	_notice.text = "The skill tree has changed: %d skill points were handed back to you. Spend them here." % SaveData.points_returned \
 			if SaveData.points_returned > 0 else ""
 
 	# How every node looks.
@@ -309,6 +309,8 @@ func _show_node(id: String) -> void:
 		else:
 			details.append("%s: %s, then %s." % [String(def["desc"]), PlayerStats.describe_passive(passive, Config.stat_value(def, rank)),
 					PlayerStats.describe_passive(passive, Config.stat_value(def, rank + add))])
+	if String(n.get("note", "")) != "":
+		effects.append(String(n["note"]))
 	if kind == "keystone":
 		effects.append(SkillTree.keystone_text(stat))
 	elif kind == "start":

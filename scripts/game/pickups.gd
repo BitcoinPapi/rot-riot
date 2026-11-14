@@ -203,6 +203,11 @@ func tick(dt: float) -> void:
 	var pick2: float = Config.COIN_PICKUP_RADIUS * Config.COIN_PICKUP_RADIUS
 	var magnet_speed: float = Config.COIN_MAGNET_SPEED
 	var keep := maxf(1.0 - 5.0 * dt, 0.0)
+	# A pet that knows FETCH picks up what it runs past.
+	var pet := game.pet
+	var pet_fetches := can_collect and pet != null and pet.fetches()
+	var pet_pos := pet.pos if pet != null else Vector2.ZERO
+	var pet_pick2: float = Config.PET_FETCH_RADIUS * Config.PET_FETCH_RADIUS
 	var i := 0
 	while i < coin_count:
 		var p := _coin_pos[i]
@@ -215,7 +220,7 @@ func tick(dt: float) -> void:
 			if can_collect:
 				var to := ppos - p
 				var d2 := to.length_squared()
-				if d2 < pick2:
+				if d2 < pick2 or (pet_fetches and p.distance_squared_to(pet_pos) < pet_pick2):
 					gone = true
 					game.collect_coin(p, true)
 				elif d2 < magnet2:
@@ -274,7 +279,8 @@ func tick(dt: float) -> void:
 		var l := loot[i]
 		l.life -= dt
 		l.age += dt
-		var grabbed := can_collect and l.pos.distance_to(ppos) < Config.GEAR_PICKUP_RADIUS + player.radius
+		var grabbed := can_collect and (l.pos.distance_to(ppos) < Config.GEAR_PICKUP_RADIUS + player.radius
+				or (pet_fetches and l.pos.distance_to(pet_pos) < Config.PET_FETCH_RADIUS + pet.radius))
 		if grabbed:
 			game.collect_gear(l)
 		if grabbed or l.life <= 0.0:

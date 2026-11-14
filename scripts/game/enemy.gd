@@ -26,6 +26,7 @@ var sway := 0.13                # how far the body rocks from side to side while
 var burn_t := 0.0               # on fire for this many more seconds...
 var burn_dps := 0.0             # ...losing this much health per second
 var burn_src := ""              # the weapon that lit it (gets the XP if it dies)
+var pet_marked := false         # the pet has bitten it
 var face := 0.0                 # facing angle
 var phase := 0.0                # walk wobble / zig-zag
 var flank := Vector2.ZERO       # personal flanking offset

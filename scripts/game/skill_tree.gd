@@ -18,6 +18,7 @@ extends RefCounted
 ##   repeat  true = can be learned again and again
 ##   links   ids of the nodes it touches
 ##   name    what the info panel calls it
+##   note    (optional) an extra line for the info panel, e.g. the pet trick a node teaches
 
 # What SaveData.node_status() answers.
 const OWNED := 0      # learned
@@ -74,6 +75,11 @@ static func keystone_text(stat: String) -> String:
 	return text % int(round(value))
 
 
+## The big node of the BOND branch that teaches pet trick number `index`.
+static func trick_node(index: int) -> String:
+	return "bond.%d" % (index * Config.TREE_SPINE_PER_RING + Config.TREE_SPINE_PER_RING - 1)
+
+
 ## How far the tree reaches from the middle (for fitting it on screen).
 static func radius() -> float:
 	var far := 0.0
@@ -117,18 +123,21 @@ static func _build() -> void:
 		var out := Vector2.from_angle(angle)
 		var side := out.orthogonal()
 		var last := "start"
+		var floor_level := int(def.get("min_level", 1))     # (the pet's branch opens later)
 
 		for ring in rings.size():
 			var r: Dictionary = rings[ring]
 			var ring_cost := int(r["cost"])
-			var ring_level := int(r["level"])
+			var ring_level := maxi(int(r["level"]), floor_level)
 			for step in per_ring:
 				var k := ring * per_ring + step
 				var id := "%s.%d" % [stat, k]
 				var pos := out * (Config.TREE_START_RADIUS + Config.TREE_STEP * float(k))
 				if step == per_ring - 1:
-					_add(id, pos, "notable", stat, {stat: Config.TREE_NOTABLE_RANKS},
+					var big := _add(id, pos, "notable", stat, {stat: Config.TREE_NOTABLE_RANKS},
 							ring_cost * Config.TREE_NOTABLE_COST_MULT, ring_level, String((def["notables"] as Array)[ring]))
+					if stat == "bond" and ring < Config.PET_TRICKS.size():
+						big["note"] = "TRICK: %s" % String(Config.PET_TRICKS[ring]["desc"])
 				else:
 					_add(id, pos, "small", stat, {stat: Config.TREE_SMALL_RANKS}, ring_cost, ring_level, String(def["name"]))
 				_link(last, id)
@@ -155,7 +164,7 @@ static func _build() -> void:
 		# The tip: a keystone and an endless node beyond the last big node.
 		var tip_radius: float = (_nodes[last]["pos"] as Vector2).length() + Config.TREE_TIP_DISTANCE
 		var spread := deg_to_rad(Config.TREE_TIP_SPREAD_DEG)
-		var top_level := int(rings[rings.size() - 1]["level"])
+		var top_level := maxi(int(rings[rings.size() - 1]["level"]), floor_level)
 		var key: Dictionary = Config.KEYSTONES[stat]
 		var keystone := _add("%s.key" % stat, Vector2.from_angle(angle - spread) * tip_radius, "keystone", stat, {},
 				Config.TREE_KEYSTONE_COST, top_level, String(key["name"]))
@@ -192,7 +201,10 @@ static func _build() -> void:
 					ranks = {stat_a: Config.TREE_SMALL_RANKS, stat_b: Config.TREE_SMALL_RANKS}
 					arc_cost += 1
 					arc_name = "%s + %s" % [String(Config.PASSIVES[stat_a]["name"]), String(Config.PASSIVES[stat_b]["name"])]
-				var node := _add(id, pos, "arc", stat_a if middle else owner, ranks, arc_cost, int(r["level"]), arc_name)
+				var arc_level := int(r["level"])
+				for giver: String in ranks.keys():
+					arc_level = maxi(arc_level, int(Config.PASSIVES[giver].get("min_level", 1)))
+				var node := _add(id, pos, "arc", stat_a if middle else owner, ranks, arc_cost, arc_level, arc_name)
 				if middle:
 					node["stat2"] = stat_b
 				_link(last, id)

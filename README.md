@@ -58,7 +58,7 @@ works on 4.5 and later.
   highest level is 100, and it is meant to take months to reach).
 - Spend skill points in the **skill tree** on the **Character** screen: a big
   web with a branch for each stat (health, strength, fire rate, speed,
-  defense, evasion, critical hits, luck). Start in the middle and work
+  defense, evasion, critical hits, luck - and one for your pet). Start in the middle and work
   outwards: a node can be learned when it touches one you already have.
   Rings further out need a higher level. Hexagons with a padlock are
   **sealed** until you do a deed (the node tells you which). At the tip of
@@ -82,6 +82,15 @@ works on 4.5 and later.
   fine works 90% of the time, superior 40%, legendary 10%. If it fails you
   lose one of the two pieces - and for superior and legendary there is a
   chance of losing both. The game asks you twice before a forging that can fail.
+- **Pets.** At character level 18 a stray dog, Scraps, starts following you
+  and fights at your side. There are five pets, from common to legendary
+  (**Pets** on the main menu shows them all and what each one needs: a
+  level or a cleared map, then coins). One comes along at a time. A pet bites
+  zombies that come close to you, and it **adds to your own damage** - a rarer
+  pet adds more, up to 15% for the legendary one.
+  How much of that you get, how hard the pet bites and which tricks it knows
+  (fetching coins and gear, mauling, guarding you, a frenzy) all come from
+  **BOND**, the pet's own branch of the skill tree on the Character screen.
 - Zombies drop **coins**. Everything you earn is saved.
 
 ## Getting the newest version (Mac)
@@ -90,7 +99,7 @@ Close Godot, then double-click **Update Rot Riot.command** inside the project
 folder. A Terminal window opens, downloads the latest version and replaces the
 folder. Your coins, level and upgrades are stored elsewhere and are kept.
 Then open the project in Godot again. The version number is shown in the
-bottom right corner of the main menu (now v0.3.0).
+bottom right corner of the main menu (now v0.4.0).
 
 After an update that changes the upgrade screens, points you had already
 spent are handed back so you can place them again in the new trees.
@@ -101,8 +110,8 @@ Open `scripts/config.gd` in Godot (double-click it in the FileSystem panel).
 Every number that matters is there with a comment: player speed, weapon
 damage and fire rates, zombie health, wave sizes, how much harder each map
 is, XP and skill point costs, the size and prices of the upgrade trees, the
-perks, every piece of gear with its drop chance and forging odds, and all
-the "feel" values - screen shake, hit stop, knockback, recoil.
+perks, every piece of gear with its drop chance and forging odds, every pet
+and what it adds, and all the "feel" values - screen shake, hit stop, knockback, recoil.
 Change a number, press F5, try it.
 
 ## Replacing placeholder art and sounds
@@ -153,5 +162,5 @@ godot --headless --fixed-fps 60 -- --bench=250
 ```
 
 The first plays through the whole game automatically (menus, maps, both
-upgrade trees, gear and forging, every weapon, rage, boss, death, levels, save file), the
+upgrade trees, gear and forging, pets, every weapon, rage, boss, death, levels, save file), the
 second checks every control, the third measures speed with 250 zombies. See `CLAUDE.md` for the design notes.

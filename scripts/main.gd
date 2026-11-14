@@ -65,6 +65,7 @@ func _build_ui() -> void:
 	_add_screen("character", CharacterScreen.new())
 	_add_screen("armory", ArmoryScreen.new())
 	_add_screen("gear", GearScreen.new())
+	_add_screen("pets", PetScreen.new())
 	_add_screen("settings", SettingsScreen.new())
 	_add_screen("pause", PauseMenu.new())
 	_add_screen("gameover", GameOverScreen.new())

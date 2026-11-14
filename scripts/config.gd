@@ -11,7 +11,7 @@ extends Node
 ## ============================================================================
 
 const GAME_TITLE := "ROT RIOT"
-const GAME_VERSION := "0.3.0"
+const GAME_VERSION := "0.4.0"
 
 # ----------------------------------------------------------------------------
 #  ARENA
@@ -466,7 +466,9 @@ const RESPEC_COST_PER_LEVEL := 25       # coins to take all points back = this *
 #             you have half of max. (Stops speed/dodge from becoming silly.)
 #   "color"    the stat's colour in the skill tree
 #   "notables" names of the four big nodes along its branch, from the middle outwards
-const PASSIVE_ORDER := ["vitality", "strength", "dexterity", "agility", "defense", "evasion", "critical", "luck"]
+#   "min_level" (optional) the whole branch needs at least this character level
+# The last one, BOND, is the pet's branch: see PETS further down.
+const PASSIVE_ORDER := ["vitality", "strength", "dexterity", "agility", "defense", "evasion", "critical", "luck", "bond"]
 const PASSIVES := {
 	"vitality": {"name": "VITALITY", "desc": "More maximum health", "kind": "linear", "per_rank": 8.0,
 		"color": Color("e5484d"), "notables": ["Thick Blood", "Iron Lungs", "Ox Heart", "Unkillable"]},
@@ -484,6 +486,11 @@ const PASSIVES := {
 		"color": Color("c084fc"), "notables": ["Sharp Eye", "Weak Spots", "Headhunter", "Surgeon"]},
 	"luck": {"name": "LUCK", "desc": "Zombies drop coins more often", "kind": "linear", "per_rank": 0.03,
 		"color": Color("ffc531"), "notables": ["Loose Change", "Pickpocket", "Grave Robber", "Jackpot"]},
+	# BOND: every rank brings your pet's damage bonus closer to the most its rarity
+	# allows (PET_BOND_FULL ranks = all of it) and makes its own bite stronger.
+	# The four big nodes of this branch also teach the pet a trick (PET_TRICKS).
+	"bond": {"name": "BOND", "desc": "Your pet adds more to your damage and bites harder", "kind": "linear", "per_rank": 1.0,
+		"color": Color("d9a066"), "notables": ["Fetch", "Maul", "Guardian", "Frenzy"], "min_level": 18},
 }
 
 # ----------------------------------------------------------------------------
@@ -524,7 +531,8 @@ const TREE_TIP_SPREAD_DEG := 5.5
 # records). Kinds: "wave" = clear that wave on any map, "kills" = zombies killed
 # in total, "weapon_level" = reach that level with any weapon, "runs" = runs
 # played, "score" = points in one run, "bought" = skill points bought with
-# coins, "map" = clear all waves of that map.
+# coins, "map" = clear all waves of that map, "level" = character level,
+# "pets" = how many pets you own.
 # One row per ring (ring 0 has no sealed node); branches take them in turn.
 const TREE_SEAL_DEEDS := [
 	[],
@@ -551,6 +559,8 @@ const KEYSTONES := {
 		"desc": "Critical hits deal %d times the damage instead of double."},
 	"luck": {"name": "SCAVENGER", "value": 2.0, "crates": 0.25, "deed": {"kind": "bought", "value": 20},
 		"desc": "Coins fly to you from %d times as far, and weapon crates appear %d%% more often."},
+	"bond": {"name": "FERAL", "value": 3.0, "deed": {"kind": "pets", "value": 3},
+		"desc": "While you rage, your pet attacks %d times as fast."},
 }
 const CRIT_DAMAGE_MULT := 2.0
 const CRIT_KNOCKBACK_MULT := 1.4
@@ -767,6 +777,96 @@ const GEAR_TREE_STEP := 72.0            # ...and between tiers
 const GEAR_TREE_FAN_DEG := 11.0         # angle between the pieces of one kind
 
 # ----------------------------------------------------------------------------
+#  PETS - companions. The feature opens at character level PET_UNLOCK_LEVEL,
+#  when the first pet joins by itself; the others have to be earned and then
+#  bought with coins (the Pet screen). One pet comes along at a time.
+#  A pet does two things:
+#    1. It adds to YOUR damage - at most its rarity's "damage" (legendary 15%,
+#       lower rarities less). How much of that you get depends on BOND, the
+#       pet's branch of the skill tree: PET_BOND_BASE of it with no BOND, all
+#       of it at PET_BOND_FULL ranks.
+#    2. It fights: it bites zombies that come close to you. Its bite is
+#       stronger for rarer pets ("bite") and grows with BOND without limit.
+#       Its tricks are the four big nodes of the BOND branch.
+#  Zombies ignore pets: a pet cannot be hurt.
+# ----------------------------------------------------------------------------
+const PET_UNLOCK_LEVEL := 18
+const PET_RARITY_ORDER := ["common", "uncommon", "rare", "epic", "legendary"]
+const PET_RARITIES := {
+	"common": {"name": "COMMON", "color": Color("c9c9c0"), "damage": 0.03, "bite": 1.0},
+	"uncommon": {"name": "UNCOMMON", "color": Color("5fd068"), "damage": 0.06, "bite": 1.3},
+	"rare": {"name": "RARE", "color": Color("4f9dff"), "damage": 0.09, "bite": 1.6},
+	"epic": {"name": "EPIC", "color": Color("b565f5"), "damage": 0.12, "bite": 2.0},
+	"legendary": {"name": "LEGENDARY", "color": Color("ff9a2e"), "damage": 0.15, "bite": 2.5},
+}
+const PET_BOND_BASE := 0.3              # share of its damage bonus a pet gives with no BOND at all
+const PET_BOND_FULL := 30               # BOND ranks at which it gives all of it
+const PET_BITE_PER_BOND := 0.05         # each BOND rank makes the pet's own bite 5% stronger (no limit)
+const PET_BITE_DAMAGE := 10.0           # one bite of a common pet with no BOND (times your own damage bonuses)
+const PET_BITE_INTERVAL := 0.5          # seconds between bites
+const PET_BITE_KNOCKBACK := 120.0
+const PET_BITE_STAGGER := 0.2
+const PET_RADIUS := 11.0
+const PET_HEEL_BEHIND := 44.0           # where it walks: this far behind you...
+const PET_HEEL_SIDE := 30.0             # ...and this far to the side
+const PET_GUARD_RANGE := 250.0          # it attacks zombies that come this close to YOU
+const PET_LEASH := 400.0                # ...and gives up a chase this far from you
+
+# The pets.
+#   needs / price   what must be done before it can be bought, and what it costs
+#                   (a pet that costs nothing joins by itself once its "needs" are met)
+#   speed, bite_interval, knockback, size   how this one moves and fights
+#   ignite          its bites set zombies on fire
+#   note            one line about it for the Pet screen
+#   look            colours and shape of its placeholder picture (scripts/autoload/art.gd)
+const PET_ORDER := ["scraps", "soot", "brutus", "ash", "cinder"]
+const PETS := {
+	"scraps": {"name": "SCRAPS", "title": "the stray dog", "rarity": "common", "price": 0, "needs": {"kind": "level", "value": 18},
+		"speed": 430.0, "bite_interval": 1.0, "knockback": 1.0, "size": 1.0, "ignite": false,
+		"note": "Loyal and steady. Good at everything.",
+		"look": {"body": "#a8703c", "head": "#b9814a", "patch": "#e9dcc3", "ear": "#5a3a1e", "collar": "#c8322b", "eye": "#111111",
+			"tail": "curl", "ears": "flop", "girth": 1.0, "ember": false}},
+	"soot": {"name": "SOOT", "title": "the alley cat", "rarity": "uncommon", "price": 1500, "needs": {"kind": "level", "value": 25},
+		"speed": 480.0, "bite_interval": 0.75, "knockback": 0.6, "size": 0.82, "ignite": false,
+		"note": "Quick. Attacks more often.",
+		"look": {"body": "#2b2b30", "head": "#35353b", "patch": "", "ear": "#17171a", "collar": "#e2b23a", "eye": "#b7f04a",
+			"tail": "long", "ears": "point", "girth": 0.85, "ember": false}},
+	"brutus": {"name": "BRUTUS", "title": "the bulldog", "rarity": "rare", "price": 6000, "needs": {"kind": "level", "value": 35},
+		"speed": 390.0, "bite_interval": 1.15, "knockback": 1.9, "size": 1.15, "ignite": false,
+		"note": "Slow, but throws zombies back.",
+		"look": {"body": "#d9c9ae", "head": "#e6d8bf", "patch": "#8a5a36", "ear": "#8a5a36", "collar": "#34343a", "eye": "#111111",
+			"tail": "stub", "ears": "flop", "girth": 1.28, "ember": false}},
+	"ash": {"name": "ASH", "title": "the wolf", "rarity": "epic", "price": 20000, "needs": {"kind": "map", "value": 1},
+		"speed": 470.0, "bite_interval": 0.9, "knockback": 1.2, "size": 1.22, "ignite": false,
+		"note": "Fast and strong.",
+		"look": {"body": "#7d8590", "head": "#8d959f", "patch": "#d7dbe0", "ear": "#4b5159", "collar": "", "eye": "#f2c94c",
+			"tail": "bushy", "ears": "point", "girth": 1.05, "ember": false}},
+	"cinder": {"name": "CINDER", "title": "the hellhound", "rarity": "legendary", "price": 60000, "needs": {"kind": "map", "value": 2},
+		"speed": 480.0, "bite_interval": 0.8, "knockback": 1.5, "size": 1.3, "ignite": true,
+		"note": "Its bites set zombies on fire.",
+		"look": {"body": "#2a1516", "head": "#3a1b1b", "patch": "", "ear": "#150a0a", "collar": "", "eye": "#ff8a1f",
+			"tail": "bushy", "ears": "point", "girth": 1.1, "ember": true}},
+}
+const PET_IGNITE_TIME := 2.0            # a pet with "ignite": its bites set zombies burning this long...
+const PET_IGNITE_DPS_MULT := 0.6        # ...for this much of the bite's damage per second
+
+# Tricks: the four big nodes of the BOND branch, from the middle outwards.
+const PET_TRICKS := [
+	{"id": "fetch", "desc": "Your pet picks up the coins it runs past and runs to fetch dropped gear."},
+	{"id": "maul", "desc": "Every few bites is a mauling: much more damage and a hard shove."},
+	{"id": "guard", "desc": "When you are hit your pet calls out, and the zombies around you freeze for a moment."},
+	{"id": "frenzy", "desc": "Your pet attacks much faster."},
+]
+const PET_FETCH_RADIUS := 26.0          # how close the pet must come to pick something up
+const PET_MAUL_EVERY := 4               # every Nth bite is a mauling...
+const PET_MAUL_DAMAGE_MULT := 3.0
+const PET_MAUL_KNOCKBACK := 520.0
+const PET_GUARD_RADIUS := 200.0
+const PET_GUARD_STAGGER := 0.9
+const PET_GUARD_COOLDOWN := 4.0
+const PET_FRENZY_SPEED := 1.4           # attack speed multiplier of the FRENZY trick
+
+# ----------------------------------------------------------------------------
 #  GAME FEEL - hits
 # ----------------------------------------------------------------------------
 const HIT_FLASH_TIME := 0.07            # zombies turn white this long when hit
@@ -924,9 +1024,28 @@ func deed_text(deed: Dictionary) -> String:
 			return "Score %d points in one run" % value
 		"bought":
 			return "Buy %d skill points with coins" % value
+		"level":
+			return "Reach character level %d" % value
+		"pets":
+			return "Own %d pets" % value
 		"map":
 			return "Clear all %d waves of %s" % [WAVES_PER_MAP, String(MAPS[clampi(value - 1, 0, MAPS.size() - 1)]["name"])]
 	return ""
+
+
+## The share (0..1) of its damage bonus a pet gives at `bond` ranks of BOND.
+func pet_bond_share(bond: int) -> float:
+	return PET_BOND_BASE + (1.0 - PET_BOND_BASE) * minf(float(bond) / float(PET_BOND_FULL), 1.0)
+
+
+## How much a pet adds to the character's damage (0.15 = +15%) at `bond` ranks.
+func pet_damage_bonus(pet_id: String, bond: int) -> float:
+	return float(PET_RARITIES[String(PETS[pet_id]["rarity"])]["damage"]) * pet_bond_share(bond)
+
+
+## How much stronger than a plain bite this pet's bite is at `bond` ranks.
+func pet_bite_mult(pet_id: String, bond: int) -> float:
+	return float(PET_RARITIES[String(PETS[pet_id]["rarity"])]["bite"]) * (1.0 + PET_BITE_PER_BOND * float(bond))
 
 
 ## The name a piece of gear is stored and counted under: its id and tier (1-5).

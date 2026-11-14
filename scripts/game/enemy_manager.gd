@@ -96,6 +96,7 @@ func spawn(kind: int, at: Vector2, hp_mult: float = 1.0, speed_mult: float = 1.0
 	e.burn_t = 0.0
 	e.burn_dps = 0.0
 	e.wounded = false
+	e.pet_marked = false
 	e.sway = 0.06 if kind == Config.BOSS else 0.13
 	e.phase = randf() * TAU
 	e.flank = Vector2.from_angle(randf() * TAU) * (randf() * Config.ENEMY_FLANK_SPREAD)

@@ -18,6 +18,7 @@ var decals: Decals
 var enemies: EnemyManager
 var pickups: Pickups
 var player: Player
+var pet: Pet                    # the companion, if one comes along (null = none)
 var projectiles: Projectiles
 var fx: Fx
 var cam: GameCamera
@@ -85,6 +86,8 @@ func _ready() -> void:
 
 	add_child(player)
 	player.place(arena.rect.get_center())
+	if player.stats.pet != "":
+		_spawn_pet()
 
 	projectiles = Projectiles.new()
 	projectiles.game = self
@@ -166,6 +169,8 @@ func _simulate(dt: float) -> void:
 		time_alive += dt
 		_tick_combo_and_rage(dt)
 	player.tick(dt)
+	if pet != null:
+		pet.tick(dt)
 	director.tick(dt)
 	enemies.tick(dt)
 	projectiles.tick(dt)
@@ -313,11 +318,28 @@ func gain_xp(amount: int, weapon_id: String) -> void:
 		fx.ring(player.pos, 14.0, 170.0, 0.45, Color(1.0, 0.85, 0.3, 0.9))
 		fx.light(player.pos, 300.0, 0.3, Color(1.0, 0.8, 0.3, 0.6))
 		Sfx.play("level_up")
-	if weapon_id != "" and SaveData.add_weapon_xp(weapon_id, amount) > 0:
+		# The level that opens pets: the first one walks in right away.
+		if pet == null and player.stats.pet != "":
+			_spawn_pet()
+			var joined: Dictionary = Config.PETS[pet.id]
+			hud.announce("%s JOINS YOU!" % String(joined["name"]), "%s fights at your side and adds to your damage" % String(joined["title"]),
+					Config.PET_RARITIES[String(joined["rarity"])]["color"], 4.0)
+			fx.ring(pet.pos, 10.0, 140.0, 0.5, Color(1.0, 0.9, 0.6, 0.9))
+			Sfx.play("pet_call")
+	# (Kills by the pet or by fire it started carry a source that is not a weapon.)
+	if Config.WEAPONS.has(weapon_id) and SaveData.add_weapon_xp(weapon_id, amount) > 0:
 		var w: Dictionary = Config.WEAPONS[weapon_id]
 		fx.text(player.pos + Vector2(0, -58), "%s LEVEL %d" % [String(w["name"]), SaveData.weapon_level(weapon_id)],
 				w["color"], 20, 1.4)
 		Sfx.play("weapon_level")
+
+
+## Bring in the pet named by the player's stats, at the player's heel.
+func _spawn_pet() -> void:
+	pet = Pet.new()
+	pet.setup(self, player.stats.pet, arena.resolve(player.pos + Vector2(-44.0, 30.0), Config.PET_RADIUS))
+	add_child(pet)
+	move_child(pet, player.get_index())     # drawn just under the player
 
 
 # ----------------------------------------------------------------------------
@@ -409,6 +431,8 @@ func damage_player(amount: float, from: Vector2) -> void:
 	player.hp -= amount
 	player.invuln = Config.PLAYER_HURT_INVULN * player.stats.hurt_invuln_mult
 	player.hurt_boost = player.stats.hurt_speed_time
+	if pet != null:
+		pet.on_owner_hurt()
 	player.hurt_flash()
 	hud.hurt()
 	var away := (player.pos - from).normalized()

@@ -5,7 +5,8 @@ extends RefCounted
 ##
 ##     base value (Config)
 ##   + character level   (automatic growth per level)
-##   + passive stats     (ranks from the skill tree)
+##   + passive stats     (ranks from the skill tree and from gear)
+##   + the pet           (adds to damage, up to what its rarity allows)
 ##   + keystones         (special powers at the tips of the skill tree)
 ##   + ... gear will plug in here in a later stage
 ##
@@ -34,6 +35,16 @@ var dodge_invuln: float = Config.DODGE_INVULN    # seconds of safety after a dod
 var magnet_mult := 1.0          # coin magnet range multiplier
 var crate_rate := 0.0           # weapon crates appear this much more often (0.25 = +25%)
 
+# The pet that comes along ("" = none). See Config.PETS.
+var pet := ""
+var pet_damage := 0.0           # what it adds to the character's damage (already inside damage_mult)
+var pet_bite := 0.0             # damage of one of its bites
+var pet_attack_speed := 1.0     # > 1 = it bites more often
+var pet_fetch := false          # tricks learned in the BOND branch
+var pet_maul := false
+var pet_guard := false
+var pet_rage_speed := 1.0       # FERAL keystone: attack speed multiplier while raging
+
 
 static func current() -> PlayerStats:
 	var s := PlayerStats.new()
@@ -47,7 +58,22 @@ static func current() -> PlayerStats:
 	s.crit_chance = SaveData.passive_value("critical")
 	s.coin_luck = SaveData.passive_value("luck")
 
+	# The pet: a share of its rarity's damage bonus, set by the BOND stat.
+	var bond := SaveData.passive_rank("bond")
+	s.pet = SaveData.pet_active if SaveData.has_pet(SaveData.pet_active) else ""
+	if s.pet != "":
+		s.pet_bite = Config.PET_BITE_DAMAGE * Config.pet_bite_mult(s.pet, bond) * s.damage_mult
+		s.pet_damage = Config.pet_damage_bonus(s.pet, bond)
+		s.damage_mult *= 1.0 + s.pet_damage
+		s.pet_fetch = SaveData.has_pet_trick(0)
+		s.pet_maul = SaveData.has_pet_trick(1)
+		s.pet_guard = SaveData.has_pet_trick(2)
+		if SaveData.has_pet_trick(3):
+			s.pet_attack_speed = Config.PET_FRENZY_SPEED
+
 	var keys: Dictionary = Config.KEYSTONES
+	if SaveData.has_keystone("bond"):
+		s.pet_rage_speed = float(keys["bond"]["value"])
 	if SaveData.has_keystone("vitality"):
 		s.second_wind = float(keys["vitality"]["value"])
 	if SaveData.has_keystone("strength"):
@@ -127,6 +153,8 @@ static func describe_passive(id: String, value: float) -> String:
 			return "%d%% critical hits" % int(round(value * 100.0))
 		"luck":
 			return "+%d%% coin drops" % int(round(value * 100.0))
+		"bond":
+			return "%d%% of your pet's bonus" % int(round(Config.pet_bond_share(int(round(value))) * 100.0))
 	return ""
 
 

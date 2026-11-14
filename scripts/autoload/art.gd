@@ -115,6 +115,9 @@ func _build() -> void:
 	_svg("gun_flamethrower", 48, 22, SVG_GUN_FLAMETHROWER, false)
 	_svg("gun_chainsaw", 54, 22, SVG_GUN_CHAINSAW, false)
 	_svg("grenade", 16, 16, SVG_GRENADE)
+	# Pets (52x32, facing right), drawn from the colours in Config.PETS.
+	for pet_id: String in Config.PET_ORDER:
+		_svg("pet_" + pet_id, 52, 32, _pet_svg(Config.PETS[pet_id]["look"]))
 
 	# --- detailed weapon pictures (side view) for the HUD and the Armory ---
 	# 220x80 each. To replace one with real art: assets/sprites/icon_<weapon>.png at 440x160.
@@ -170,6 +173,57 @@ func _build() -> void:
 	vignette.height = 256
 	tex["vignette"] = vignette
 	sizes["vignette"] = Vector2(256, 256)
+
+
+## A four-legged pet seen from above, built from a "look" (see Config.PETS):
+## colours, the kind of tail and ears, how stocky it is, and whether embers
+## glow along its back.
+func _pet_svg(look: Dictionary) -> String:
+	var dark := "#1c1712"
+	var body := String(look["body"])
+	var head := String(look["head"])
+	var patch := String(look["patch"])
+	var ear := String(look["ear"])
+	var collar := String(look["collar"])
+	var eye := String(look["eye"])
+	var ry := 7.4 * float(look["girth"])
+	var out := "<ellipse cx=\"0\" cy=\"0\" rx=\"22\" ry=\"%s\" fill=\"#000000\" fill-opacity=\"0.22\"/>" % str(ry + 4.0)
+	# Tail.
+	var tails := {"curl": ["M-13,0 Q-20,-2 -21,-8", 4.6], "long": ["M-13,0 Q-22,4 -25,-4", 3.2],
+			"stub": ["M-13,0 L-17,-1.5", 4.6], "bushy": ["M-13,0 Q-21,-1 -25,-6", 6.4]}
+	var tail: Array = tails[String(look["tail"])]
+	out += "<path d=\"%s\" stroke=\"%s\" stroke-width=\"%s\" stroke-linecap=\"round\" fill=\"none\"/>" % [tail[0], dark, str(float(tail[1]) + 2.4)]
+	out += "<path d=\"%s\" stroke=\"%s\" stroke-width=\"%s\" stroke-linecap=\"round\" fill=\"none\"/>" % [tail[0], body, str(tail[1])]
+	# Legs, then the body over them.
+	for x: float in [-8.0, 6.5]:
+		for side: float in [-1.0, 1.0]:
+			out += "<ellipse cx=\"%s\" cy=\"%s\" rx=\"3.5\" ry=\"2.9\" fill=\"%s\"/>" % [str(x), str(side * (ry - 0.4)), dark]
+			out += "<ellipse cx=\"%s\" cy=\"%s\" rx=\"2.3\" ry=\"1.8\" fill=\"%s\"/>" % [str(x), str(side * (ry - 0.4)), body]
+	out += "<ellipse cx=\"-2\" cy=\"0\" rx=\"12.6\" ry=\"%s\" fill=\"%s\"/>" % [str(ry + 1.4), dark]
+	out += "<ellipse cx=\"-2\" cy=\"0\" rx=\"11.2\" ry=\"%s\" fill=\"%s\"/>" % [str(ry), body]
+	if patch != "":
+		out += "<ellipse cx=\"-6\" cy=\"-1.4\" rx=\"4.2\" ry=\"%s\" fill=\"%s\"/>" % [str(ry * 0.42), patch]
+	if bool(look["ember"]):
+		out += "<path d=\"M-10,-3 L-7,2.5 M-4,-4 L-1.5,3 M2,-3.5 L3.5,2.5\" stroke=\"#ff7a1a\" stroke-width=\"1.7\" stroke-linecap=\"round\" fill=\"none\"/>"
+		out += "<path d=\"M-10,-3 L-7,2.5 M-4,-4 L-1.5,3 M2,-3.5 L3.5,2.5\" stroke=\"#ffd27a\" stroke-width=\"0.6\" stroke-linecap=\"round\" fill=\"none\"/>"
+	if collar != "":
+		out += "<rect x=\"5.2\" y=\"%s\" width=\"3\" height=\"%s\" rx=\"1.2\" fill=\"%s\" stroke=\"%s\" stroke-width=\"0.8\"/>" % [
+				str(-(ry - 0.8)), str(2.0 * (ry - 0.8)), collar, dark]
+	# Head, ears, snout, eyes.
+	out += "<circle cx=\"11\" cy=\"0\" r=\"6.9\" fill=\"%s\"/><circle cx=\"11\" cy=\"0\" r=\"5.6\" fill=\"%s\"/>" % [dark, head]
+	for side: float in [-1.0, 1.0]:
+		if String(look["ears"]) == "point":
+			out += "<path d=\"M8.6,%s L7,%s L13,%s Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1\" stroke-linejoin=\"round\"/>" % [
+					str(side * 3.8), str(side * 11.4), str(side * 5.8), ear, dark]
+		else:
+			out += "<path d=\"M8,%s L4.6,%s L11.6,%s Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1\" stroke-linejoin=\"round\"/>" % [
+					str(side * 4.4), str(side * 9.6), str(side * 6.8), ear, dark]
+	out += "<ellipse cx=\"16.6\" cy=\"0\" rx=\"3.7\" ry=\"3\" fill=\"%s\"/>" % dark
+	out += "<ellipse cx=\"16.4\" cy=\"0\" rx=\"2.6\" ry=\"2\" fill=\"%s\"/>" % (patch if patch != "" else head)
+	out += "<circle cx=\"18.8\" cy=\"0\" r=\"1.25\" fill=\"%s\"/>" % dark
+	for side: float in [-1.0, 1.0]:
+		out += "<circle cx=\"13.6\" cy=\"%s\" r=\"%s\" fill=\"%s\"/>" % [str(side * 2.5), "1.4" if bool(look["ember"]) else "1.0", eye]
+	return out
 
 
 ## Rasterise an SVG drawing into a texture. `centered` puts (0,0) in the middle
@@ -761,6 +815,7 @@ const SYMBOLS := {
 	"stat_evasion": "<path d=\"M-12 16 L-12 -3 C-12 -21 12 -21 12 -3 L12 16 L7 11 L2.5 16 L-2.5 11 L-7 16Z\" fill=\"#fff\"/><circle cx=\"-4.5\" cy=\"-4\" r=\"2.6\" fill=\"#000\" fill-opacity=\"0.75\"/><circle cx=\"4.5\" cy=\"-4\" r=\"2.6\" fill=\"#000\" fill-opacity=\"0.75\"/>",
 	"stat_critical": "<circle r=\"10.5\" fill=\"none\" stroke=\"#fff\" stroke-width=\"3.2\"/><path d=\"M0 -18 V-7 M0 7 V18 M-18 0 H-7 M7 0 H18\" stroke=\"#fff\" stroke-width=\"3.2\" stroke-linecap=\"round\"/><circle r=\"2.4\" fill=\"#fff\"/>",
 	"stat_luck": "<circle cx=\"-6\" cy=\"-7\" r=\"6.6\" fill=\"#fff\"/><circle cx=\"6\" cy=\"-7\" r=\"6.6\" fill=\"#fff\"/><circle cx=\"-6\" cy=\"4\" r=\"6.6\" fill=\"#fff\"/><circle cx=\"6\" cy=\"4\" r=\"6.6\" fill=\"#fff\"/><path d=\"M0 2 C1 9 3 14 7 17\" fill=\"none\" stroke=\"#fff\" stroke-width=\"3\" stroke-linecap=\"round\"/>",
+	"stat_bond": "<ellipse cx=\"0\" cy=\"7\" rx=\"9.5\" ry=\"8\" fill=\"#fff\"/><circle cx=\"-12\" cy=\"-3\" r=\"4.3\" fill=\"#fff\"/><circle cx=\"-4.6\" cy=\"-11\" r=\"4.6\" fill=\"#fff\"/><circle cx=\"4.6\" cy=\"-11\" r=\"4.6\" fill=\"#fff\"/><circle cx=\"12\" cy=\"-3\" r=\"4.3\" fill=\"#fff\"/>",
 	"ui_star": "<path d=\"M0 -18 L5.3 -5.6 L18.5 -5.6 L7.8 2.6 L11.4 15.5 L0 7.8 L-11.4 15.5 L-7.8 2.6 L-18.5 -5.6 L-5.3 -5.6Z\" fill=\"#fff\"/>",
 	"ui_infinity": "<path d=\"M0 0 C-4 -9 -16 -9 -16 0 C-16 9 -4 9 0 0 C4 -9 16 -9 16 0 C16 9 4 9 0 0Z\" fill=\"none\" stroke=\"#fff\" stroke-width=\"4\"/>",
 	"ui_lock": "<rect x=\"-11\" y=\"-3\" width=\"22\" height=\"18\" rx=\"3\" fill=\"#fff\"/><path d=\"M-7 -3 V-8 C-7 -18 7 -18 7 -8 V-3\" fill=\"none\" stroke=\"#fff\" stroke-width=\"3.6\"/><circle cy=\"5\" r=\"2.6\" fill=\"#000\" fill-opacity=\"0.7\"/>",

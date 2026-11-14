@@ -58,6 +58,8 @@ var RECIPES := {
 	"level_up": [_make_level_up, -2.0, 0.3],
 	"weapon_level": [_make_weapon_level, -4.0, 0.2],
 	"dodge": [_make_dodge, -5.0, 0.1],
+	"pet_bite": [_make_pet_bite, -7.0, 0.08],
+	"pet_call": [_make_pet_call, -3.0, 0.3],
 	"gear_drop": [_make_gear_drop, -3.0, 0.2],
 	"gear_pickup": [_make_gear_pickup, -3.0, 0.2],
 	"forge_ok": [_make_forge_ok, -2.0, 0.2],
@@ -765,6 +767,27 @@ func _make_weapon_level(s: Synth) -> void:
 	s.noise(0.07, 0.05, 0.9, 0.012, 4200.0, 2000.0, 0.0005, 900.0)
 	s.tone(0.14, 0.2, 0.5, 587.3, 587.3, 0.09, Synth.TRIANGLE)
 	s.tone(0.24, 0.26, 0.55, 880.0, 880.0, 0.12, Synth.TRIANGLE)
+
+
+func _make_pet_bite(s: Synth) -> void:
+	# A short snarl and the snap of teeth.
+	s.length(0.16)
+	s.drive = 1.6
+	s.band(0.0, 0.09, 1.2, 0.03, 520.0, 3.0)
+	s.noise(0.0, 0.07, 0.8, 0.02, 2600.0, 900.0, 0.002, 300.0)
+	s.noise(0.05, 0.02, 0.9, 0.005, 7000.0, 4000.0, 0.0005, 2500.0)
+
+
+func _make_pet_call(s: Synth) -> void:
+	# Two sharp barks.
+	s.length(0.5)
+	s.drive = 1.8
+	for i in 2:
+		var at := i * 0.17
+		s.tone(at, 0.11, 0.8, 520.0, 300.0, 0.05, Synth.SAW, 0.004)
+		s.band(at, 0.11, 0.9, 0.04, 900.0, 2.5)
+	s.lowpass(3500.0)
+	s.reverb(0.2, 0.25)
 
 
 func _make_gear_drop(s: Synth) -> void:

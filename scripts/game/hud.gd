@@ -145,6 +145,13 @@ func _draw_health_and_rage(p: Player) -> void:
 	else:
 		_text(Vector2(x, ry + rh + 20), "RAGE", 14, Color(0.9, 0.6, 0.35, 0.8))
 
+	# The pet at your side and what it adds.
+	if game.pet != null:
+		var pet_def: Dictionary = Config.PETS[game.pet.id]
+		var pet_color: Color = Config.PET_RARITIES[String(pet_def["rarity"])]["color"]
+		_text(Vector2(x, ry + rh + 44), "%s   +%s%% damage" % [String(pet_def["name"]), String.num(p.stats.pet_damage * 100.0, 1)], 13,
+				Color(pet_color.r, pet_color.g, pet_color.b, 0.9), 0, 4)
+
 
 func _draw_weapon(p: Player, h: float) -> void:
 	var w: Dictionary = p.weapon

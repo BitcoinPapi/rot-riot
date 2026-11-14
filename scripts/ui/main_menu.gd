@@ -1,12 +1,14 @@
 class_name MainMenu
 extends Control
-## Title screen: Play (opens the map screen), Character, Armory, Gear, Settings, Quit.
+## Title screen: Play (opens the map screen), then Character, Armory, Gear,
+## Pets, Settings and Quit in two columns.
 
 var main: Main
 var _first: Button
 var _character: Button
 var _armory: Button
 var _gear: Button
+var _pets: Button
 var _stats: Label
 var _progress: Label
 var _notice: Label
@@ -19,7 +21,7 @@ func _init() -> void:
 	col.alignment = BoxContainer.ALIGNMENT_CENTER
 	add_child(UiKit.centered(col))
 
-	var title := UiKit.heading(Config.GAME_TITLE, 100, Color("efe6cf"))
+	var title := UiKit.heading(Config.GAME_TITLE, 108, Color("efe6cf"))
 	title.add_theme_color_override("font_shadow_color", Color(0.6, 0.06, 0.05))
 	title.add_theme_constant_override("shadow_offset_x", 6)
 	title.add_theme_constant_override("shadow_offset_y", 7)
@@ -28,12 +30,20 @@ func _init() -> void:
 	col.add_child(UiKit.heading("SURVIVE THE HORDE", 22, UiKit.GOLD))
 	col.add_child(UiKit.spacer(4))
 
-	_first = _add_button(col, "PLAY", func() -> void: main.open_screen("maps"))
-	_character = _add_button(col, "CHARACTER", func() -> void: main.open_screen("character"))
-	_armory = _add_button(col, "ARMORY", func() -> void: main.open_screen("armory"))
-	_gear = _add_button(col, "GEAR", func() -> void: main.open_screen("gear"))
-	_add_button(col, "SETTINGS", func() -> void: main.open_screen("settings"))
-	_add_button(col, "QUIT", func() -> void: main.quit_game())
+	_first = _add_button(col, "PLAY", func() -> void: main.open_screen("maps"), 510.0)
+	_first.custom_minimum_size.y = 58
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 8)
+	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	col.add_child(grid)
+	_character = _add_button(grid, "CHARACTER", func() -> void: main.open_screen("character"))
+	_armory = _add_button(grid, "ARMORY", func() -> void: main.open_screen("armory"))
+	_gear = _add_button(grid, "GEAR", func() -> void: main.open_screen("gear"))
+	_pets = _add_button(grid, "PETS", func() -> void: main.open_screen("pets"))
+	_add_button(grid, "SETTINGS", func() -> void: main.open_screen("settings"))
+	_add_button(grid, "QUIT", func() -> void: main.quit_game())
 
 	col.add_child(UiKit.spacer(4))
 	_progress = UiKit.heading("", 21, UiKit.GOLD)
@@ -52,9 +62,10 @@ func _init() -> void:
 	add_child(version)
 
 
-func _add_button(parent: Control, text: String, action: Callable) -> Button:
-	var b := UiKit.button(text, action)
-	b.custom_minimum_size.y = 50
+func _add_button(parent: Control, text: String, action: Callable, width: float = 250.0) -> Button:
+	var b := UiKit.button(text, action, width)
+	b.custom_minimum_size.y = 52
+	b.add_theme_font_size_override("font_size", 22)
 	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	parent.add_child(b)
 	return b
@@ -67,6 +78,10 @@ func opened() -> void:
 	var weapon_points := SaveData.total_weapon_points()
 	_armory.text = "ARMORY" if weapon_points <= 0 else "ARMORY  (%d)" % weapon_points
 	_gear.text = "GEAR" if SaveData.gear_new <= 0 else "GEAR  (%d NEW)" % SaveData.gear_new
+	if not SaveData.pets_unlocked():
+		_pets.text = "PETS  (LEVEL %d)" % Config.PET_UNLOCK_LEVEL
+	else:
+		_pets.text = "PETS" if SaveData.pet_seen else "PETS  (NEW)"
 	_progress.text = "LEVEL %d      COINS: %d" % [SaveData.level, SaveData.coins]
 	if SaveData.runs_played > 0:
 		var map_index := SaveData.maps_unlocked - 1
@@ -78,7 +93,7 @@ func opened() -> void:
 	if SaveData.was_reset_by_update:
 		_notice.text = "New progression system: your old coins and upgrades were reset."
 	elif SaveData.points_returned > 0 and SaveData.skill_points > 0:
-		_notice.text = "The skill tree is new: your %d skill points are waiting on the CHARACTER screen." % SaveData.skill_points
+		_notice.text = "The skill tree has changed: your %d skill points are waiting on the CHARACTER screen." % SaveData.skill_points
 	else:
 		_notice.text = ""
 	_notice.visible = _notice.text != ""
