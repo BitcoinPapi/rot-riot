@@ -15,6 +15,8 @@ extends Node
 ##   --inputtest        feed fake keyboard / mouse / gamepad events through GameInput and check them
 ##   --bench=N          keep N zombies alive around the player and report simulation time
 ##   --dump-sfx=DIR     write every generated sound to DIR as .wav files, then quit
+##   --coins=N          start with N coins (dev runs use a throwaway save file,
+##                      never the player's real one, unless --real-save is given)
 ##   --shot=PATH        save a screenshot to PATH ...
 ##   --shot-frame=N     ... on frame N (default 30), then quit
 
@@ -31,6 +33,15 @@ func _ready() -> void:
 	for arg: String in OS.get_cmdline_user_args():
 		var parts := arg.trim_prefix("--").split("=", true, 1)
 		_args[parts[0]] = parts[1] if parts.size() > 1 else "1"
+	# Developer runs never touch the player's real save file.
+	if not _args.has("real-save"):
+		SaveData.save_path = "user://dev_save.json"
+		if FileAccess.file_exists(SaveData.save_path):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(SaveData.save_path))
+		SaveData.call("_reset_to_defaults")
+		SaveData.apply_settings()
+		if _args.has("coins"):
+			SaveData.add_coins(int(_args["coins"]))
 	if _args.has("autotest"):
 		_run_autotest.call_deferred()
 	if _args.has("inputtest"):
@@ -188,10 +199,7 @@ func _check(condition: bool, what: String) -> void:
 func _run_autotest() -> void:
 	var app: Main = main
 	print("AUTOTEST start")
-	# Use a throwaway save file so real progress is never touched.
-	SaveData.save_path = "user://autotest_save.json"
-	if FileAccess.file_exists(SaveData.save_path):
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(SaveData.save_path))
+	# (DevTools already switched to a throwaway save file, so real progress is never touched.)
 	SaveData.call("_reset_to_defaults")
 	await _frames(5)
 	_check(app.state == Main.State.MENU and app.game == null, "starts on the main menu")
@@ -390,7 +398,6 @@ func _pad_button(button: JoyButton, pressed: bool) -> void:
 func _run_inputtest() -> void:
 	var app: Main = main
 	print("INPUTTEST start")
-	SaveData.save_path = "user://autotest_save.json"
 	SaveData.call("_reset_to_defaults")
 	await _frames(5)
 	app.start_run()

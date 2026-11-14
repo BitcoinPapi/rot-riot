@@ -254,7 +254,7 @@ func _draw_crosshair(p: Player) -> void:
 
 ## Arrows at the screen edge pointing to weapon crates that are out of view.
 func _draw_crate_arrows() -> void:
-	var view := Rect2(Vector2.ZERO, size).grow(-46.0)
+	var view := Rect2(Vector2(46.0, 128.0), size - Vector2(92.0, 228.0))
 	for crate: Pickups.Crate in game.pickups.crates:
 		var sp := _to_screen(crate.pos)
 		if view.has_point(sp):
