@@ -1,11 +1,12 @@
 class_name MainMenu
 extends Control
-## Title screen: Play (opens the map screen), Character, Armory, Settings, Quit.
+## Title screen: Play (opens the map screen), Character, Armory, Gear, Settings, Quit.
 
 var main: Main
 var _first: Button
 var _character: Button
 var _armory: Button
+var _gear: Button
 var _stats: Label
 var _progress: Label
 var _notice: Label
@@ -14,22 +15,23 @@ var _notice: Label
 func _init() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 10)
+	col.add_theme_constant_override("separation", 8)
 	col.alignment = BoxContainer.ALIGNMENT_CENTER
 	add_child(UiKit.centered(col))
 
-	var title := UiKit.heading(Config.GAME_TITLE, 108, Color("efe6cf"))
+	var title := UiKit.heading(Config.GAME_TITLE, 100, Color("efe6cf"))
 	title.add_theme_color_override("font_shadow_color", Color(0.6, 0.06, 0.05))
 	title.add_theme_constant_override("shadow_offset_x", 6)
 	title.add_theme_constant_override("shadow_offset_y", 7)
 	title.add_theme_constant_override("shadow_outline_size", 20)
 	col.add_child(title)
 	col.add_child(UiKit.heading("SURVIVE THE HORDE", 22, UiKit.GOLD))
-	col.add_child(UiKit.spacer(8))
+	col.add_child(UiKit.spacer(4))
 
 	_first = _add_button(col, "PLAY", func() -> void: main.open_screen("maps"))
 	_character = _add_button(col, "CHARACTER", func() -> void: main.open_screen("character"))
 	_armory = _add_button(col, "ARMORY", func() -> void: main.open_screen("armory"))
+	_gear = _add_button(col, "GEAR", func() -> void: main.open_screen("gear"))
 	_add_button(col, "SETTINGS", func() -> void: main.open_screen("settings"))
 	_add_button(col, "QUIT", func() -> void: main.quit_game())
 
@@ -52,6 +54,7 @@ func _init() -> void:
 
 func _add_button(parent: Control, text: String, action: Callable) -> Button:
 	var b := UiKit.button(text, action)
+	b.custom_minimum_size.y = 50
 	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	parent.add_child(b)
 	return b
@@ -63,6 +66,7 @@ func opened() -> void:
 	_character.text = "CHARACTER" if SaveData.skill_points <= 0 else "CHARACTER  (%d)" % SaveData.skill_points
 	var weapon_points := SaveData.total_weapon_points()
 	_armory.text = "ARMORY" if weapon_points <= 0 else "ARMORY  (%d)" % weapon_points
+	_gear.text = "GEAR" if SaveData.gear_new <= 0 else "GEAR  (%d NEW)" % SaveData.gear_new
 	_progress.text = "LEVEL %d      COINS: %d" % [SaveData.level, SaveData.coins]
 	if SaveData.runs_played > 0:
 		var map_index := SaveData.maps_unlocked - 1

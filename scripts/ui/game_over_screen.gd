@@ -18,6 +18,8 @@ var _coins: Label
 var _hint: Label
 var _character: Button
 var _armory: Button
+var _gear: Button
+var _loot: Label                  # gear found in the run
 var _buttons: Array[Button] = []
 
 
@@ -29,7 +31,7 @@ func _init() -> void:
 	col.add_theme_constant_override("separation", 8)
 	panel.add_child(col)
 
-	_title = UiKit.heading("YOU GOT EATEN", 56, UiKit.RED)
+	_title = UiKit.heading("YOU GOT EATEN", 50, UiKit.RED)
 	col.add_child(_title)
 	_map = UiKit.heading("", 18, UiKit.DIM)
 	col.add_child(_map)
@@ -56,9 +58,12 @@ func _init() -> void:
 	col.add_child(UiKit.spacer(2))
 	_coins = UiKit.heading("", 23, UiKit.GOLD)
 	col.add_child(_coins)
+	_loot = UiKit.heading("", 16, Color(0.75, 0.85, 1.0))
+	_loot.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_loot.custom_minimum_size = Vector2(560, 0)
+	col.add_child(_loot)
 	_hint = UiKit.heading("", 16, UiKit.GREEN)
 	col.add_child(_hint)
-	col.add_child(UiKit.spacer(4))
 
 	_again = UiKit.button("PLAY AGAIN", func() -> void: main.start_run(), 452.0)
 	_again.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -69,10 +74,14 @@ func _init() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	_character = UiKit.button("CHARACTER", func() -> void: main.open_screen("character"), 220.0)
+	_character = UiKit.button("CHARACTER", func() -> void: main.open_screen("character"), 176.0)
 	row.add_child(_character)
-	_armory = UiKit.button("ARMORY", func() -> void: main.open_screen("armory"), 220.0)
+	_armory = UiKit.button("ARMORY", func() -> void: main.open_screen("armory"), 126.0)
 	row.add_child(_armory)
+	_gear = UiKit.button("GEAR", func() -> void: main.open_screen("gear"), 126.0)
+	row.add_child(_gear)
+	for small: Button in [_character, _armory, _gear]:
+		small.add_theme_font_size_override("font_size", 18)
 	col.add_child(row)
 	var row2 := HBoxContainer.new()
 	row2.add_theme_constant_override("separation", 12)
@@ -82,7 +91,7 @@ func _init() -> void:
 	var menu := UiKit.button("MAIN MENU", func() -> void: main.quit_to_menu(), 220.0)
 	row2.add_child(menu)
 	col.add_child(row2)
-	_buttons = [_again, _onward, _character, _armory, maps, menu]
+	_buttons = [_again, _onward, _character, _armory, _gear, maps, menu]
 
 
 ## Fill in the numbers for the run that just ended.
@@ -123,6 +132,12 @@ func show_results(stats: Dictionary, is_best: bool) -> void:
 	else:
 		_onward.visible = false
 
+	var found: Array[String] = []
+	for key: Variant in (stats.get("gear", []) as Array):
+		found.append(Config.gear_name(String(key)))
+	_loot.text = "" if found.is_empty() else "GEAR FOUND:  %s" % ",  ".join(found)
+	_loot.visible = not found.is_empty()
+
 	_put("SCORE", "%d" % int(stats.get("score", 0)))
 	_put("WAVE REACHED", "%d / %d" % [int(stats.get("wave", 0)), Config.WAVES_PER_MAP])
 	_put("ZOMBIES KILLED", "%d" % int(stats.get("kills", 0)))
@@ -150,6 +165,7 @@ func _refresh_progress() -> void:
 	var weapon_points := SaveData.total_weapon_points()
 	_character.text = "CHARACTER" if SaveData.skill_points <= 0 else "CHARACTER  (%d)" % SaveData.skill_points
 	_armory.text = "ARMORY" if weapon_points <= 0 else "ARMORY  (%d)" % weapon_points
+	_gear.text = "GEAR" if SaveData.gear_new <= 0 else "GEAR  (%d)" % SaveData.gear_new
 	var parts: Array[String] = []
 	if SaveData.skill_points > 0:
 		parts.append("%d skill point%s" % [SaveData.skill_points, "" if SaveData.skill_points == 1 else "s"])

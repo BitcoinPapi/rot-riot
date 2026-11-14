@@ -5,7 +5,9 @@ extends Node
 ##
 ##   --play             skip the menu and start a run
 ##   --bot              start a run and let a simple bot play (through GameInput's virtual sticks)
-##   --screen=NAME      open a menu screen (maps, character, armory, settings, pause, gameover, victory) for screenshots
+##   --screen=NAME      open a menu screen (maps, character, armory, gear, settings, pause, gameover, victory) for screenshots
+##   --gear=N           start with N random pieces of gear, some of them worn
+##   --drop-gear        one second into a run, drop a piece of every tier around the player (and one on top of them)
 ##   --map=N            play map N (unlocks it); --best=W sets the best wave cleared there, --start=W the starting wave
 ##   --level=N          start as a level N character with points to spend (for screenshots)
 ##   --armory-weapon=ID with --screen=armory: show this weapon
@@ -65,6 +67,15 @@ func _ready() -> void:
 			for node_id: String in ["power.0", "power.1", "power.2", "perk.0", "speed.0"]:
 				SaveData.learn_weapon_node("pistol", node_id)
 			SaveData.learn_weapon_node("shotgun", "spawn.0")
+		if _args.has("gear"):
+			var rng := RandomNumberGenerator.new()
+			rng.seed = 11
+			for i in int(_args["gear"]):
+				var item: String = Config.GEAR_ORDER[rng.randi() % Config.GEAR_ORDER.size()]
+				SaveData.add_gear(Config.gear_key(item, 1 + int(rng.randf() * rng.randf() * 3.5)))
+			for key: String in SaveData.gear_bag.keys().duplicate():
+				if rng.randf() < 0.45:
+					SaveData.wear_gear(key)
 		if _args.has("map"):
 			var map_index := clampi(int(_args["map"]) - 1, 0, Config.MAPS.size() - 1)
 			SaveData.maps_unlocked = maxi(SaveData.maps_unlocked, map_index + 1)
@@ -101,6 +112,11 @@ func _process(_delta: float) -> void:
 		if _args.has("wave") and _frame == 2:
 			game.director.wave = int(_args["wave"]) - 1
 			game.director.intermission = 0.1
+		if _args.has("drop-gear") and _frame == 60:
+			var drops := ["hard_hat:1", "work_gloves:2", "iron_band:3", "combat_boots:4", "gorger_fang:5"]
+			for i in drops.size():
+				game.pickups.spawn_gear(game.player.pos + Vector2.from_angle(-2.4 + 0.75 * i) * 190.0, drops[i])
+			game.pickups.spawn_gear(game.player.pos + Vector2(4.0, 0.0), "lucky_ring:2")
 		if _args.has("god"):
 			game.player.hp = game.player.max_hp
 		if _args.has("bot") or _auto_bot:
@@ -124,6 +140,7 @@ func _process(_delta: float) -> void:
 				weapon_levels.append("%s %d" % [id, SaveData.weapon_level(id)])
 			print("PROGRESS xp_run=%d level=%d skill_points=%d weapons=[%s]" % [
 				game.xp_run, SaveData.level, SaveData.skill_points, ", ".join(weapon_levels)])
+			print("GEAR found=%d [%s]" % [game.gear_run.size(), ", ".join(game.gear_run)])
 		_quit(0)
 
 
@@ -188,6 +205,8 @@ func _open_screen(app: Main, screen: String) -> void:
 			app.open_screen(screen)
 			if screen == "character":
 				_aim_tree(((app.get("_screens") as Dictionary)["character"] as CharacterScreen).get("_tree"))
+			if screen == "gear":
+				_aim_tree(((app.get("_screens") as Dictionary)["gear"] as GearScreen).get("_tree"))
 			if screen == "armory" and _args.has("armory-weapon"):
 				var screens: Dictionary = app.get("_screens")
 				(screens["armory"] as ArmoryScreen).call("_select", String(_args["armory-weapon"]))
@@ -468,6 +487,93 @@ func _run_autotest() -> void:
 	app.close_screen()
 	await _frames(2)
 
+	# --- gear: the bag, wearing, forging ---
+	app.open_screen("gear")
+	await _frames(3)
+	var gear_screen: GearScreen = (app.get("_screens") as Dictionary)["gear"]
+	_check(SaveData.gear_bag.is_empty() and not SaveData.wear_gear("hard_hat:1"), "cannot wear a piece that is not in the bag")
+	SaveData.add_gear("hard_hat:1", 2)
+	_check(SaveData.gear_count("hard_hat:1") == 2 and SaveData.gear_new == 2, "found gear goes into the bag")
+	var defense_before := SaveData.passive_rank("defense")
+	gear_screen.call("_show_node", "hard_hat.1")
+	gear_screen.call("_on_node_activated", "hard_hat.1")
+	_check(SaveData.gear_in_slot("helmet") == "hard_hat:1" and SaveData.gear_count("hard_hat:1") == 1
+			and SaveData.passive_rank("defense") == defense_before + 2, "clicking a piece wears it and adds its stat ranks")
+	_check(PlayerStats.current().damage_taken_mult < 1.0, "gear reaches the numbers the game uses")
+	SaveData.add_gear("gas_mask:1")
+	SaveData.wear_gear("gas_mask:1")
+	_check(SaveData.gear_in_slot("helmet") == "gas_mask:1" and SaveData.gear_count("hard_hat:1") == 2
+			and SaveData.passive_rank("defense") == defense_before, "a new piece swaps with the one already in its slot")
+	SaveData.add_gear("iron_band:1", 2)
+	SaveData.add_gear("lucky_ring:2")
+	SaveData.wear_gear("iron_band:1")
+	SaveData.wear_gear("iron_band:1")
+	_check(SaveData.gear_in_slot("ring1") == "iron_band:1" and SaveData.gear_in_slot("ring2") == "iron_band:1", "two rings can be worn")
+	SaveData.wear_gear("lucky_ring:2")
+	_check(SaveData.gear_in_slot("ring1") == "lucky_ring:2" and SaveData.gear_count("iron_band:1") == 1, "a third ring replaces one of them")
+	_check(not SaveData.wear_gear("lucky_ring:2", "helmet") and not SaveData.wear_gear("gas_mask:1", "boots"), "a piece only fits its own slot")
+	_check(SaveData.take_off_gear("ring2") and SaveData.gear_in_slot("ring2") == "" and SaveData.gear_count("iron_band:1") == 2,
+			"a piece can be taken off again")
+	# Forging, with the dice fixed.
+	var odds: Array = []
+	for tier in range(2, 6):
+		odds.append(float(Config.gear_tier_def(tier)["chance"]))
+	_check(odds == [1.0, 0.9, 0.4, 0.1], "the forging odds are 100% / 90% / 40% / 10%")
+	_check(not SaveData.can_forge("gas_mask", 2) and SaveData.forge_gear("gas_mask", 2) == "", "forging needs two identical pieces")
+	_check(SaveData.forge_gear("hard_hat", 2, 0.99) == "success" and SaveData.gear_count("hard_hat:2") == 1
+			and SaveData.gear_count("hard_hat:1") == 0, "two COMMON pieces always forge into a STURDY one")
+	SaveData.add_gear("hard_hat:2", 3, false)
+	_check(SaveData.forge_gear("hard_hat", 3, 0.95) == "fail" and SaveData.gear_count("hard_hat:2") == 3 and SaveData.gear_count("hard_hat:3") == 0,
+			"a failed forging uses up one of the two pieces")
+	_check(SaveData.forge_gear("hard_hat", 3, 0.5) == "success" and SaveData.gear_count("hard_hat:3") == 1 and SaveData.gear_count("hard_hat:2") == 1,
+			"a successful forging turns two pieces into one of the next tier")
+	SaveData.add_gear("hard_hat:3", 4, false)
+	_check(SaveData.forge_gear("hard_hat", 4, 0.9, 0.1) == "broke" and SaveData.gear_count("hard_hat:3") == 3,
+			"a failed SUPERIOR forging can destroy both pieces")
+	_check(SaveData.forge_gear("hard_hat", 4, 0.9, 0.9) == "fail" and SaveData.gear_count("hard_hat:3") == 2, "...or only one")
+	_check(SaveData.forge_gear("hard_hat", 4, 0.3) == "success" and SaveData.gear_count("hard_hat:4") == 1 and SaveData.gear_count("hard_hat:3") == 0,
+			"SUPERIOR forges at 40%")
+	_check(not SaveData.can_forge("hard_hat", 6) and SaveData.gear_seen.has("hard_hat:4"), "LEGENDARY is the last tier; forged pieces are remembered")
+	# Through the screen: a forging that can fail asks first.
+	SaveData.add_gear("tool_belt:2", 2, false)
+	gear_screen.call("_show_node", "tool_belt.3")
+	gear_screen.call("_on_node_activated", "tool_belt.3")
+	_check(SaveData.gear_count("tool_belt:2") == 2, "a forging that can fail asks before it is done")
+	gear_screen.call("_on_node_activated", "tool_belt.3")
+	_check(SaveData.gear_count("tool_belt:2") < 2, "...and happens on the second press")
+	await _frames(3)
+	# The catalogue itself.
+	var gear_ok := Config.GEAR_ORDER.size() == Config.GEAR_ITEMS.size()
+	var per_type := {}
+	for item: String in Config.GEAR_ORDER:
+		var gdef: Dictionary = Config.GEAR_ITEMS[item]
+		per_type[String(gdef["type"])] = int(per_type.get(String(gdef["type"]), 0)) + 1
+		for stat: String in (gdef["stats"] as Dictionary).keys():
+			if not Config.PASSIVES.has(stat):
+				gear_ok = false
+		var boss_only := String(gdef["from"]) == "bosses"
+		if boss_only != (String(gdef["type"]) == "ring" or String(gdef["type"]) == "amulet"):
+			gear_ok = false
+	for type: String in Config.GEAR_TYPE_ORDER:
+		if int(per_type.get(type, 0)) < 3:
+			gear_ok = false
+	_check(gear_ok and GearTree.nodes().size() == 9 + 8 + Config.GEAR_ORDER.size() * 5,
+			"%d pieces of gear in 8 kinds; rings and amulets are boss-only (%d nodes on the gear screen)" % [
+			Config.GEAR_ORDER.size(), GearTree.nodes().size()])
+	var gear_closest := INF
+	var gear_ids := GearTree.order()
+	for i in gear_ids.size():
+		for j in range(i + 1, gear_ids.size()):
+			gear_closest = minf(gear_closest, (GearTree.nodes()[gear_ids[i]]["pos"] as Vector2).distance_to(GearTree.nodes()[gear_ids[j]]["pos"]))
+	_check(gear_closest >= 44.0, "nothing on the gear screen overlaps (closest pair %.0f px apart)" % gear_closest)
+	# Start the fighting with nothing worn, so the stat checks below are exact.
+	SaveData.gear_bag.clear()
+	for slot: String in Config.GEAR_SLOTS:
+		SaveData.gear_worn[slot] = ""
+	SaveData.call("_recount_gear")
+	app.close_screen()
+	await _frames(2)
+
 	# --- start a run ---
 	app.start_run()
 	await _frames(10)
@@ -503,6 +609,20 @@ func _run_autotest() -> void:
 	_auto_bot = true
 	await _frames(240)
 	_check(game.director.wave >= 1, "first wave starts")
+
+	# --- gear drops ---
+	var pool_ok := true
+	for i in 300:
+		var common: String = game.pickups.call("_pick_gear", "zombies")
+		var common_def: Dictionary = Config.GEAR_ITEMS[Config.gear_item_of(common)]
+		var from_boss: String = game.pickups.call("_pick_gear", "bosses")
+		if String(common_def["from"]) != "zombies" or int(common_def["map"]) > 1 or Config.gear_tier_of(common) != 1 \
+				or String(Config.GEAR_ITEMS[Config.gear_item_of(from_boss)]["from"]) != "bosses":
+			pool_ok = false
+	_check(pool_ok, "ordinary zombies never drop boss-only or later-map gear")
+	game.pickups.spawn_gear(game.player.pos + Vector2(6.0, 0.0), "running_shoes:1")
+	await _until(func() -> bool: return game.gear_run.has("running_shoes:1"))
+	_check(game.gear_run.has("running_shoes:1") and SaveData.gear_count("running_shoes:1") == 1, "walking over a piece of gear puts it in the bag")
 
 	# --- every weapon fires without errors ---
 	for id: String in Config.WEAPON_ORDER:
@@ -705,6 +825,14 @@ func _run_autotest() -> void:
 		await _frames(5)
 		_check(not game.director.boss_alive(), "boss can be killed")
 		_check(not game.pickups.crates.is_empty() or game.player.weapon_id != Config.STARTER_WEAPON, "boss drops a weapon crate")
+		var boss_piece := ""
+		for piece: Pickups.Loot in game.pickups.loot:
+			if String(Config.GEAR_ITEMS[Config.gear_item_of(piece.key)]["from"]) == "bosses":
+				boss_piece = piece.key
+		for key: String in game.gear_run:
+			if String(Config.GEAR_ITEMS[Config.gear_item_of(key)]["from"]) == "bosses":
+				boss_piece = key
+		_check(boss_piece != "", "a boss always drops a ring or an amulet (%s)" % boss_piece)
 
 	# --- death and game over ---
 	_auto_bot = false
@@ -832,12 +960,17 @@ func _run_autotest() -> void:
 	var points_now := SaveData.skill_points
 	var shotgun_power := SaveData.weapon_rank("shotgun", "power")
 	var pistol_level := SaveData.weapon_level("pistol")
+	SaveData.gear_bag.clear()
+	SaveData.add_gear("snake_ring:2", 3)
+	SaveData.wear_gear("snake_ring:2")
 	SaveData.save_game()
 	SaveData.call("_reset_to_defaults")
 	SaveData.load_game()
+	_check(SaveData.gear_in_slot("ring1") == "snake_ring:2" and SaveData.gear_count("snake_ring:2") == 2
+			and SaveData.gear_seen.has("snake_ring:2") and SaveData.gear_rank("evasion") == 6, "save file restores gear, worn and in the bag")
 	_check(SaveData.coins == coins_now and SaveData.level == level_now and SaveData.xp == xp_now and SaveData.skill_points == points_now,
 			"save file restores coins, level, XP and skill points")
-	_check(SaveData.passive_rank("evasion") == 1 and SaveData.node_count("evasion.0") == 1
+	_check(SaveData.tree_rank("evasion") == 1 and SaveData.node_count("evasion.0") == 1
 			and SaveData.weapon_rank("shotgun", "power") == shotgun_power
 			and SaveData.weapon_level("pistol") == pistol_level, "save file restores the skill tree and weapon levels")
 	_check(SaveData.maps_unlocked == 2 and SaveData.map_cleared(0) and SaveData.selected_map == 1,
@@ -1138,6 +1271,38 @@ func _run_inputtest() -> void:
 	_key(KEY_ESCAPE, false)
 	await _frames(3)
 	_check(app.state == Main.State.MENU and tree.is_visible_in_tree() == false, "Esc leaves the skill tree")
+
+	# --- the gear screen: click a piece to wear it, click its slot to take it off ---
+	SaveData.add_gear("work_gloves:1")
+	app.open_screen("gear")
+	await _frames(4)
+	var gear_tree: TreeView = ((app.get("_screens") as Dictionary)["gear"] as GearScreen).get("_tree")
+	var gear_cam: Vector2 = gear_tree.get("_cam")
+	var to_window := get_viewport().get_final_transform()
+	var piece_at: Vector2 = to_window * (gear_tree.global_position + gear_tree.size * 0.5
+			+ ((GearTree.nodes()["work_gloves.1"]["pos"] as Vector2) - gear_cam) * gear_tree.zoom)
+	_mouse_move(piece_at)
+	await _frames(2)
+	_check(gear_tree.selected == "work_gloves.1", "pointing at a piece of gear highlights it")
+	_mouse_button(MOUSE_BUTTON_LEFT, true, piece_at)
+	await _frames(2)
+	_mouse_button(MOUSE_BUTTON_LEFT, false, piece_at)
+	await _frames(2)
+	_check(SaveData.gear_in_slot("gloves") == "work_gloves:1" and SaveData.gear_count("work_gloves:1") == 0, "clicking a piece wears it")
+	var slot_at: Vector2 = to_window * (gear_tree.global_position + gear_tree.size * 0.5
+			+ ((GearTree.nodes()["slot.gloves"]["pos"] as Vector2) - gear_cam) * gear_tree.zoom)
+	_mouse_move(slot_at)
+	await _frames(2)
+	_mouse_button(MOUSE_BUTTON_LEFT, true, slot_at)
+	await _frames(2)
+	_mouse_button(MOUSE_BUTTON_LEFT, false, slot_at)
+	await _frames(2)
+	_check(SaveData.gear_in_slot("gloves") == "" and SaveData.gear_count("work_gloves:1") == 1, "clicking the slot takes it off again")
+	_key(KEY_ESCAPE, true)
+	await _frames(2)
+	_key(KEY_ESCAPE, false)
+	await _frames(3)
+	_check(app.state == Main.State.MENU and not gear_tree.is_visible_in_tree(), "Esc leaves the gear screen")
 
 	if _auto_failures.is_empty():
 		print("INPUTTEST PASSED")

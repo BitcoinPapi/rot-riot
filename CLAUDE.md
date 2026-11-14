@@ -49,8 +49,9 @@ godot --headless --export-release "macOS" build/mac/RotRiot.zip
 Other dev flags (all after `--`, see `scripts/dev/dev_tools.gd`): `--play`,
 `--god`, `--wave=N`, `--weapon=ID`, `--dual`, `--keep-weapon`, `--no-crates`, `--no-rage`,
 `--cycle`, `--level=N`, `--coins=N`, `--map=N` (with `--best=W` best wave cleared there and
-`--start=W` starting wave), `--screen=maps|character|armory|settings|pause|gameover|victory`,
-`--armory-weapon=ID`, `--tree-node=ID --tree-zoom=N` (skill tree: highlight a node, zoom; 0 = whole tree),
+`--start=W` starting wave), `--screen=maps|character|armory|gear|settings|pause|gameover|victory`,
+`--armory-weapon=ID`, `--tree-node=ID --tree-zoom=N` (skill tree / gear screen: highlight a node, zoom;
+0 = whole tree), `--gear=N` (start with N random pieces), `--drop-gear` (drop a piece of every tier in a run),
 `--shot=PATH --shot-frame=N` (screenshot; needs a real display, e.g. `xvfb-run`),
 `--dump-sfx=DIR` (writes every generated sound as .wav),
 `--gallery=PREFIX[,PREFIX] --gallery-scale=N` (shows generated sprites enlarged, e.g.
@@ -74,21 +75,22 @@ scripts/main.gd          app state machine: MENU / PLAYING / PAUSED / GAME_OVER,
 scripts/autoload/
   game_input.gd          all input, key bindings, device detection, virtual sticks (touch/bot)
   save_data.gd           coins, character level + skill points + learned tree nodes, weapon levels + weapon
-                         trees, map progress, bests, settings -> user://save.json
+                         trees, gear (bag, worn, seen), map progress, bests, settings -> user://save.json
   art.gd                 placeholder sprites generated from SVG shapes at startup
   sfx.gd                 sounds synthesised at startup (worker thread) + pooled playback
 scripts/game/
   game.gd                one run: owns the world, runs the simulation loop, hit stop, slow-mo, rage, score
   player.gd              movement, aim, firing (bullets / grenade / melee), drawing
-  player_stats.gd        THE stat pipeline: level + skill tree + keystones + weapon trees/perks (+ gear later)
+  player_stats.gd        THE stat pipeline: level + skill tree + gear + keystones + weapon trees/perks
                          -> the numbers the game uses
   skill_tree.gd          builds the character's skill tree (257 nodes) from Config; describes nodes only
   weapon_tree.gd         builds each weapon's upgrade tree (63-93 nodes) from Config
+  gear_tree.gd           layout of the Gear screen: 9 body slots + every piece x 5 tiers (177 nodes)
   enemy.gd               one zombie = data + Sprite2D (no logic)
   enemy_manager.gd       ALL zombie logic in one loop: spatial grid, separation, attacks, boss AI, damage, queries
   wave_director.gd       waves, packs, enemy mix, boss waves, map multipliers, end of the map
   projectiles.gd         bullets + grenades (plain data, swept hits, explosions)
-  pickups.gd             coins, weapon crates, medkits
+  pickups.gd             coins, weapon crates, medkits, gear drops
   fx.gd                  particles, casings, corpses, muzzle flash, rings, floating text
   decals.gd              ground + permanent blood/bodies/casings (never-cleared SubViewport)
   arena.gd               bounds, obstacles, tree ring, collision helpers
@@ -97,7 +99,7 @@ scripts/game/
   draw_layer.gd          blank canvas whose _draw is forwarded to a manager
 scripts/ui/              ui_kit.gd (theme + helpers), menu_background, main_menu, map_screen (Play),
                          tree_view (pannable/zoomable node web used by both trees),
-                         character_screen (skill tree), armory_screen (weapon trees),
+                         character_screen (skill tree), armory_screen (weapon trees), gear_screen,
                          settings_screen, pause_menu, game_over_screen (also the victory screen)
 scripts/dev/dev_tools.gd bot, autotest, input test, benchmark, screenshots (only with CLI args)
 assets/sprites/, assets/sfx/   empty; drop-in overrides for generated art and sounds
@@ -109,7 +111,8 @@ Update Rot Riot.command  double-click updater for the owner's Mac (downloads mai
 
 **Loop:** main menu -> PLAY opens the map screen (choose map + starting wave)
 -> run -> death or map cleared -> results (coins banked) -> spend points in
-the skill tree (Character) and the weapon trees (Armory) -> next run.
+the skill tree (Character) and the weapon trees (Armory), wear and forge
+gear (Gear) -> next run.
 Quitting a run from pause also banks its coins.
 
 **Maps** (`Config.MAPS`, five of them): every map has 100 waves
@@ -248,9 +251,34 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   pistol has no crate tracks, melee weapons have no stability or reload, the
   launcher has no shooting speed (its rate of fire is its reload). A weapon's
   tree can be reset for coins.
-- Both trees are shown by `scripts/ui/tree_view.gd` (drag / scroll / pinch,
+- *Gear* (Gear screen; everything in the GEAR section of config.gd): nine
+  slots (helmet, amulet, chest, gloves, two rings, belt, pants, boots) and
+  32 pieces, four per kind. A piece gives ranks of one or two passive stats
+  (`SaveData.gear_rank`, added to `passive_rank` on top of the skill tree).
+  **Drops** are deliberately rare (owner: "should not be overload"): about
+  0.4% per shambler, 4% per brute, times the map's `gear` multiplier and half
+  of the LUCK bonus; the bot finds 0-4 pieces per run as a new character.
+  **Rings and amulets drop only from bosses** (a boss always drops one), some
+  pieces only from brutes, and one piece per kind only from map 2 onwards.
+  Later maps also sometimes drop a piece one tier up (`gear_up`). A drop is a
+  pillar of light in the tier's colour with a HUD arrow; picking it up puts it
+  straight in the bag (kept even if you die).
+  **Five tiers** (colours): COMMON, STURDY, FINE, SUPERIOR, LEGENDARY, with
+  stat multipliers 1 / 2 / 3 / 5 / 8. **Forging**: two identical pieces of the
+  same tier make one of the next tier with the owner's odds - 100% / 90% /
+  40% / 10%. A failed attempt always uses up one of the two; for SUPERIOR
+  and LEGENDARY there is also a 35% / 50% chance (`break`) that the other is
+  destroyed too. A piece is stored as "item:tier" (`Config.gear_key`) with a
+  count; worn pieces are not counted in the bag. Never rename item ids.
+  The **Gear screen** follows the owner's wish for an "intimidating tree":
+  the nine slots are laid out like a body in the middle (the paper doll) and
+  around it every piece has a row of five tier nodes (177 nodes). Owned =
+  lit, never found = padlock, glowing = two of the tier below are in the bag
+  and can be forged. Click a piece to wear it, a worn slot to take it off, a
+  glowing node to forge (anything that can fail asks twice).
+- All three screens are shown by `scripts/ui/tree_view.gd` (drag / scroll / pinch,
   arrow keys or stick to walk the nodes, Enter / A to learn, gamepad Y or Tab
-  to reach the buttons beside the tree). Node ids are stored in the save:
+  to reach the buttons beside it). Tree node ids are stored in the save:
   never rename them. If a saved tree no longer fits the layout (unknown or
   disconnected nodes) all its points are handed back on load, as were the
   points spent in the old flat stat list and old weapon ranks.
@@ -309,8 +337,9 @@ effects were ~280 draw calls. Not yet measured on the owner's hardware.
 ## Not verified yet (needs a human)
 
 - How it actually feels to play - all feel values are first guesses.
-- The balance of the 100-wave maps, the tree prices, the keystones and the
-  perks: all first guesses, only checked with the bot and the tests.
+- The balance of the 100-wave maps, the tree prices, the keystones, the
+  perks, gear drop rates and gear stats: all first guesses, only checked with
+  the bot and the tests.
 - The tree screens with a real mouse / trackpad / gamepad (only simulated
   input was tested).
 - How the synthesised sounds sound; Claude can only check them numerically
@@ -323,7 +352,8 @@ effects were ~280 draw calls. Not yet measured on the owner's hardware.
   with `Synth.band` (noise ringing around a fixed pitch): SMG ~3 kHz, pistol
   ~1.5 kHz, rifle ~1 kHz with the longest echo, machine gun ~700 Hz with a
   bolt clank, shotgun ~330 Hz, launcher ~260 Hz. Measured, not heard. The
-  owner may buy sound assets later: drop them in `assets/sfx/`.
+  owner may buy sound assets later: drop them in `assets/sfx/`. The gear
+  sounds (drop "ting", pickup, forge success / fail / break) are unheard too.
 - A physical gamepad (only simulated gamepad events were tested).
 - The exported Windows .exe and macOS .app on real Windows / macOS machines
   (exports succeed and the exported game data passes the autotest on Linux).
@@ -352,6 +382,10 @@ effects were ~280 draw calls. Not yet measured on the owner's hardware.
   the same style.
 - "Each weapon sound should be different and satisfying" -> v3 gun sounds
   (done, awaiting feedback).
+- Gear (the owner's design: slots like an action-RPG character sheet, rare
+  drops, boss-only pieces, merging two identical pieces of the same colour,
+  five tiers with 100/90/40/10% odds and a chance to destroy at tiers 4-5)
+  -> built (awaiting feedback).
 - The owner's Mac: browser downloads do not work there, so updates go through
   Terminal (curl) or the double-click updater. Always give the full update
   command and say plainly that Return must be pressed.
@@ -368,14 +402,10 @@ Build one stage at a time; the owner plays each before the next starts.
    See "Weapons" above. More weapons can be added the same way later.
 2b. **100-wave maps, skill tree, weapon trees. DONE (awaiting the owner's
    playtest).** See "Maps" and "Progression" above.
-3. **Gear.** Character screen in the style of an action-RPG paper doll:
-   helmet, chest, gloves, boots, pants, belt, two rings, amulet. Items drop
-   rarely from zombies (never a flood); some pieces only from bosses. Merge
-   two identical items of the same colour to get the next tier. Five tiers
-   (five colours). Success chance set by the owner: tier 2 100%, tier 3 90%,
-   tier 4 40%, tier 5 10%. A failed tier 4 or 5 attempt always uses up one of
-   the two items and has a chance to destroy the other as well. Gear bonuses
-   plug into `player_stats.gd`.
+3. **Gear. DONE (awaiting the owner's playtest).** See "Gear" under
+   Progression. Still open from the owner's wishes: treasure chests that give
+   gear (comes with the big map, step 4). Ideas if the owner wants more:
+   more pieces per kind, set bonuses, a way to sell or break down spare gear.
 4. **Big-map engine.** Much bigger maps (a large "farming map"), fog of war
    that clears as the player explores, a minimap, treasure chests to find
    each round that give gear. Waves stay: zombies hunt the player wherever

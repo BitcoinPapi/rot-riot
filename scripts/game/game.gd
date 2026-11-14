@@ -44,6 +44,7 @@ var coin_value: int = Config.COIN_VALUE   # what one coin is worth on this map
 var victory := false            # the map's last wave was cleared
 var new_checkpoint := 0         # a starting wave unlocked during this run (0 = none)
 var unlocked_map := -1          # a map unlocked by this run (-1 = none)
+var gear_run: Array[String] = []   # gear picked up this run (already in the bag)
 var sim_usec := 0               # how long the last simulation step took (for the benchmark)
 
 var _hitstop := 0.0
@@ -189,7 +190,7 @@ func _tick_combo_and_rage(dt: float) -> void:
 func get_stats() -> Dictionary:
 	return {"score": score, "wave": director.wave, "kills": kills, "coins": coins_run, "time": time_alive,
 			"xp": xp_run, "levels": levels_run, "map": map_index, "start": start_wave, "cleared": director.cleared,
-			"victory": victory, "checkpoint": new_checkpoint, "unlocked": unlocked_map}
+			"victory": victory, "checkpoint": new_checkpoint, "unlocked": unlocked_map, "gear": gear_run}
 
 
 # ----------------------------------------------------------------------------
@@ -371,6 +372,19 @@ func collect_crate(crate: Pickups.Crate) -> void:
 	fx.light(crate.pos, 220.0, 0.25, Color(color.r, color.g, color.b, 0.6))
 	shake(Config.CRATE_PICKUP_SHAKE)
 	Sfx.play("pickup_weapon")
+
+
+## A piece of gear goes straight into the bag: it is kept even if you die.
+func collect_gear(piece: Pickups.Loot) -> void:
+	SaveData.add_gear(piece.key)
+	gear_run.append(piece.key)
+	var color: Color = Config.gear_tier_def(Config.gear_tier_of(piece.key))["color"]
+	fx.text(player.pos + Vector2(0, -72), "GEAR FOUND", Color(1, 1, 1), 16, 2.0)
+	fx.text(player.pos + Vector2(0, -46), Config.gear_name(piece.key), color, 26, 2.0)
+	fx.ring(piece.pos, 14.0, 150.0, 0.45, Color(color.r, color.g, color.b, 0.95))
+	fx.light(piece.pos, 320.0, 0.35, Color(color.r, color.g, color.b, 0.7))
+	shake(Config.GEAR_PICKUP_SHAKE)
+	Sfx.play("gear_pickup")
 
 
 func collect_medkit(at: Vector2) -> void:

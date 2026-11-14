@@ -69,6 +69,19 @@ works on 4.5 and later.
   speed, how often its crate appears and how long it lasts - plus three gold
   **perks** per weapon that change how it works (bigger magazine, bullets
   that go through more zombies, a wider swing, a bigger blast...).
+- **Gear.** Now and then a zombie drops something to wear - you will see a
+  pillar of light in the colour of its quality, and an arrow at the edge of
+  the screen points to it. Walk over it and it is yours for good, even if you
+  die. Rings and amulets only drop from bosses. On the **Gear** screen the
+  nine slots (helmet, amulet, chest, gloves, two rings, belt, pants, boots)
+  are laid out like a body, and around them every piece in the game has a row
+  of five qualities: common (white), sturdy (green), fine (blue), superior
+  (purple), legendary (orange). Click a piece you own to wear it.
+- **Forging.** Two identical pieces of the same quality can be forged into
+  one of the next quality: a node glows when you can. Sturdy always works,
+  fine works 90% of the time, superior 40%, legendary 10%. If it fails you
+  lose one of the two pieces - and for superior and legendary there is a
+  chance of losing both. The game asks you twice before a forging that can fail.
 - Zombies drop **coins**. Everything you earn is saved.
 
 ## Getting the newest version (Mac)
@@ -77,7 +90,7 @@ Close Godot, then double-click **Update Rot Riot.command** inside the project
 folder. A Terminal window opens, downloads the latest version and replaces the
 folder. Your coins, level and upgrades are stored elsewhere and are kept.
 Then open the project in Godot again. The version number is shown in the
-bottom right corner of the main menu (now v0.2.0).
+bottom right corner of the main menu (now v0.3.0).
 
 After an update that changes the upgrade screens, points you had already
 spent are handed back so you can place them again in the new trees.
@@ -88,7 +101,8 @@ Open `scripts/config.gd` in Godot (double-click it in the FileSystem panel).
 Every number that matters is there with a comment: player speed, weapon
 damage and fire rates, zombie health, wave sizes, how much harder each map
 is, XP and skill point costs, the size and prices of the upgrade trees, the
-perks, and all the "feel" values - screen shake, hit stop, knockback, recoil.
+perks, every piece of gear with its drop chance and forging odds, and all
+the "feel" values - screen shake, hit stop, knockback, recoil.
 Change a number, press F5, try it.
 
 ## Replacing placeholder art and sounds
@@ -139,5 +153,5 @@ godot --headless --fixed-fps 60 -- --bench=250
 ```
 
 The first plays through the whole game automatically (menus, maps, both
-upgrade trees, every weapon, rage, boss, death, levels, save file), the
+upgrade trees, gear and forging, every weapon, rage, boss, death, levels, save file), the
 second checks every control, the third measures speed with 250 zombies. See `CLAUDE.md` for the design notes.

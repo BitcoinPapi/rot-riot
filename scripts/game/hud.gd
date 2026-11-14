@@ -325,22 +325,29 @@ func _draw_crosshair(p: Player) -> void:
 					Color(1.0, 0.3, 0.25, 0.95) if low else Color(1, 1, 1, 0.6), 1, 4)
 
 
-## Arrows at the screen edge pointing to weapon crates that are out of view.
+## Arrows at the screen edge pointing to weapon crates and dropped gear that
+## are out of view.
 func _draw_crate_arrows() -> void:
-	var view := Rect2(Vector2(46.0, 128.0), size - Vector2(92.0, 228.0))
 	for crate: Pickups.Crate in game.pickups.crates:
-		var sp := _to_screen(crate.pos)
-		if view.has_point(sp):
-			continue
-		var color: Color = Config.WEAPONS[crate.weapon]["color"]
-		var clamped := Vector2(clampf(sp.x, view.position.x, view.end.x), clampf(sp.y, view.position.y, view.end.y))
-		var dir := (sp - clamped).normalized()
-		var side := Vector2(-dir.y, dir.x)
-		var pulse := 1.0 + 0.15 * sin(_time * 8.0)
-		var tip := clamped + dir * 18.0 * pulse
-		draw_colored_polygon(PackedVector2Array([tip, clamped + side * 12.0, clamped - side * 12.0]), color)
-		var crate_tex: Texture2D = Art.t("crate")
-		draw_texture_rect(crate_tex, Rect2(clamped - dir * 22.0 - Vector2(13, 13), Vector2(26, 26)), false)
+		_edge_arrow(crate.pos, Config.WEAPONS[crate.weapon]["color"], Art.t("crate"), Color.WHITE)
+	for piece: Pickups.Loot in game.pickups.loot:
+		var color: Color = Config.gear_tier_def(Config.gear_tier_of(piece.key))["color"]
+		_edge_arrow(piece.pos, color, Art.t("gear_" + String(Config.GEAR_ITEMS[Config.gear_item_of(piece.key)]["type"])),
+				color.lightened(0.4))
+
+
+func _edge_arrow(world: Vector2, color: Color, icon: Texture2D, icon_color: Color) -> void:
+	var view := Rect2(Vector2(46.0, 128.0), size - Vector2(92.0, 228.0))
+	var sp := _to_screen(world)
+	if view.has_point(sp):
+		return
+	var clamped := Vector2(clampf(sp.x, view.position.x, view.end.x), clampf(sp.y, view.position.y, view.end.y))
+	var dir := (sp - clamped).normalized()
+	var side := Vector2(-dir.y, dir.x)
+	var pulse := 1.0 + 0.15 * sin(_time * 8.0)
+	var tip := clamped + dir * 18.0 * pulse
+	draw_colored_polygon(PackedVector2Array([tip, clamped + side * 12.0, clamped - side * 12.0]), color)
+	draw_texture_rect(icon, Rect2(clamped - dir * 22.0 - Vector2(13, 13), Vector2(26, 26)), false, icon_color)
 
 
 func _to_screen(world: Vector2) -> Vector2:

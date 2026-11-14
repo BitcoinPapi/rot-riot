@@ -22,7 +22,7 @@ var xp: int = 0                  # XP inside the current level
 var skill_points: int = 0        # unspent
 var points_bought: int = 0       # how many were bought with coins (sets the next price)
 var tree: Dictionary = {}        # skill tree: node id -> times learned (endless nodes can be more than 1)
-var bonus_ranks: Dictionary = {} # extra ranks of a passive from outside the tree (gear later; tests) - not saved
+var bonus_ranks: Dictionary = {} # extra ranks of a passive from anywhere else (used by tests) - not saved
 
 var _ranks := {}                 # worked out from `tree`: passive id -> ranks
 var _keystones := {}             # ...and passive id -> true if its keystone is learned
@@ -33,6 +33,14 @@ var weapons: Dictionary = {}
 var tree_spent: int = 0          # skill points locked into `tree` (kept so they can always be handed back)
 
 var _weapon_ranks := {}          # worked out from each weapon's tree: weapon id -> {track: ranks}
+
+# Gear. A piece is named by its id and tier, e.g. "hard_hat:2" (Config.gear_key).
+var gear_bag: Dictionary = {}    # piece -> how many are in the bag (worn pieces are not counted)
+var gear_worn: Dictionary = {}   # slot -> piece ("" = nothing worn there)
+var gear_seen: Dictionary = {}   # piece -> true once it was ever owned (the Gear screen remembers it)
+var gear_new: int = 0            # pieces found since the Gear screen was last opened (menu badge)
+
+var _gear_ranks := {}            # worked out from gear_worn: passive id -> ranks
 
 # Maps: how many are open, and the highest wave cleared on each one.
 var maps_unlocked: int = 1
@@ -91,6 +99,13 @@ func _reset_progress() -> void:
 	weapons = {}
 	for id: String in Config.WEAPON_ORDER:
 		weapons[id] = _new_weapon_entry()
+	gear_bag = {}
+	gear_worn = {}
+	for slot: String in Config.GEAR_SLOTS:
+		gear_worn[slot] = ""
+	gear_seen = {}
+	gear_new = 0
+	_gear_ranks = {}
 	maps_unlocked = 1
 	map_best = []
 	for i in Config.MAPS.size():
@@ -159,6 +174,7 @@ func load_game() -> void:
 			w["points"] = maxi(int((entry as Dictionary).get("points", 0)), 0)
 			_load_weapon_tree(id, entry)
 
+	_load_gear(data)
 	maps_unlocked = clampi(int(data.get("maps_unlocked", 1)), 1, Config.MAPS.size())
 	var saved_best: Variant = data.get("map_best")
 	if typeof(saved_best) == TYPE_ARRAY:
@@ -185,6 +201,10 @@ func save_game() -> void:
 		"tree": tree,
 		"tree_spent": tree_spent,
 		"weapons": weapons,
+		"gear_bag": gear_bag,
+		"gear_worn": gear_worn,
+		"gear_seen": gear_seen.keys(),
+		"gear_new": gear_new,
 		"maps_unlocked": maps_unlocked,
 		"map_best": map_best,
 		"selected_map": selected_map,
@@ -357,9 +377,14 @@ func has_keystone(stat: String) -> bool:
 	return _keystones.has(stat)
 
 
-## Ranks of a passive stat: from the skill tree, plus anything else (gear later).
+## Ranks of a passive stat: from the skill tree, plus the gear being worn.
 func passive_rank(id: String) -> int:
-	return int(_ranks.get(id, 0)) + int(bonus_ranks.get(id, 0))
+	return int(_ranks.get(id, 0)) + int(_gear_ranks.get(id, 0)) + int(bonus_ranks.get(id, 0))
+
+
+## ...the part of that which comes from the skill tree alone.
+func tree_rank(id: String) -> int:
+	return int(_ranks.get(id, 0))
 
 
 ## The bonus a passive stat currently gives (see Config.PASSIVES for units).
@@ -653,6 +678,189 @@ func total_weapon_points() -> int:
 	var total := 0
 	for id: String in Config.WEAPON_ORDER:
 		total += weapon_points(id)
+	return total
+
+
+# ----------------------------------------------------------------------------
+#  Gear (the pieces are described in Config, GEAR section)
+# ----------------------------------------------------------------------------
+func _gear_key_ok(key: String) -> bool:
+	var tier := Config.gear_tier_of(key)
+	return Config.GEAR_ITEMS.has(Config.gear_item_of(key)) and tier >= 1 and tier <= Config.GEAR_TIERS.size()
+
+
+func _load_gear(data: Dictionary) -> void:
+	var bag: Variant = data.get("gear_bag")
+	if typeof(bag) == TYPE_DICTIONARY:
+		for key: String in (bag as Dictionary).keys():
+			var count := int((bag as Dictionary)[key])
+			if count > 0 and _gear_key_ok(key):
+				gear_bag[key] = count
+				gear_seen[key] = true
+	var worn: Variant = data.get("gear_worn")
+	if typeof(worn) == TYPE_DICTIONARY:
+		for slot: String in Config.GEAR_SLOTS:
+			var key := String((worn as Dictionary).get(slot, ""))
+			if key != "" and _gear_key_ok(key) \
+					and String(Config.GEAR_ITEMS[Config.gear_item_of(key)]["type"]) == String(Config.GEAR_SLOT_TYPE[slot]):
+				gear_worn[slot] = key
+				gear_seen[key] = true
+	var seen: Variant = data.get("gear_seen")
+	if typeof(seen) == TYPE_ARRAY:
+		for key: Variant in (seen as Array):
+			if _gear_key_ok(String(key)):
+				gear_seen[String(key)] = true
+	gear_new = maxi(int(data.get("gear_new", 0)), 0)
+	_recount_gear()
+
+
+func _recount_gear() -> void:
+	_gear_ranks = {}
+	for slot: String in Config.GEAR_SLOTS:
+		var key := String(gear_worn.get(slot, ""))
+		if key == "":
+			continue
+		var stats := Config.gear_stats(Config.gear_item_of(key), Config.gear_tier_of(key))
+		for stat: String in stats.keys():
+			_gear_ranks[stat] = int(_gear_ranks.get(stat, 0)) + int(stats[stat])
+
+
+## How many of a piece are in the bag (not counting one that is worn).
+func gear_count(key: String) -> int:
+	return int(gear_bag.get(key, 0))
+
+
+## The piece worn in a slot ("" = nothing).
+func gear_in_slot(slot: String) -> String:
+	return String(gear_worn.get(slot, ""))
+
+
+## The slot a piece is worn in ("" = it is not being worn).
+func gear_worn_slot(key: String) -> String:
+	for slot: String in Config.GEAR_SLOTS:
+		if String(gear_worn[slot]) == key:
+			return slot
+	return ""
+
+
+## Ranks of a passive stat that come from the gear being worn.
+func gear_rank(passive: String) -> int:
+	return int(_gear_ranks.get(passive, 0))
+
+
+## Put pieces in the bag (found in a run, or made at the forge).
+func add_gear(key: String, amount: int = 1, found: bool = true) -> void:
+	if amount <= 0 or not _gear_key_ok(key):
+		return
+	gear_bag[key] = gear_count(key) + amount
+	gear_seen[key] = true
+	if found:
+		gear_new += amount
+	progress_changed.emit()
+
+
+func _take_gear(key: String, amount: int) -> void:
+	var left := gear_count(key) - amount
+	if left > 0:
+		gear_bag[key] = left
+	else:
+		gear_bag.erase(key)
+
+
+## The slot a piece would go into: its own slot; a ring goes on the first
+## free hand, or replaces the weaker ring if both hands are taken.
+func gear_slot_for(key: String) -> String:
+	var type := String(Config.GEAR_ITEMS[Config.gear_item_of(key)]["type"])
+	var options: Array[String] = []
+	for slot: String in Config.GEAR_SLOTS:
+		if String(Config.GEAR_SLOT_TYPE[slot]) == type:
+			options.append(slot)
+	for slot: String in options:
+		if gear_in_slot(slot) == "":
+			return slot
+	var weakest := options[0]
+	for slot: String in options:
+		if Config.gear_tier_of(gear_in_slot(slot)) < Config.gear_tier_of(gear_in_slot(weakest)):
+			weakest = slot
+	return weakest
+
+
+## Wear a piece from the bag. Whatever was in that slot goes back to the bag.
+func wear_gear(key: String, slot: String = "") -> bool:
+	if gear_count(key) <= 0:
+		return false
+	if slot == "":
+		slot = gear_slot_for(key)
+	if not gear_worn.has(slot) \
+			or String(Config.GEAR_SLOT_TYPE[slot]) != String(Config.GEAR_ITEMS[Config.gear_item_of(key)]["type"]):
+		return false
+	var before := gear_in_slot(slot)
+	_take_gear(key, 1)
+	if before != "":
+		gear_bag[before] = gear_count(before) + 1
+	gear_worn[slot] = key
+	_recount_gear()
+	progress_changed.emit()
+	save_game()
+	return true
+
+
+## Take off what is worn in a slot (it goes back to the bag).
+func take_off_gear(slot: String) -> bool:
+	var key := gear_in_slot(slot)
+	if key == "":
+		return false
+	gear_bag[key] = gear_count(key) + 1
+	gear_worn[slot] = ""
+	_recount_gear()
+	progress_changed.emit()
+	save_game()
+	return true
+
+
+## True if two pieces are in the bag to forge `item` at `tier` (2 or higher)
+## out of two of the tier below.
+func can_forge(item: String, tier: int) -> bool:
+	return tier >= 2 and tier <= Config.GEAR_TIERS.size() and Config.GEAR_ITEMS.has(item) \
+			and gear_count(Config.gear_key(item, tier - 1)) >= 2
+
+
+## Forge two pieces of the tier below into one of `tier`. Returns
+##   "success"  the two became one piece of the new tier
+##   "fail"     it did not work and one of the two was used up
+##   "broke"    it did not work and both were destroyed
+##   ""         not possible (not enough pieces)
+## `roll` and `break_roll` (0..1) replace the dice, for tests.
+func forge_gear(item: String, tier: int, roll: float = -1.0, break_roll: float = -1.0) -> String:
+	if not can_forge(item, tier):
+		return ""
+	var def := Config.gear_tier_def(tier)
+	var source := Config.gear_key(item, tier - 1)
+	if roll < 0.0:
+		roll = randf()
+	if break_roll < 0.0:
+		break_roll = randf()
+	var result := "success"
+	if roll < float(def["chance"]):
+		_take_gear(source, 2)
+		add_gear(Config.gear_key(item, tier), 1, false)
+	elif break_roll < float(def["break"]):
+		_take_gear(source, 2)
+		result = "broke"
+	else:
+		_take_gear(source, 1)
+		result = "fail"
+	progress_changed.emit()
+	save_game()
+	return result
+
+
+## How many forges are possible right now (for the menu badge).
+func forges_ready() -> int:
+	var total := 0
+	for key: String in gear_bag.keys():
+		if gear_count(key) >= 2 and Config.gear_tier_of(key) < Config.GEAR_TIERS.size():
+			total += 1
 	return total
 
 

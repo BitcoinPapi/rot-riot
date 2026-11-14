@@ -30,7 +30,8 @@ const MAX_ZOOM := 1.6
 var zoom := 0.62
 var selected := ""
 ## Circles around the middle that mark where a requirement starts:
-## [{"radius": float, "text": String, "open": bool}]
+## [{"radius": float, "text": String, "open": bool}] - or, with a "color",
+## a plain labelled circle in that colour.
 var guides: Array = []
 var hint := "Drag to move   -   scroll to zoom   -   click a glowing node to learn it"
 var hint_gamepad := "Stick: next node   -   A: learn   -   Y: other buttons   -   B: back"
@@ -48,6 +49,7 @@ var _drag_moved := 0.0
 var _press_node := ""
 var _time := 0.0
 var _nav_wait := 0.0
+var _bursts: Array = []        # short flashes on nodes: [position, colour, age]
 
 
 func _init() -> void:
@@ -119,6 +121,12 @@ func select(id: String, centre: bool = false) -> void:
 	queue_redraw()
 
 
+## A ring of light bursting out of a node (something just happened there).
+func burst(id: String, color: Color) -> void:
+	if _nodes.has(id):
+		_bursts.append([_nodes[id]["pos"], color, 0.0])
+
+
 ## Jump the view to a point of the tree at a zoom level.
 func look_at_point(point: Vector2, new_zoom: float) -> void:
 	zoom = clampf(new_zoom, MIN_ZOOM, MAX_ZOOM)
@@ -143,6 +151,9 @@ func _process(delta: float) -> void:
 		return
 	_time += delta
 	_nav_wait = maxf(_nav_wait - delta, 0.0)
+	for b: Array in _bursts:
+		b[2] = float(b[2]) + delta
+	_bursts = _bursts.filter(func(b: Array) -> bool: return float(b[2]) < 0.7)
 	if not _dragging:
 		_cam = _cam.lerp(_cam_target, 1.0 - exp(-12.0 * delta))
 	queue_redraw()
@@ -277,12 +288,17 @@ func _draw() -> void:
 		var radius := float(g["radius"])
 		var open := bool(g["open"])
 		var ring_color := Color(0.45, 0.6, 0.35, 0.22) if open else Color(0.85, 0.3, 0.25, 0.4)
+		var text_color := Color(0.6, 0.75, 0.5, 0.55) if open else Color(1.0, 0.45, 0.4, 0.85)
+		if g.has("color"):
+			var own: Color = g["color"]
+			ring_color = Color(own.r, own.g, own.b, 0.22)
+			text_color = Color(own.r, own.g, own.b, 0.8)
 		draw_arc(Vector2.ZERO, radius, 0.0, TAU, 120, ring_color, 2.0 / zoom, true)
 		var text_size := int(clampf(15.0 / zoom, 13.0, 40.0))
 		for corner: float in [-PI * 0.375, PI * 0.625]:
 			var at := Vector2.from_angle(corner) * (radius + 6.0)
 			draw_string(font, at + Vector2(-250.0, text_size * 0.4), String(g["text"]), HORIZONTAL_ALIGNMENT_CENTER, 500.0,
-					text_size, Color(0.6, 0.75, 0.5, 0.55) if open else Color(1.0, 0.45, 0.4, 0.85))
+					text_size, text_color)
 
 	# Links.
 	for link: Array in _links:
@@ -366,7 +382,12 @@ func _draw() -> void:
 			draw_texture_rect(Art.t(icon), Rect2(pos - icon_size * 0.5, icon_size), false, icon_color)
 		var badge := String(_badges.get(id, ""))
 		if badge != "" and zoom >= 0.4:
-			draw_string(font, pos + Vector2(-60.0, r + 15.0), badge, HORIZONTAL_ALIGNMENT_CENTER, 120.0, 14, Color(1, 1, 1, 0.9))
+			# Kept readable when zoomed out: never smaller than about 11 px on screen.
+			var badge_size := int(clampf(11.0 / zoom, 14.0, 24.0))
+			draw_string_outline(font, pos + Vector2(-110.0, r + badge_size + 1.0), badge, HORIZONTAL_ALIGNMENT_CENTER, 220.0, badge_size,
+					maxi(int(4.0 / zoom), 4), Color(0, 0, 0, 0.85))
+			draw_string(font, pos + Vector2(-110.0, r + badge_size + 1.0), badge, HORIZONTAL_ALIGNMENT_CENTER, 220.0, badge_size,
+					Color(1, 1, 1, 0.92))
 
 	# The highlighted node.
 	if _nodes.has(selected):
@@ -374,6 +395,15 @@ func _draw() -> void:
 		var r := float(n["radius"]) + 9.0 + 2.5 * pulse
 		draw_texture_rect(Art.t("ring"), Rect2((n["pos"] as Vector2) - Vector2(r, r), Vector2(r, r) * 2.0), false,
 				Color(1, 1, 1, 0.95) if has_focus() else Color(1, 1, 1, 0.55))
+
+	for b: Array in _bursts:
+		var age := float(b[2]) / 0.7
+		var burst_color: Color = b[1]
+		var br := 20.0 + 150.0 * (1.0 - (1.0 - age) * (1.0 - age))
+		draw_texture_rect(Art.t("ring"), Rect2((b[0] as Vector2) - Vector2(br, br), Vector2(br, br) * 2.0), false,
+				Color(burst_color.r, burst_color.g, burst_color.b, 1.0 - age))
+		draw_texture_rect(glow, Rect2((b[0] as Vector2) - Vector2(br, br) * 1.2, Vector2(br, br) * 2.4), false,
+				Color(burst_color.r, burst_color.g, burst_color.b, 0.5 * (1.0 - age)))
 
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	var help := hint_gamepad if GameInput.using_gamepad() else hint

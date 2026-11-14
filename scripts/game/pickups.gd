@@ -4,6 +4,7 @@ extends Node2D
 ##   coins    - dropped by kills, fly to the player when close, spent in the shop
 ##   crates   - appear on a timer, give a weapon for a limited time
 ##   medkits  - rare drops that heal
+##   loot     - a piece of gear, dropped rarely (always by bosses); kept forever
 ## Coins are plain data in arrays (there can be hundreds); all of it is drawn
 ## by this one node.
 
@@ -18,9 +19,16 @@ class Medkit:
 	var life := 0.0
 	var age := 0.0
 
+class Loot:
+	var pos := Vector2.ZERO
+	var key := ""              # which piece and tier (Config.gear_key)
+	var life := 0.0
+	var age := 0.0
+
 var game: Game
 var crates: Array[Crate] = []
 var medkits: Array[Medkit] = []
+var loot: Array[Loot] = []
 var coin_count := 0
 
 var _coin_pos := PackedVector2Array()
@@ -61,6 +69,48 @@ func drop_from_enemy(e: Enemy) -> void:
 		spawn_coins(e.pos, randi_range(int(c["coins_min"]), int(c["coins_max"])))
 	if randf() < float(c["medkit_chance"]) and medkits.size() < Config.MEDKIT_MAX_ON_FIELD:
 		spawn_medkit(e.pos)
+	_roll_gear(e)
+
+
+## Gear is rare: a small chance per zombie (better on later maps and with
+## LUCK). A boss always leaves a ring or an amulet, and sometimes more.
+func _roll_gear(e: Enemy) -> void:
+	if e.kind == Config.BOSS:
+		spawn_gear(e.pos + Vector2(-34.0, 26.0), _pick_gear("bosses"))
+		if randf() < Config.GEAR_BOSS_EXTRA_CHANCE:
+			spawn_gear(e.pos + Vector2(34.0, 26.0), _pick_gear("brutes"))
+		return
+	var chance: float = float(Config.GEAR_DROP_CHANCE[e.kind]) * float(game.map["gear"]) \
+			* (1.0 + game.player.stats.coin_luck * Config.GEAR_LUCK_FACTOR)
+	if loot.size() < Config.GEAR_MAX_ON_FIELD and randf() < chance:
+		spawn_gear(e.pos, _pick_gear("brutes" if e.kind == Config.BRUTE else "zombies"))
+
+
+## Choose a piece for a drop. `source`: "zombies" = pieces any zombie drops,
+## "brutes" = those plus the brute pieces, "bosses" = boss-only pieces.
+func _pick_gear(source: String) -> String:
+	var options: Array[String] = []
+	for item: String in Config.GEAR_ORDER:
+		var def: Dictionary = Config.GEAR_ITEMS[item]
+		if int(def["map"]) > game.map_index + 1:
+			continue
+		var from := String(def["from"])
+		if from == source or (source == "brutes" and from == "zombies"):
+			options.append(item)
+	var tier := 2 if randf() < float(game.map["gear_up"]) else 1
+	return Config.gear_key(options[randi() % options.size()], tier)
+
+
+func spawn_gear(at: Vector2, key: String) -> void:
+	var l := Loot.new()
+	l.pos = game.arena.resolve(game.arena.clamp_inside(at, 30.0), 16.0)
+	l.key = key
+	l.life = Config.GEAR_LIFETIME
+	loot.append(l)
+	var color: Color = Config.gear_tier_def(Config.gear_tier_of(key))["color"]
+	game.fx.ring(l.pos, 8.0, 110.0, 0.5, Color(color.r, color.g, color.b, 0.9))
+	game.fx.light(l.pos, 260.0, 0.4, Color(color.r, color.g, color.b, 0.6))
+	Sfx.play("gear_drop")
 
 
 func spawn_coins(at: Vector2, count: int) -> void:
@@ -218,6 +268,21 @@ func tick(dt: float) -> void:
 		else:
 			i += 1
 
+	# --- gear ---
+	i = 0
+	while i < loot.size():
+		var l := loot[i]
+		l.life -= dt
+		l.age += dt
+		var grabbed := can_collect and l.pos.distance_to(ppos) < Config.GEAR_PICKUP_RADIUS + player.radius
+		if grabbed:
+			game.collect_gear(l)
+		if grabbed or l.life <= 0.0:
+			loot[i] = loot[loot.size() - 1]
+			loot.pop_back()
+		else:
+			i += 1
+
 	queue_redraw()
 
 
@@ -247,6 +312,27 @@ func _draw() -> void:
 		var s := 28.0 * (1.0 + 0.08 * sin(_time * 5.0)) * minf(m.age * 5.0, 1.0)
 		draw_texture_rect(_glow, Rect2(m.pos - Vector2(60, 60) * 0.5, Vector2(60, 60)), false, Color(1.0, 0.3, 0.3, 0.35))
 		draw_texture_rect(_medkit_tex, Rect2(m.pos - Vector2(s, s) * 0.5, Vector2(s, s)), false)
+
+	# Gear: a pillar of light in the colour of its tier, so it is never missed.
+	for l: Loot in loot:
+		if l.life < 6.0 and not blink_on:
+			continue
+		var tier := Config.gear_tier_of(l.key)
+		var color: Color = Config.gear_tier_def(tier)["color"]
+		var grow := minf(l.age * 4.0, 1.0)
+		var beam := Vector2(30.0 + 6.0 * tier, (150.0 + 30.0 * tier) * grow)
+		draw_texture_rect(_glow, Rect2(l.pos - Vector2(beam.x * 0.5, beam.y), beam), false, Color(color.r, color.g, color.b, 0.75))
+		draw_texture_rect(_glow, Rect2(l.pos - Vector2(beam.x * 0.2, beam.y * 0.9), Vector2(beam.x * 0.4, beam.y * 0.9)), false,
+				Color(1, 1, 1, 0.7))
+		var halo := 96.0 + 12.0 * sin(_time * 5.0)
+		draw_texture_rect(_glow, Rect2(l.pos - Vector2(halo, halo) * 0.5, Vector2(halo, halo)), false, Color(color.r, color.g, color.b, 0.5))
+		var ring := 44.0 + 4.0 * sin(_time * 6.0)
+		draw_texture_rect(_ring_tex, Rect2(l.pos - Vector2(ring, ring) * 0.5, Vector2(ring, ring)), false, Color(color.r, color.g, color.b, 0.8))
+		var icon: Texture2D = Art.t("gear_" + String(Config.GEAR_ITEMS[Config.gear_item_of(l.key)]["type"]))
+		var s := 26.0 * grow * (1.0 + 0.06 * sin(_time * 5.0))
+		var bob := Vector2(0.0, -3.0 - 2.0 * sin(_time * 3.0))
+		draw_texture_rect(icon, Rect2(l.pos + bob - Vector2(s, s) * 0.5 + Vector2(1.0, 2.0), Vector2(s, s)), false, Color(0, 0, 0, 0.6))
+		draw_texture_rect(icon, Rect2(l.pos + bob - Vector2(s, s) * 0.5, Vector2(s, s)), false, color.lightened(0.35))
 
 	for c: Crate in crates:
 		if c.life < 5.0 and not blink_on:

@@ -58,6 +58,11 @@ var RECIPES := {
 	"level_up": [_make_level_up, -2.0, 0.3],
 	"weapon_level": [_make_weapon_level, -4.0, 0.2],
 	"dodge": [_make_dodge, -5.0, 0.1],
+	"gear_drop": [_make_gear_drop, -3.0, 0.2],
+	"gear_pickup": [_make_gear_pickup, -3.0, 0.2],
+	"forge_ok": [_make_forge_ok, -2.0, 0.2],
+	"forge_fail": [_make_forge_fail, -2.0, 0.2],
+	"forge_break": [_make_forge_break, -1.0, 0.2],
 	"crit": [_make_crit, -7.0, 0.07],
 	"ui_move": [_make_ui_move, -10.0, 0.03],
 	"ui_click": [_make_ui_click, -6.0, 0.03],
@@ -760,6 +765,63 @@ func _make_weapon_level(s: Synth) -> void:
 	s.noise(0.07, 0.05, 0.9, 0.012, 4200.0, 2000.0, 0.0005, 900.0)
 	s.tone(0.14, 0.2, 0.5, 587.3, 587.3, 0.09, Synth.TRIANGLE)
 	s.tone(0.24, 0.26, 0.55, 880.0, 880.0, 0.12, Synth.TRIANGLE)
+
+
+func _make_gear_drop(s: Synth) -> void:
+	# The sound every looter listens for: a clear, ringing "ting" as it lands.
+	s.length(0.9)
+	s.tone(0.0, 0.8, 0.5, 1760.0, 1760.0, 0.28)
+	s.tone(0.0, 0.8, 0.3, 2637.0, 2637.0, 0.22)
+	s.tone(0.0, 0.5, 0.2, 3520.0, 3520.0, 0.12)
+	s.noise(0.0, 0.03, 0.4, 0.008, 9000.0, 5000.0, 0.0005, 3000.0)
+	s.reverb(0.35, 0.6, 5000.0)
+
+
+func _make_gear_pickup(s: Synth) -> void:
+	# A buckle being done up, then three quick rising notes.
+	s.length(0.6)
+	s.noise(0.0, 0.04, 0.6, 0.01, 4500.0, 2200.0, 0.0005, 1000.0)
+	var notes := [784.0, 1046.5, 1568.0]
+	for i in notes.size():
+		s.tone(0.05 + i * 0.07, 0.3, 0.5, notes[i], notes[i], 0.1, Synth.TRIANGLE)
+		s.tone(0.05 + i * 0.07, 0.25, 0.2, notes[i] * 2.0, notes[i] * 2.0, 0.08)
+	s.reverb(0.25, 0.35)
+
+
+func _make_forge_ok(s: Synth) -> void:
+	# Hammer on an anvil, then a bright chord that hangs in the air.
+	s.length(1.2)
+	s.drive = 1.2
+	s.noise(0.0, 0.05, 1.0, 0.012, 6000.0, 2500.0, 0.0005, 800.0)
+	s.band(0.0, 0.5, 0.8, 0.14, 2100.0, 14.0)
+	s.band(0.0, 0.4, 0.5, 0.1, 3350.0, 14.0)
+	var notes := [523.3, 659.3, 784.0, 1046.5]
+	for i in notes.size():
+		s.tone(0.12 + i * 0.05, 0.9, 0.4, notes[i], notes[i], 0.35, Synth.TRIANGLE)
+	s.tone(0.3, 0.8, 0.25, 2093.0, 2093.0, 0.3)
+	s.reverb(0.35, 0.7)
+
+
+func _make_forge_fail(s: Synth) -> void:
+	# The hammer lands wrong: a dull clank and a falling pair of notes.
+	s.length(0.7)
+	s.noise(0.0, 0.06, 1.0, 0.015, 3000.0, 900.0, 0.0005, 300.0)
+	s.band(0.0, 0.25, 0.7, 0.06, 620.0, 8.0)
+	s.tone(0.12, 0.25, 0.45, 330.0, 311.0, 0.1, Synth.TRIANGLE)
+	s.tone(0.3, 0.35, 0.45, 247.0, 220.0, 0.14, Synth.TRIANGLE)
+	s.lowpass(2600.0)
+
+
+func _make_forge_break(s: Synth) -> void:
+	# Metal cracking apart, pieces skittering away, a low groan underneath.
+	s.length(1.0)
+	s.drive = 1.8
+	s.noise(0.0, 0.08, 1.4, 0.02, 7000.0, 1500.0, 0.0005, 400.0)
+	s.band(0.0, 0.3, 0.9, 0.07, 480.0, 6.0)
+	for i in 5:
+		s.noise(0.1 + i * 0.07, 0.03, 0.5 - i * 0.07, 0.008, 8000.0, 4000.0, 0.0005, 2500.0)
+	s.tone(0.05, 0.7, 0.6, 110.0, 55.0, 0.25, Synth.TRIANGLE)
+	s.reverb(0.3, 0.5, 2200.0)
 
 
 func _make_dodge(s: Synth) -> void:

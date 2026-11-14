@@ -11,7 +11,7 @@ extends Node
 ## ============================================================================
 
 const GAME_TITLE := "ROT RIOT"
-const GAME_VERSION := "0.2.0"
+const GAME_VERSION := "0.3.0"
 
 # ----------------------------------------------------------------------------
 #  ARENA
@@ -314,6 +314,8 @@ const SUMMON_RISE_TIME := 0.5           # summoned zombies take this long to cla
 #    hp / damage / speed  multiply every zombie's health / hits / walking speed
 #    xp                   multiplies the XP from kills and cleared waves
 #    coins                what one coin is worth; also multiplies the wave bonuses
+#    gear                 multiplies how often zombies drop gear
+#    gear_up              chance that a dropped piece is one tier better than normal
 #    ground / trees       a colour wash that gives the map its mood (real scenery comes later)
 # ----------------------------------------------------------------------------
 const WAVES_PER_MAP := 100
@@ -324,19 +326,19 @@ const MAP_CLEAR_XP := 3000              # ...and XP (times the map's "xp")
 const MAP_CLEAR_CELEBRATION := 3.2      # seconds of slow-motion glory before the results screen
 const MAPS := [
 	{"name": "FOREST CAMP", "story": "A weekend in the woods. Nobody else came back to the fire.",
-		"hp": 1.0, "damage": 1.0, "speed": 1.0, "xp": 1.0, "coins": 1,
+		"hp": 1.0, "damage": 1.0, "speed": 1.0, "xp": 1.0, "coins": 1, "gear": 1.0, "gear_up": 0.0,
 		"color": Color(0.62, 0.82, 0.38), "ground": Color(0.0, 0.0, 0.0, 0.0), "trees": Color(1.0, 1.0, 1.0)},
 	{"name": "DEAD FARM", "story": "The harvest was left to rot. So were the farmhands.",
-		"hp": 4.0, "damage": 1.8, "speed": 1.04, "xp": 1.5, "coins": 2,
+		"hp": 4.0, "damage": 1.8, "speed": 1.04, "xp": 1.5, "coins": 2, "gear": 1.3, "gear_up": 0.08,
 		"color": Color(0.93, 0.76, 0.32), "ground": Color(0.62, 0.47, 0.16, 0.30), "trees": Color(1.0, 0.86, 0.5)},
 	{"name": "GRAVEYARD", "story": "The old graves are open. The new ones were never filled.",
-		"hp": 12.0, "damage": 3.0, "speed": 1.08, "xp": 2.0, "coins": 4,
+		"hp": 12.0, "damage": 3.0, "speed": 1.08, "xp": 2.0, "coins": 4, "gear": 1.7, "gear_up": 0.16,
 		"color": Color(0.62, 0.72, 0.9), "ground": Color(0.16, 0.2, 0.34, 0.42), "trees": Color(0.62, 0.7, 0.86)},
 	{"name": "CONVOY CRASH", "story": "The evacuation convoy made it nine miles.",
-		"hp": 35.0, "damage": 5.0, "speed": 1.12, "xp": 2.75, "coins": 7,
+		"hp": 35.0, "damage": 5.0, "speed": 1.12, "xp": 2.75, "coins": 7, "gear": 2.2, "gear_up": 0.25,
 		"color": Color(0.95, 0.5, 0.3), "ground": Color(0.1, 0.1, 0.11, 0.5), "trees": Color(0.78, 0.6, 0.5)},
 	{"name": "QUARANTINE LAB", "story": "This is where it started. Something down here is still running.",
-		"hp": 100.0, "damage": 8.0, "speed": 1.16, "xp": 3.5, "coins": 12,
+		"hp": 100.0, "damage": 8.0, "speed": 1.16, "xp": 3.5, "coins": 12, "gear": 3.0, "gear_up": 0.35,
 		"color": Color(0.4, 0.95, 0.85), "ground": Color(0.08, 0.3, 0.3, 0.42), "trees": Color(0.5, 0.9, 0.84)},
 ]
 
@@ -653,6 +655,118 @@ const WEAPON_PERKS := {
 }
 
 # ----------------------------------------------------------------------------
+#  GEAR - what the survivor wears. Kept forever.
+#  Pieces drop rarely from zombies; rings and amulets drop only from bosses,
+#  and some pieces are only found from a certain map onwards. Nine slots:
+#  helmet, amulet, chest, gloves, two rings, belt, pants, boots.
+#  Two identical pieces of the same tier can be forged into one piece of the
+#  next tier (the Gear screen). Gear adds ranks to the passive stats, on top
+#  of the skill tree (scripts/game/player_stats.gd).
+# ----------------------------------------------------------------------------
+const GEAR_SLOTS := ["helmet", "amulet", "chest", "gloves", "ring1", "ring2", "belt", "pants", "boots"]
+# What kind of piece each slot takes, and the kinds in the order they sit
+# around the Gear screen (clockwise from the top).
+const GEAR_SLOT_TYPE := {"helmet": "helmet", "amulet": "amulet", "chest": "chest", "gloves": "gloves",
+	"ring1": "ring", "ring2": "ring", "belt": "belt", "pants": "pants", "boots": "boots"}
+const GEAR_TYPE_ORDER := ["helmet", "amulet", "ring", "belt", "boots", "pants", "gloves", "chest"]
+const GEAR_TYPE_NAMES := {"helmet": "HELMET", "amulet": "AMULET", "ring": "RING", "belt": "BELT", "boots": "BOOTS",
+	"pants": "PANTS", "gloves": "GLOVES", "chest": "CHEST"}
+
+# The five tiers (five colours).
+#   mult    a piece's stat ranks are multiplied by this
+#   chance  how likely forging two pieces of the tier below into this tier succeeds
+#           (set by the owner: 100% / 90% / 40% / 10%)
+#   break   if the forging fails one of the two pieces is always used up; this
+#           is the chance that the other one is destroyed as well
+const GEAR_TIERS := [
+	{"name": "COMMON", "color": Color("c9c9c0"), "mult": 1.0, "chance": 1.0, "break": 0.0},
+	{"name": "STURDY", "color": Color("5fd068"), "mult": 2.0, "chance": 1.0, "break": 0.0},
+	{"name": "FINE", "color": Color("4f9dff"), "mult": 3.0, "chance": 0.9, "break": 0.0},
+	{"name": "SUPERIOR", "color": Color("b565f5"), "mult": 5.0, "chance": 0.4, "break": 0.35},
+	{"name": "LEGENDARY", "color": Color("ff9a2e"), "mult": 8.0, "chance": 0.1, "break": 0.5},
+]
+
+# Every piece of gear.
+#   type   which slot it goes in
+#   stats  passive stat ranks it gives at the first tier (times the tier's "mult")
+#   from   who drops it: "zombies" (anything), "brutes" (brutes and bosses) or "bosses" (bosses only)
+#   map    the first map it can be found on (1 = everywhere)
+const GEAR_ORDER := [
+	"hard_hat", "gas_mask", "hunting_cap", "riot_helmet",
+	"dog_tags", "tooth_necklace", "old_medal", "gorger_fang",
+	"iron_band", "lucky_ring", "snake_ring", "blood_ring",
+	"tool_belt", "ammo_belt", "money_belt", "champion_belt",
+	"running_shoes", "steel_toecaps", "soft_soles", "combat_boots",
+	"cargo_pants", "track_pants", "padded_trousers", "hunter_leggings",
+	"work_gloves", "shooting_gloves", "knuckle_wraps", "butcher_gloves",
+	"leather_jacket", "padded_vest", "bandolier", "riot_armor",
+]
+const GEAR_ITEMS := {
+	"hard_hat": {"name": "Hard Hat", "type": "helmet", "stats": {"defense": 2}, "from": "zombies", "map": 1},
+	"gas_mask": {"name": "Gas Mask", "type": "helmet", "stats": {"vitality": 2}, "from": "zombies", "map": 1},
+	"hunting_cap": {"name": "Hunting Cap", "type": "helmet", "stats": {"critical": 2}, "from": "brutes", "map": 1},
+	"riot_helmet": {"name": "Riot Helmet", "type": "helmet", "stats": {"defense": 2, "vitality": 1}, "from": "zombies", "map": 2},
+
+	"dog_tags": {"name": "Dog Tags", "type": "amulet", "stats": {"vitality": 3}, "from": "bosses", "map": 1},
+	"tooth_necklace": {"name": "Tooth Necklace", "type": "amulet", "stats": {"critical": 3}, "from": "bosses", "map": 1},
+	"old_medal": {"name": "Old Medal", "type": "amulet", "stats": {"defense": 3}, "from": "bosses", "map": 1},
+	"gorger_fang": {"name": "Gorger's Fang", "type": "amulet", "stats": {"strength": 2, "vitality": 2}, "from": "bosses", "map": 2},
+
+	"iron_band": {"name": "Iron Band", "type": "ring", "stats": {"strength": 3}, "from": "bosses", "map": 1},
+	"lucky_ring": {"name": "Lucky Ring", "type": "ring", "stats": {"luck": 3}, "from": "bosses", "map": 1},
+	"snake_ring": {"name": "Snake Ring", "type": "ring", "stats": {"evasion": 3}, "from": "bosses", "map": 1},
+	"blood_ring": {"name": "Blood Ring", "type": "ring", "stats": {"critical": 2, "strength": 2}, "from": "bosses", "map": 2},
+
+	"tool_belt": {"name": "Tool Belt", "type": "belt", "stats": {"strength": 2}, "from": "zombies", "map": 1},
+	"ammo_belt": {"name": "Ammo Belt", "type": "belt", "stats": {"dexterity": 2}, "from": "zombies", "map": 1},
+	"money_belt": {"name": "Money Belt", "type": "belt", "stats": {"luck": 2}, "from": "brutes", "map": 1},
+	"champion_belt": {"name": "Champion's Belt", "type": "belt", "stats": {"vitality": 2, "strength": 1}, "from": "zombies", "map": 2},
+
+	"running_shoes": {"name": "Running Shoes", "type": "boots", "stats": {"agility": 2}, "from": "zombies", "map": 1},
+	"steel_toecaps": {"name": "Steel Toecaps", "type": "boots", "stats": {"vitality": 2}, "from": "zombies", "map": 1},
+	"soft_soles": {"name": "Soft Soles", "type": "boots", "stats": {"evasion": 2}, "from": "brutes", "map": 1},
+	"combat_boots": {"name": "Combat Boots", "type": "boots", "stats": {"agility": 2, "defense": 1}, "from": "zombies", "map": 2},
+
+	"cargo_pants": {"name": "Cargo Pants", "type": "pants", "stats": {"luck": 2}, "from": "zombies", "map": 1},
+	"track_pants": {"name": "Track Pants", "type": "pants", "stats": {"agility": 2}, "from": "zombies", "map": 1},
+	"padded_trousers": {"name": "Padded Trousers", "type": "pants", "stats": {"defense": 2}, "from": "brutes", "map": 1},
+	"hunter_leggings": {"name": "Hunter's Leggings", "type": "pants", "stats": {"agility": 2, "evasion": 1}, "from": "zombies", "map": 2},
+
+	"work_gloves": {"name": "Work Gloves", "type": "gloves", "stats": {"strength": 2}, "from": "zombies", "map": 1},
+	"shooting_gloves": {"name": "Shooting Gloves", "type": "gloves", "stats": {"dexterity": 2}, "from": "zombies", "map": 1},
+	"knuckle_wraps": {"name": "Knuckle Wraps", "type": "gloves", "stats": {"critical": 2}, "from": "brutes", "map": 1},
+	"butcher_gloves": {"name": "Butcher's Gloves", "type": "gloves", "stats": {"strength": 2, "critical": 1}, "from": "zombies", "map": 2},
+
+	"leather_jacket": {"name": "Leather Jacket", "type": "chest", "stats": {"vitality": 2}, "from": "zombies", "map": 1},
+	"padded_vest": {"name": "Padded Vest", "type": "chest", "stats": {"defense": 2}, "from": "zombies", "map": 1},
+	"bandolier": {"name": "Bandolier", "type": "chest", "stats": {"dexterity": 2}, "from": "brutes", "map": 1},
+	"riot_armor": {"name": "Riot Armor", "type": "chest", "stats": {"defense": 2, "vitality": 1}, "from": "zombies", "map": 2},
+}
+
+# Drops. Chance per kill that the zombie leaves a piece of gear (before the
+# map's "gear" multiplier and the LUCK stat). Deliberately rare.
+const GEAR_DROP_CHANCE := {SHAMBLER: 0.004, RUNNER: 0.005, BRUTE: 0.04, BOSS: 1.0}
+const GEAR_BOSS_EXTRA_CHANCE := 0.4     # a boss always drops a ring or an amulet; this is the chance of a second, ordinary piece
+const GEAR_LUCK_FACTOR := 0.5           # how much of the LUCK coin bonus also applies to gear drops
+const GEAR_MAX_ON_FIELD := 4
+const GEAR_LIFETIME := 45.0             # seconds a dropped piece waits to be picked up
+const GEAR_PICKUP_RADIUS := 30.0
+const GEAR_PICKUP_SHAKE := 0.2
+# Layout of the Gear screen (pixels in tree space). In the middle the nine
+# slots are laid out like a body; around them every kind of piece has its own
+# sector, with a row of five tiers for each piece.
+const GEAR_SLOT_POS := {
+	"helmet": Vector2(0, -128), "amulet": Vector2(88, -98), "chest": Vector2(0, -50), "gloves": Vector2(-112, -34),
+	"ring1": Vector2(112, -10), "ring2": Vector2(112, 52), "belt": Vector2(0, 18), "pants": Vector2(0, 80), "boots": Vector2(0, 140),
+}
+const GEAR_SLOT_NAMES := {"helmet": "HELMET", "amulet": "AMULET", "chest": "CHEST", "gloves": "GLOVES", "ring1": "LEFT RING",
+	"ring2": "RIGHT RING", "belt": "BELT", "pants": "PANTS", "boots": "BOOTS"}
+const GEAR_TREE_HUB_RADIUS := 215.0     # where each kind's sector starts
+const GEAR_TREE_START_RADIUS := 292.0   # distance of the first tier of every piece from the middle
+const GEAR_TREE_STEP := 72.0            # ...and between tiers
+const GEAR_TREE_FAN_DEG := 11.0         # angle between the pieces of one kind
+
+# ----------------------------------------------------------------------------
 #  GAME FEEL - hits
 # ----------------------------------------------------------------------------
 const HIT_FLASH_TIME := 0.07            # zombies turn white this long when hit
@@ -813,6 +927,53 @@ func deed_text(deed: Dictionary) -> String:
 		"map":
 			return "Clear all %d waves of %s" % [WAVES_PER_MAP, String(MAPS[clampi(value - 1, 0, MAPS.size() - 1)]["name"])]
 	return ""
+
+
+## The name a piece of gear is stored and counted under: its id and tier (1-5).
+func gear_key(item: String, tier: int) -> String:
+	return "%s:%d" % [item, tier]
+
+
+func gear_item_of(key: String) -> String:
+	return key.get_slice(":", 0)
+
+
+func gear_tier_of(key: String) -> int:
+	return int(key.get_slice(":", 1))
+
+
+func gear_tier_def(tier: int) -> Dictionary:
+	return GEAR_TIERS[clampi(tier, 1, GEAR_TIERS.size()) - 1]
+
+
+## What a piece is called, e.g. "FINE HARD HAT".
+func gear_name(key: String) -> String:
+	return "%s %s" % [String(gear_tier_def(gear_tier_of(key))["name"]), String(GEAR_ITEMS[gear_item_of(key)]["name"]).to_upper()]
+
+
+## The passive stat ranks a piece gives at a tier: {passive id: ranks}.
+func gear_stats(item: String, tier: int) -> Dictionary:
+	var out := {}
+	var base: Dictionary = GEAR_ITEMS[item]["stats"]
+	var mult := float(gear_tier_def(tier)["mult"])
+	for stat: String in base.keys():
+		out[stat] = int(round(float(base[stat]) * mult))
+	return out
+
+
+## Where a piece comes from, in words.
+func gear_source_text(item: String) -> String:
+	var def: Dictionary = GEAR_ITEMS[item]
+	var who := "Dropped by any zombie"
+	match String(def["from"]):
+		"brutes":
+			who = "Dropped by brutes and bosses"
+		"bosses":
+			who = "Dropped by bosses only"
+	var first_map := int(def["map"])
+	if first_map > 1:
+		return "%s, from %s onwards" % [who, String(MAPS[clampi(first_map - 1, 0, MAPS.size() - 1)]["name"])]
+	return who
 
 
 ## Points needed to raise a stat that is currently at `rank`.

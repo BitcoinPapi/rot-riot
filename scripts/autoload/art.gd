@@ -771,6 +771,14 @@ const SYMBOLS := {
 	"track_reload": "<path d=\"M12 -6 A13.5 13.5 0 1 0 13.5 3\" fill=\"none\" stroke=\"#fff\" stroke-width=\"4\" stroke-linecap=\"round\"/><path d=\"M5 -9 L16 -3 L15 -16Z\" fill=\"#fff\"/>",
 	"track_spawn": "<rect x=\"-14\" y=\"-12\" width=\"28\" height=\"24\" rx=\"2.5\" fill=\"none\" stroke=\"#fff\" stroke-width=\"3.4\"/><path d=\"M-14 -12 L14 12 M14 -12 L-14 12\" stroke=\"#fff\" stroke-width=\"3\"/>",
 	"track_duration": "<path d=\"M-10 -17 H10 M-10 17 H10\" stroke=\"#fff\" stroke-width=\"3.4\" stroke-linecap=\"round\"/><path d=\"M-8 -15 C-8 -5 0 -3 0 0 C0 -3 8 -5 8 -15Z M-8 15 C-8 5 0 3 0 0 C0 3 8 5 8 15Z\" fill=\"#fff\"/>",
+	"gear_helmet": "<path d=\"M-15 5 C-15 -19 15 -19 15 5 L18 5 L18 11 L-18 11 L-18 5Z\" fill=\"#fff\"/><rect x=\"-9\" y=\"-2\" width=\"18\" height=\"4\" rx=\"1.5\" fill=\"#000\" fill-opacity=\"0.6\"/>",
+	"gear_amulet": "<path d=\"M-13 -17 L0 3 L13 -17\" fill=\"none\" stroke=\"#fff\" stroke-width=\"2.8\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><path d=\"M0 1 L7 9 L0 18 L-7 9Z\" fill=\"#fff\"/>",
+	"gear_ring": "<circle cy=\"4\" r=\"10\" fill=\"none\" stroke=\"#fff\" stroke-width=\"5\"/><path d=\"M0 -18 L6.5 -11 L0 -4 L-6.5 -11Z\" fill=\"#fff\"/>",
+	"gear_belt": "<rect x=\"-18\" y=\"-5\" width=\"36\" height=\"10\" rx=\"2\" fill=\"#fff\"/><rect x=\"-7.5\" y=\"-10\" width=\"15\" height=\"20\" rx=\"2.5\" fill=\"#fff\"/><rect x=\"-3.5\" y=\"-5.5\" width=\"7\" height=\"11\" rx=\"1\" fill=\"#000\" fill-opacity=\"0.65\"/>",
+	"gear_boots": "<path d=\"M-9 -17 L3 -17 L3 1 L14 5 C18 6.5 18 15 14 15 L-9 15Z\" fill=\"#fff\"/><rect x=\"-9\" y=\"9.5\" width=\"25\" height=\"2.6\" fill=\"#000\" fill-opacity=\"0.5\"/>",
+	"gear_pants": "<path d=\"M-12 -17 L12 -17 L14.5 17 L4.5 17 L0 -3 L-4.5 17 L-14.5 17Z\" fill=\"#fff\"/><rect x=\"-12\" y=\"-17\" width=\"24\" height=\"3.4\" fill=\"#000\" fill-opacity=\"0.45\"/>",
+	"gear_gloves": "<path d=\"M-8 17 L-8 0 L-13 -6 C-15.5 -9 -11.5 -12.5 -9 -9.5 L-5 -5 L-5 -13 C-5 -17 0 -17 0 -13 L0 -15 C0 -19 5 -19 5 -15 L5 -12 C5 -16 10 -16 10 -12 L10 6 C10 12 8 14 8 17Z\" fill=\"#fff\"/>",
+	"gear_chest": "<path d=\"M-15 -13 L-6 -17 C-3 -11 3 -11 6 -17 L15 -13 L12.5 -1 L12.5 17 L-12.5 17 L-12.5 -1Z\" fill=\"#fff\"/><path d=\"M0 -11 V17\" stroke=\"#000\" stroke-opacity=\"0.5\" stroke-width=\"2\"/>",
 	"ui_perk": "<path d=\"M0 -18 L15.6 -9 L15.6 9 L0 18 L-15.6 9 L-15.6 -9Z\" fill=\"none\" stroke=\"#fff\" stroke-width=\"3.4\" stroke-linejoin=\"round\"/><path d=\"M0 -9 L2.7 -2.9 L9.3 -2.9 L3.9 1.3 L5.7 7.8 L0 3.9 L-5.7 7.8 L-3.9 1.3 L-9.3 -2.9 L-2.7 -2.9Z\" fill=\"#fff\"/>",
 }
 
