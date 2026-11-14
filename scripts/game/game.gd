@@ -31,6 +31,7 @@ var rage_active := false
 var rage_time := 0.0
 var enemy_hp_mult := 1.0        # set per wave
 var enemy_speed_mult := 1.0
+var sim_usec := 0               # how long the last simulation step took (for the benchmark)
 
 var _hitstop := 0.0
 var _hitstop_cooldown := 0.0
@@ -113,7 +114,9 @@ func _process(delta: float) -> void:
 		_hitstop_cooldown = maxf(_hitstop_cooldown - real_dt, 0.0)
 
 	if dt > 0.0:
+		var started := Time.get_ticks_usec()
 		_simulate(dt)
+		sim_usec = Time.get_ticks_usec() - started
 
 	if state == State.DYING:
 		_death_timer -= real_dt

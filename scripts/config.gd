@@ -180,7 +180,8 @@ const ENEMIES := {
 	},
 }
 
-const ENEMY_SEPARATION := 0.55          # how firmly zombies push each other apart (0..1)
+const ENEMY_SEPARATION := 0.7           # how firmly zombies push each other apart (0..1)
+const ENEMY_CROWD_FREE := 2             # zombies touching more neighbours than this slow down (keeps hordes from squashing into a blob)
 const ENEMY_ATTACK_REACH := 5.0         # extra px beyond touching at which they can hit
 const ENEMY_TURN_SPEED := 9.0
 const ENEMY_FLANK_SPREAD := 70.0        # each zombie aims slightly off-centre so hordes surround you

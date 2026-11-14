@@ -26,6 +26,8 @@ var phase := 0.0                # walk wobble / zig-zag
 var flank := Vector2.ZERO       # personal flanking offset
 var entered := false            # has walked into the arena
 var cell := 0                   # spatial grid cell
+var crowd := 0                  # neighbours pressing on it this frame...
+var crowd_prev := 0             # ...and last frame (crowded zombies push less hard)
 
 # Stats copied from Config when spawned
 var kb_mult := 1.0

@@ -23,10 +23,12 @@ var _dim: ColorRect
 var _screens := {}                 # name -> Control
 var _stack: Array[String] = []     # open screens, last one is visible
 var _dev_mode := false
+var _quitting := false
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	get_tree().set_auto_accept_quit(false)   # we close the window ourselves, see quit_game()
 	_build_ui()
 	GameInput.pause_pressed.connect(_on_pause_pressed)
 	GameInput.back_pressed.connect(_on_back_pressed)
@@ -164,9 +166,20 @@ func quit_to_menu() -> void:
 	_enter_menu()
 
 
-func quit_game() -> void:
+## Close the game cleanly: keep the coins, silence the audio, then exit.
+func quit_game(exit_code: int = 0) -> void:
+	if _quitting:
+		return
+	_quitting = true
 	_bank_current_run()
-	get_tree().quit()
+	# Give the audio thread a moment to let go of the sounds that were still
+	# playing, otherwise Godot prints "leaked instance" warnings on exit.
+	Sfx.stop_all()
+	await get_tree().process_frame
+	OS.delay_msec(120)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	get_tree().quit(exit_code)
 
 
 func _on_run_ended(stats: Dictionary) -> void:
@@ -225,4 +238,4 @@ func _notification(what: int) -> void:
 			if not _dev_mode:
 				pause_game()
 		NOTIFICATION_WM_CLOSE_REQUEST:
-			_bank_current_run()
+			quit_game()

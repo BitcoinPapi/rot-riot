@@ -148,6 +148,8 @@ func tick(dt: float) -> void:
 	var max_cy := _gh - 2
 	for i in n:
 		var e := active[i]
+		e.crowd_prev = e.crowd
+		e.crowd = 0
 		if e.is_big:
 			e.cell = -1
 			continue
@@ -177,6 +179,7 @@ func tick(dt: float) -> void:
 	var zig_speed: float = Config.RUNNER_ZIGZAG_SPEED * dt
 	var player_share: float = Config.PLAYER_PUSHED_BY_ENEMIES
 	var runner: int = Config.RUNNER
+	var crowd_free: int = Config.ENEMY_CROWD_FREE
 	var push_total := Vector2.ZERO
 	var has_bigs := not bigs.is_empty()
 
@@ -224,7 +227,12 @@ func tick(dt: float) -> void:
 					e.phase += dt * 8.0
 					if dist > 90.0:
 						d = (to_p + e.flank * minf(dist * 0.004, 1.0)).normalized()
-				epos += d * (e.speed * dt)
+				# Zombies jammed in a crowd push less hard, so a horde spreads
+				# out around the player instead of squashing into one blob.
+				var step := e.speed * dt
+				if e.crowd_prev > crowd_free:
+					step *= float(crowd_free + 1) / float(e.crowd_prev + 1)
+				epos += d * step
 				e.face = lerp_angle(e.face, d.angle(), turn)
 			else:
 				e.face = lerp_angle(e.face, dirp.angle(), turn)
@@ -243,6 +251,7 @@ func tick(dt: float) -> void:
 		# Push apart from neighbours (each pair is handled once: j > i).
 		var c := e.cell
 		var eim := e.inv_mass
+		var touching := 0
 		for row in 3:
 			var base := c + (row - 1) * gw - 1
 			for col in 3:
@@ -262,7 +271,10 @@ func tick(dt: float) -> void:
 							var share := eim / (eim + o.inv_mass)
 							epos -= corr * share
 							o.pos += corr * (1.0 - share)
+							touching += 1
+							o.crowd += 1
 					j = _next[j]
+		e.crowd += touching
 
 		# Bosses shove everything out of their way.
 		if has_bigs:

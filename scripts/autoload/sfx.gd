@@ -82,6 +82,7 @@ func _exit_tree() -> void:
 	if _task_id != -1:
 		WorkerThreadPool.wait_for_task_completion(_task_id)
 		_task_id = -1
+	stop_all()
 
 
 func _setup_buses() -> void:
@@ -127,6 +128,13 @@ func play_pitched(sound: String, pitch: float, volume_db: float = 0.0) -> void:
 	player.volume_db = volume_db + float(recipe[1])
 	player.pitch_scale = clampf(pitch, 0.3, 3.0)
 	player.play()
+
+
+## Silence everything (called just before the game closes).
+func stop_all() -> void:
+	for p: AudioStreamPlayer in _players:
+		p.stop()
+		p.stream = null
 
 
 ## Used by developer tools: every generated sound as name -> AudioStreamWAV.
