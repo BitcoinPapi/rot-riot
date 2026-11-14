@@ -89,10 +89,10 @@ func spawn(kind: int, at: Vector2, hp_mult: float = 1.0, speed_mult: float = 1.0
 	e.speed = float(c["speed"]) * speed_mult * (1.0 + randf_range(-speed_var, speed_var))
 	e.damage = c["damage"]
 	e.attack_cd = c["attack_cd"]
-	e.attack_t = 0.25
+	e.attack_t = Config.ENEMY_FIRST_ATTACK_DELAY
 	e.flash_t = 0.0
 	e.stagger_t = 0.0
-	e.spawn_t = 0.5 if rising else 0.0
+	e.spawn_t = Config.SUMMON_RISE_TIME if rising else 0.0
 	e.phase = randf() * TAU
 	e.flank = Vector2.from_angle(randf() * TAU) * (randf() * Config.ENEMY_FLANK_SPREAD)
 	e.entered = game.arena.rect.grow(-e.radius).has_point(at)
@@ -212,7 +212,7 @@ func tick(dt: float) -> void:
 		if e.spawn_t > 0.0:
 			# Clawing up out of the ground.
 			e.spawn_t -= dt
-			var rs := e.base_scale * (1.0 - maxf(e.spawn_t, 0.0) * 1.4)
+			var rs := e.base_scale * (1.0 - 0.7 * maxf(e.spawn_t, 0.0) / Config.SUMMON_RISE_TIME)
 			e.scale = Vector2(rs, rs)
 		elif e.stagger_t > 0.0:
 			e.stagger_t -= dt
@@ -356,11 +356,11 @@ func _tick_boss(e: Enemy, dt: float) -> void:
 				e.summon_cd -= dt
 				if e.summon_cd <= 0.0:
 					e.state = B_SUMMON
-					e.state_t = 0.8
+					e.state_t = cfg["summon_windup"]
 					Sfx.play("boss_roar")
-					game.shake(0.35)
+					game.shake(float(cfg["roar_shake"]))
 					game.fx.ring(e.pos, e.radius, 260.0, 0.5, Color(1.0, 0.3, 0.2, 0.7))
-				elif e.charge_cd <= 0.0 and dist > 140.0 and dist < 760.0:
+				elif e.charge_cd <= 0.0 and dist > float(cfg["charge_range_min"]) and dist < float(cfg["charge_range_max"]):
 					e.state = B_WINDUP
 					e.state_t = cfg["charge_windup"]
 					Sfx.play("boss_charge")
@@ -376,7 +376,7 @@ func _tick_boss(e: Enemy, dt: float) -> void:
 				e.state_t = cfg["charge_time"]
 				e.charge_dir = Vector2.from_angle(e.face)
 				e.charge_hit = false
-				game.shake(0.3)
+				game.shake(float(cfg["charge_shake"]))
 		B_CHARGE:
 			e.state_t -= dt
 			var before := e.pos + e.charge_dir * (float(cfg["charge_speed"]) * dt)
@@ -387,7 +387,7 @@ func _tick_boss(e: Enemy, dt: float) -> void:
 				game.damage_player(float(cfg["charge_damage"]), e.pos)
 			var hit_wall := e.pos.distance_squared_to(before) > 1.0
 			if hit_wall:
-				game.shake(0.55)
+				game.shake(float(cfg["wall_slam_shake"]))
 				game.fx.ring(e.pos, e.radius, 200.0, 0.35, Color(1, 1, 1, 0.5))
 				Sfx.play("sledge_hit")
 			if e.state_t <= 0.0 or hit_wall:

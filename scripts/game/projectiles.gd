@@ -71,7 +71,7 @@ func tick(dt: float) -> void:
 				enemies.damage(e, s.damage, s.dir, s.knockback, s.stagger, float(s.w["hitstop_kill"]))
 				if s.pierce > 0:
 					s.pierce -= 1
-					s.damage *= 0.7
+					s.damage *= Config.PIERCE_DAMAGE_KEEP
 					s.hit.append(e)
 				else:
 					to = at
@@ -118,7 +118,7 @@ func explode(at: Vector2, s: Shot) -> void:
 		var d := away.length()
 		var dir := away / d if d > 0.01 else s.dir
 		var f := clampf(d / radius, 0.0, 1.0)
-		game.enemies.damage(e, s.damage * lerpf(1.0, edge, f), dir, force * (1.0 - 0.4 * f), stagger, 0.0)
+		game.enemies.damage(e, s.damage * lerpf(1.0, edge, f), dir, force * lerpf(1.0, Config.BLAST_EDGE_KNOCKBACK, f), stagger, 0.0)
 	game.fx.explosion(at, radius)
 	game.decals.scorch(at, radius * 0.75)
 	game.shake(float(w["blast_shake"]))

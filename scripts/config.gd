@@ -35,6 +35,7 @@ const PLAYER_MAX_HP := 100.0
 const PLAYER_HURT_INVULN := 0.55              # seconds of safety after being hit
 const PLAYER_HURT_SHOVE_RADIUS := 120.0       # being hit shoves nearby zombies away...
 const PLAYER_HURT_SHOVE_FORCE := 430.0        # ...this hard, so you get a chance to escape
+const PLAYER_HURT_SHOVE_STAGGER := 0.25       # ...and stops them for this long
 const PLAYER_PUSHED_BY_ENEMIES := 0.4         # 0 = zombies can't move you, 1 = they bulldoze you
 const PLAYER_MAX_PUSH_PER_FRAME := 5.0
 const RECOIL_PUSH_DAMPING := 12.0             # how fast weapon recoil shove fades
@@ -175,8 +176,13 @@ const ENEMIES := {
 		"charge_time": 0.85,
 		"charge_damage": 38.0,
 		"charge_recover": 0.9,         # it stands dazed after a charge - punish it!
+		"charge_range_min": 140.0,     # it only charges when the player is between these distances
+		"charge_range_max": 760.0,
 		"summon_cooldown": 9.0,
+		"summon_windup": 0.8,          # roar time before the pack appears
 		"summon_count": 6,             # shamblers it calls up
+		"arrive_delay": 3.0,           # seconds into a boss wave before it walks in
+		"roar_shake": 0.35, "spawn_shake": 0.5, "charge_shake": 0.3, "wall_slam_shake": 0.55,
 	},
 }
 
@@ -187,6 +193,8 @@ const ENEMY_TURN_SPEED := 9.0
 const ENEMY_FLANK_SPREAD := 70.0        # each zombie aims slightly off-centre so hordes surround you
 const RUNNER_ZIGZAG_AMOUNT := 0.55
 const RUNNER_ZIGZAG_SPEED := 7.0
+const ENEMY_FIRST_ATTACK_DELAY := 0.25  # a zombie that just reached you needs this long before its first hit
+const SUMMON_RISE_TIME := 0.5           # summoned zombies take this long to claw out of the ground
 
 # ----------------------------------------------------------------------------
 #  WAVES
@@ -215,6 +223,7 @@ const BRUTE_WEIGHT_PER_WAVE := 0.025
 const BRUTE_WEIGHT_MAX := 0.12
 const BOSS_EVERY := 5                   # a boss arrives every N waves
 const BOSS_WAVE_COUNT_MULT := 0.6       # boss waves have fewer regular zombies
+const RUNNER_PACK_CHANCE := 0.14        # chance that a pack is all runners (after runners unlock)
 const WAVE_CLEAR_COINS_BASE := 3        # coin bonus for clearing a wave...
 const WAVE_CLEAR_COINS_PER_WAVE := 1    # ...plus this per wave number
 
@@ -239,6 +248,7 @@ const RAGE_DAMAGE_TAKEN_MULT := 0.2
 const RAGE_BURST_RADIUS := 240.0        # activating rage blasts zombies away
 const RAGE_BURST_FORCE := 760.0
 const RAGE_BURST_DAMAGE := 30.0
+const RAGE_BURST_STAGGER := 0.5
 const RAGE_BURST_SHAKE := 0.8
 const RAGE_BURST_HITSTOP := 0.09
 
@@ -301,14 +311,23 @@ const KNOCKBACK_DAMPING := 9.0          # higher = knockback stops sooner
 const KNOCKBACK_MAX := 900.0
 
 const HITSTOP_MAX := 0.14               # longest freeze-frame allowed
-const HITSTOP_MIN_INTERVAL := 0.06      # gap between freezes so hordes don't stutter the game
+const HITSTOP_MIN_INTERVAL := 0.1       # gap between freezes so hordes don't stutter the game
 const KILL_SHAKE := 0.045               # shake per kill (multiplied by the zombie's shake_mult)
+
+const PIERCE_DAMAGE_KEEP := 0.7          # a bullet that passes through a zombie keeps this much damage
+const BLAST_EDGE_KNOCKBACK := 0.6       # explosion shove at the edge of the blast (1 = same as the centre)
 
 const HURT_SHAKE := 0.65                # when the player is hit
 const HURT_HITSTOP := 0.07
+const DEATH_SHAKE := 1.0                # when the player dies
+const DEATH_HITSTOP := 0.12
 const DEATH_SLOWMO := 0.22              # game speed after the player dies
 const DEATH_SLOWMO_TIME := 1.5          # seconds before the game-over screen
+const BOSS_DEATH_SHAKE := 1.0
 const BOSS_DEATH_HITSTOP := 0.14
+const BOSS_DEATH_SLOWMO := 0.3          # game speed right after a boss dies...
+const BOSS_DEATH_SLOWMO_TIME := 0.9     # ...for this many seconds
+const CRATE_PICKUP_SHAKE := 0.2
 
 # ----------------------------------------------------------------------------
 #  GAME FEEL - camera
@@ -321,6 +340,7 @@ const CAM_FOLLOW_SPEED := 10.0
 const CAM_AIM_LEAD := 0.16              # camera drifts toward the crosshair by this fraction
 const CAM_AIM_LEAD_MAX := 120.0
 const CAM_KICK_RETURN := 16.0           # how fast a recoil jolt settles
+const CAM_KICK_MAX := 42.0              # recoil jolts never push the view further than this
 const CAM_ZOOM := 1.2                    # higher = closer, chunkier view
 
 # ----------------------------------------------------------------------------

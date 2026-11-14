@@ -223,9 +223,9 @@ func _boss_killed(e: Enemy) -> void:
 	fx.light(e.pos, 700.0, 0.4, Color(1.0, 0.5, 0.3, 0.8))
 	fx.text(e.pos + Vector2(0, -70), "BOSS DOWN!", Color(1.0, 0.85, 0.3), 34, 1.8)
 	pickups.spawn_crate(e.pos)
-	shake(1.0)
+	shake(Config.BOSS_DEATH_SHAKE)
 	hitstop(Config.BOSS_DEATH_HITSTOP, true)
-	slow_motion(0.3, 0.9)
+	slow_motion(Config.BOSS_DEATH_SLOWMO, Config.BOSS_DEATH_SLOWMO_TIME)
 	Sfx.play("explosion")
 
 
@@ -242,7 +242,7 @@ func try_activate_rage() -> void:
 	rage_active = true
 	rage_time = Config.RAGE_DURATION
 	# The activation itself is a weapon: a blast that throws the horde back.
-	enemies.shockwave(player.pos, Config.RAGE_BURST_RADIUS, Config.RAGE_BURST_FORCE, Config.RAGE_BURST_DAMAGE, 0.5)
+	enemies.shockwave(player.pos, Config.RAGE_BURST_RADIUS, Config.RAGE_BURST_FORCE, Config.RAGE_BURST_DAMAGE, Config.RAGE_BURST_STAGGER)
 	fx.ring(player.pos, 20.0, Config.RAGE_BURST_RADIUS, 0.4, Color(1.0, 0.35, 0.15, 0.95))
 	fx.ring(player.pos, 10.0, Config.RAGE_BURST_RADIUS * 0.7, 0.3, Color(1.0, 0.8, 0.4, 0.8))
 	fx.light(player.pos, Config.RAGE_BURST_RADIUS * 2.6, 0.3, Color(1.0, 0.3, 0.1, 0.8))
@@ -269,7 +269,7 @@ func collect_crate(crate: Pickups.Crate) -> void:
 	fx.text(player.pos + Vector2(0, -42), String(w["name"]), color, 26, 1.3)
 	fx.ring(crate.pos, 16.0, 120.0, 0.35, Color(color.r, color.g, color.b, 0.9))
 	fx.light(crate.pos, 220.0, 0.25, Color(color.r, color.g, color.b, 0.6))
-	shake(0.2)
+	shake(Config.CRATE_PICKUP_SHAKE)
 	Sfx.play("pickup_weapon")
 
 
@@ -296,7 +296,7 @@ func damage_player(amount: float, from: Vector2) -> void:
 	hitstop(Config.HURT_HITSTOP, true)
 	Sfx.play("player_hurt")
 	# Shove the crowd back so the player gets a chance to break out.
-	enemies.shockwave(player.pos, Config.PLAYER_HURT_SHOVE_RADIUS, Config.PLAYER_HURT_SHOVE_FORCE, 0.0, 0.25)
+	enemies.shockwave(player.pos, Config.PLAYER_HURT_SHOVE_RADIUS, Config.PLAYER_HURT_SHOVE_FORCE, 0.0, Config.PLAYER_HURT_SHOVE_STAGGER)
 	if player.hp <= 0.0:
 		player.hp = 0.0
 		_player_died()
@@ -311,8 +311,8 @@ func _player_died() -> void:
 	fx.blood_burst(player.pos, 40, 1.6)
 	decals.blood_splat(player.pos, 90.0)
 	fx.ring(player.pos, 10.0, 220.0, 0.5, Color(1.0, 0.2, 0.15, 0.8))
-	shake(1.0)
-	hitstop(0.12, true)
+	shake(Config.DEATH_SHAKE)
+	hitstop(Config.DEATH_HITSTOP, true)
 	Sfx.play("player_die")
 
 

@@ -63,6 +63,10 @@ func _register_actions() -> void:
 	_bind("pause", [_key(KEY_ESCAPE), _key(KEY_P), _button(JOY_BUTTON_START)])
 	# Fullscreen toggle.
 	_bind("toggle_fullscreen", [_key(KEY_F11)])
+	# Menus: Godot's built-in menu actions only know the keyboard, so add the
+	# gamepad's A (confirm) and B (back). D-pad / left stick navigation is built in.
+	_bind("ui_accept", [_button(JOY_BUTTON_A)])
+	_bind("ui_cancel", [_button(JOY_BUTTON_B)])
 
 
 func _bind(action: String, events: Array) -> void:

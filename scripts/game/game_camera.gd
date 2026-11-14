@@ -32,7 +32,7 @@ func add_trauma(amount: float) -> void:
 
 ## A one-off jolt in a direction (used for weapon recoil).
 func kick(direction: Vector2, amount: float) -> void:
-	_kick = (_kick + direction * amount * _shake_setting()).limit_length(42.0)
+	_kick = (_kick + direction * amount * _shake_setting()).limit_length(Config.CAM_KICK_MAX)
 
 
 func tick(real_delta: float, target: Vector2, lead: Vector2) -> void:

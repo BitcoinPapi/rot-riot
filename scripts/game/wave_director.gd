@@ -65,7 +65,7 @@ func _start_wave() -> void:
 	game.enemy_speed_mult = Config.wave_speed_mult(wave)
 	_pack_timer = 0.4
 	var is_boss := Config.is_boss_wave(wave)
-	_boss_delay = 3.0 if is_boss else -1.0
+	_boss_delay = float(Config.ENEMIES[Config.BOSS]["arrive_delay"]) if is_boss else -1.0
 	wave_started.emit(wave, is_boss)
 	Sfx.play("wave_start")
 
@@ -90,7 +90,7 @@ func _spawn_pack() -> void:
 	var safe_zone := game.arena.rect.grow(Config.SPAWN_DIST_MIN * 0.7)
 	var spread := 50.0 + size * 8.0
 	# Now and then a whole pack of runners sprints in together.
-	var runner_pack := wave > Config.RUNNER_START_WAVE and randf() < 0.14
+	var runner_pack := wave > Config.RUNNER_START_WAVE and randf() < Config.RUNNER_PACK_CHANCE
 	for k in size:
 		var at := anchor + Vector2.from_angle(randf() * TAU) * (randf() * spread)
 		if safe_zone.has_point(at):
@@ -123,7 +123,7 @@ func _spawn_boss() -> void:
 	_boss_delay = -1.0
 	boss_spawned.emit(boss)
 	Sfx.play("boss_roar")
-	game.shake(0.5)
+	game.shake(float(cfg["spawn_shake"]))
 
 
 func on_enemy_killed(e: Enemy) -> void:

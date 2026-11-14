@@ -158,6 +158,8 @@ func resume_game() -> void:
 	_stack.clear()
 	_refresh_screens()
 	GameInput.set_gameplay_mode(true)
+	if game != null:
+		game.player.hold_fire(0.2)
 
 
 func quit_to_menu() -> void:

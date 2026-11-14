@@ -42,6 +42,7 @@ func _ready() -> void:
 	max_hp = Config.PLAYER_MAX_HP + SaveData.upgrade_bonus("max_health")
 	hp = max_hp
 	_set_weapon(Config.STARTER_WEAPON)
+	hold_fire(0.3)
 
 
 func place(at: Vector2) -> void:
@@ -172,6 +173,11 @@ func _set_weapon(id: String) -> void:
 	weapon_time = 0.0
 	_gun_tex = Art.t("gun_" + id)
 	_gun_size = Art.size_of("gun_" + id)
+
+
+## Block shooting briefly (so the click on PLAY / RESUME doesn't fire a shot).
+func hold_fire(seconds: float) -> void:
+	fire_cd = maxf(fire_cd, seconds)
 
 
 func heal(amount: float) -> void:

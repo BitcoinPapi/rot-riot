@@ -12,6 +12,7 @@ extends Node
 ##   --god              the player cannot die
 ##   --frames=N         quit after N frames and print a summary
 ##   --autotest         play through the whole game loop automatically and report PASS/FAIL
+##   --inputtest        feed fake keyboard / mouse / gamepad events through GameInput and check them
 ##   --bench=N          keep N zombies alive around the player and report simulation time
 ##   --dump-sfx=DIR     write every generated sound to DIR as .wav files, then quit
 ##   --shot=PATH        save a screenshot to PATH ...
@@ -32,6 +33,8 @@ func _ready() -> void:
 		_args[parts[0]] = parts[1] if parts.size() > 1 else "1"
 	if _args.has("autotest"):
 		_run_autotest.call_deferred()
+	if _args.has("inputtest"):
+		_run_inputtest.call_deferred()
 
 
 func _process(_delta: float) -> void:
@@ -69,8 +72,8 @@ func _process(_delta: float) -> void:
 		_quit(0)
 	if _args.has("frames") and _frame >= int(_args["frames"]):
 		if game != null and is_instance_valid(game):
-			print("SUMMARY frames=%d wave=%d kills=%d score=%d coins=%d alive=%d left=%d hp=%.0f rage=%.0f weapon=%s boss=%s state=%d" % [
-				_frame, game.director.wave, game.kills, game.score, game.coins_run, game.enemies.alive_count,
+			print("SUMMARY frames=%d time=%.0fs wave=%d kills=%d score=%d coins=%d alive=%d left=%d hp=%.0f rage=%.0f weapon=%s boss=%s state=%d" % [
+				_frame, game.time_alive, game.director.wave, game.kills, game.score, game.coins_run, game.enemies.alive_count,
 				game.director.remaining(), game.player.hp, game.rage, game.player.weapon_id,
 				str(game.director.boss_alive()), game.state])
 		_quit(0)
@@ -338,4 +341,187 @@ func _run_autotest() -> void:
 		print("AUTOTEST FAILED: %d problem(s)" % _auto_failures.size())
 		for f: String in _auto_failures:
 			print("   - ", f)
+		_quit(1)
+
+
+# ----------------------------------------------------------------------------
+#  Input test: real keyboard, mouse and gamepad events, as the OS would send
+#  them, pushed through the engine to check every binding in GameInput.
+# ----------------------------------------------------------------------------
+func _key(code: Key, pressed: bool) -> void:
+	var e := InputEventKey.new()
+	e.physical_keycode = code
+	e.keycode = code
+	e.pressed = pressed
+	Input.parse_input_event(e)
+
+
+func _mouse_move(to: Vector2) -> void:
+	var e := InputEventMouseMotion.new()
+	e.position = to
+	e.global_position = to
+	e.relative = Vector2(30, 30)
+	Input.parse_input_event(e)
+
+
+func _mouse_button(button: MouseButton, pressed: bool, at: Vector2) -> void:
+	var e := InputEventMouseButton.new()
+	e.button_index = button
+	e.pressed = pressed
+	e.position = at
+	e.global_position = at
+	Input.parse_input_event(e)
+
+
+func _pad_axis(axis: JoyAxis, value: float) -> void:
+	var e := InputEventJoypadMotion.new()
+	e.axis = axis
+	e.axis_value = value
+	Input.parse_input_event(e)
+
+
+func _pad_button(button: JoyButton, pressed: bool) -> void:
+	var e := InputEventJoypadButton.new()
+	e.button_index = button
+	e.pressed = pressed
+	Input.parse_input_event(e)
+
+
+func _run_inputtest() -> void:
+	var app: Main = main
+	print("INPUTTEST start")
+	SaveData.save_path = "user://autotest_save.json"
+	SaveData.call("_reset_to_defaults")
+	await _frames(5)
+	app.start_run()
+	await _frames(10)
+	var game := app.game
+	var p := game.player
+	game.director.intermission = 99999.0     # no zombies: we only test controls
+	var view := get_viewport().get_visible_rect().size
+
+	# --- keyboard movement (WASD + arrows) ---
+	for pair: Array in [[KEY_D, Vector2.RIGHT], [KEY_A, Vector2.LEFT], [KEY_W, Vector2.UP], [KEY_S, Vector2.DOWN],
+			[KEY_RIGHT, Vector2.RIGHT], [KEY_UP, Vector2.UP]]:
+		var start := p.pos
+		_key(pair[0], true)
+		await _frames(12)
+		_key(pair[0], false)
+		await _frames(2)
+		var moved := p.pos - start
+		var want: Vector2 = pair[1]
+		_check(moved.length() > 30.0 and moved.normalized().dot(want) > 0.95,
+				"key %s moves %s (moved %s)" % [OS.get_keycode_string(pair[0]), str(want), str(moved.round())])
+	_check(GameInput.device == GameInput.Device.KEYBOARD_MOUSE, "keyboard selects keyboard+mouse mode")
+	var still := p.pos
+	await _frames(5)
+	_check(p.pos.distance_to(still) < 0.01, "player stops instantly when keys are released")
+
+	# --- mouse aim ---
+	for target: Vector2 in [Vector2(view.x * 0.9, view.y * 0.5), Vector2(view.x * 0.5, view.y * 0.1), Vector2(view.x * 0.1, view.y * 0.5)]:
+		_mouse_move(target)
+		await _frames(20)
+		var want_dir := (p.get_global_mouse_position() - p.global_position).normalized()
+		_check(p.aim.dot(want_dir) > 0.99 and (p.get_global_mouse_position() - p.global_position).length() > 50.0,
+				"mouse at %s aims the player there (aim %s)" % [str(target.round()), str(p.aim.snapped(Vector2(0.01, 0.01)))])
+
+	# --- mouse fire ---
+	_check(not GameInput.is_firing(), "not firing by default")
+	_mouse_button(MOUSE_BUTTON_LEFT, true, Vector2(view.x * 0.9, view.y * 0.5))
+	await _frames(20)
+	_check(GameInput.is_firing() and not game.projectiles.shots.is_empty(), "left mouse button fires bullets")
+	_mouse_button(MOUSE_BUTTON_LEFT, false, Vector2(view.x * 0.9, view.y * 0.5))
+	await _frames(3)
+	_check(not GameInput.is_firing(), "releasing the button stops firing")
+
+	# --- rage on Space ---
+	game.rage = Config.RAGE_MAX
+	_key(KEY_SPACE, true)
+	await _frames(2)
+	_key(KEY_SPACE, false)
+	_check(game.rage_active, "Space activates rage")
+
+	# --- pause on Escape / P ---
+	_key(KEY_ESCAPE, true)
+	await _frames(2)
+	_key(KEY_ESCAPE, false)
+	await _frames(2)
+	_check(app.state == Main.State.PAUSED, "Escape pauses")
+	_key(KEY_ESCAPE, true)
+	await _frames(2)
+	_key(KEY_ESCAPE, false)
+	await _frames(2)
+	_check(app.state == Main.State.PLAYING, "Escape resumes")
+	_key(KEY_P, true)
+	await _frames(2)
+	_key(KEY_P, false)
+	await _frames(2)
+	_check(app.state == Main.State.PAUSED, "P pauses")
+	app.resume_game()
+	await _frames(3)
+
+	# --- gamepad ---
+	var start_pad := p.pos
+	_pad_axis(JOY_AXIS_LEFT_X, 1.0)
+	await _frames(12)
+	_check(GameInput.device == GameInput.Device.GAMEPAD, "stick input switches to gamepad mode")
+	_check((p.pos - start_pad).x > 30.0, "left stick moves the player")
+	_pad_axis(JOY_AXIS_LEFT_X, 0.4)
+	await _frames(2)
+	var slow := GameInput.get_move().length()
+	_check(slow > 0.1 and slow < 0.7, "left stick is analog (half tilt = %.2f speed)" % slow)
+	_pad_axis(JOY_AXIS_LEFT_X, 0.0)
+	await _frames(3)
+	_pad_axis(JOY_AXIS_RIGHT_Y, -1.0)
+	await _frames(4)
+	_check(p.aim.dot(Vector2.UP) > 0.99, "right stick aims (up)")
+	_pad_axis(JOY_AXIS_RIGHT_Y, 0.0)
+	_pad_axis(JOY_AXIS_RIGHT_X, -1.0)
+	await _frames(4)
+	_check(p.aim.dot(Vector2.LEFT) > 0.99, "right stick aims (left)")
+	_pad_axis(JOY_AXIS_RIGHT_X, 0.0)
+	await _frames(4)
+	_check(p.aim.dot(Vector2.LEFT) > 0.99, "aim direction is kept when the stick is released")
+	_pad_axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)
+	await _frames(4)
+	_check(GameInput.is_firing(), "right trigger fires")
+	_pad_axis(JOY_AXIS_TRIGGER_RIGHT, 0.0)
+	await _frames(3)
+	_check(not GameInput.is_firing(), "releasing the trigger stops firing")
+	game.rage_active = false
+	game.rage = Config.RAGE_MAX
+	_pad_button(JOY_BUTTON_LEFT_SHOULDER, true)
+	await _frames(2)
+	_pad_button(JOY_BUTTON_LEFT_SHOULDER, false)
+	_check(game.rage_active, "left bumper activates rage")
+	_pad_button(JOY_BUTTON_START, true)
+	await _frames(2)
+	_pad_button(JOY_BUTTON_START, false)
+	await _frames(2)
+	_check(app.state == Main.State.PAUSED, "Start pauses")
+	_pad_button(JOY_BUTTON_B, true)
+	await _frames(2)
+	_pad_button(JOY_BUTTON_B, false)
+	await _frames(2)
+	_check(app.state == Main.State.PLAYING, "B closes the pause menu")
+
+	# --- menu buttons react to accept (keyboard Enter / gamepad A) ---
+	app.pause_game()
+	await _frames(3)
+	_pad_button(JOY_BUTTON_A, true)
+	await _frames(2)
+	_pad_button(JOY_BUTTON_A, false)
+	await _frames(3)
+	_check(app.state == Main.State.PLAYING, "A on the focused RESUME button resumes")
+
+	# --- mouse wakes keyboard+mouse mode again ---
+	_mouse_move(view * 0.3)
+	await _frames(3)
+	_check(GameInput.device == GameInput.Device.KEYBOARD_MOUSE, "moving the mouse switches back to keyboard+mouse")
+
+	if _auto_failures.is_empty():
+		print("INPUTTEST PASSED")
+		_quit(0)
+	else:
+		print("INPUTTEST FAILED: %d problem(s)" % _auto_failures.size())
 		_quit(1)
