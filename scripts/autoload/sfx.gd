@@ -64,6 +64,7 @@ var RECIPES := {
 	"pet_call": [_make_pet_call, -3.0, 0.3],
 	"gear_drop": [_make_gear_drop, -3.0, 0.2],
 	"gear_pickup": [_make_gear_pickup, -3.0, 0.2],
+	"chest_open": [_make_chest_open, -2.0, 0.04],
 	"forge_ok": [_make_forge_ok, -2.0, 0.2],
 	"forge_fail": [_make_forge_fail, -2.0, 0.2],
 	"forge_break": [_make_forge_break, -1.0, 0.2],
@@ -829,6 +830,23 @@ func _make_gear_pickup(s: Synth) -> void:
 		s.tone(0.05 + i * 0.07, 0.3, 0.5, notes[i], notes[i], 0.1, Synth.TRIANGLE)
 		s.tone(0.05 + i * 0.07, 0.25, 0.2, notes[i] * 2.0, notes[i] * 2.0, 0.08)
 	s.reverb(0.25, 0.35)
+
+
+func _make_chest_open(s: Synth) -> void:
+	# A heavy lid thrown back - wood and an iron latch - then coins spilling
+	# and a bright chord climbing.
+	s.length(1.3)
+	s.drive = 1.3
+	s.band(0.0, 0.16, 1.2, 0.05, 190.0, 3.0)
+	s.noise(0.0, 0.05, 0.7, 0.012, 4200.0, 1500.0, 0.0005, 400.0)
+	s.band(0.03, 0.12, 0.6, 0.03, 1250.0, 9.0)
+	var notes := [523.3, 659.3, 784.0, 1046.5, 1318.5]
+	for i in notes.size():
+		s.tone(0.14 + i * 0.06, 0.7, 0.42, notes[i], notes[i], 0.22, Synth.TRIANGLE)
+		s.tone(0.14 + i * 0.06, 0.5, 0.16, notes[i] * 2.0, notes[i] * 2.0, 0.14)
+	for i in 6:
+		s.band(0.2 + i * 0.05, 0.08, 0.3, 0.02, 3800.0 + 500.0 * (i % 3), 16.0)
+	s.reverb(0.3, 0.6, 4500.0)
 
 
 func _make_forge_ok(s: Synth) -> void:

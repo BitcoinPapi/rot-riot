@@ -1,9 +1,10 @@
 class_name WaveDirector
 extends RefCounted
 ## Decides what attacks and when. Waves get bigger, faster and tougher over
-## time; zombies arrive in packs from one side so they form hordes; every few
-## waves a boss shows up. A map ends when its last wave is cleared. All the
-## numbers come from Config (MAPS and WAVES sections).
+## time; zombies arrive in packs so they form hordes; every few waves a boss
+## shows up. The map is big, so packs claw out of the ground in a ring around
+## the player, just out of sight, wherever the player is. A map ends when its
+## last wave is cleared. All the numbers come from Config (MAPS and WAVES).
 
 signal wave_started(wave: int, is_boss: bool)
 signal wave_cleared(wave: int, coin_bonus: int)
@@ -95,25 +96,25 @@ func _spawn_pack() -> void:
 	size = mini(size, Config.MAX_ENEMIES_ALIVE - enemies.alive_count)
 	if size <= 0:
 		return
-	var safe_zone := game.arena.rect.grow(Config.SPAWN_DIST_MIN * 0.7)
 	# Now and then a whole pack of runners sprints in together.
 	var runner_pack := wave > Config.RUNNER_START_WAVE and randf() < Config.RUNNER_PACK_CHANCE
 	# Later waves split each pack over several directions, so hordes close in
 	# from all around instead of trailing behind the player.
 	var sides := mini(Config.wave_pack_sides(wave), maxi(int(size / 3.0), 1))
 	var left := size
+	var first_angle := randf() * TAU
 	for side in sides:
 		var group := left if side == sides - 1 else int(ceil(float(size) / sides))
 		group = mini(group, left)
 		left -= group
-		var anchor := game.arena.random_spawn_point()
+		# The pack's middle is far enough out that none of it pops into view.
 		var spread := 50.0 + group * 8.0
+		var angle := first_angle + TAU * float(side) / float(sides) + randf_range(-0.4, 0.4)
+		var anchor := game.spawn_point(angle, spread)
 		for k in group:
-			var at := anchor + Vector2.from_angle(randf() * TAU) * (randf() * spread)
-			if safe_zone.has_point(at):
-				at = anchor      # never pop into view inside the clearing
+			var at := game.arena.clamp_inside(anchor + Vector2.from_angle(randf() * TAU) * (randf() * spread), 30.0)
 			var kind: int = Config.RUNNER if runner_pack else _pick_kind()
-			enemies.spawn(kind, at, game.enemy_hp_mult, game.enemy_speed_mult)
+			enemies.spawn(kind, at, game.enemy_hp_mult, game.enemy_speed_mult, true)
 	to_spawn -= size
 
 
@@ -136,7 +137,8 @@ func _spawn_boss() -> void:
 	var cfg: Dictionary = Config.ENEMIES[Config.BOSS]
 	var boss_number := maxi(int(float(wave) / Config.BOSS_EVERY), 1)
 	var hp_mult := game.enemy_hp_mult * (1.0 + float(cfg["hp_growth_per_boss"]) * float(boss_number - 1))
-	boss = game.enemies.spawn(Config.BOSS, game.arena.random_spawn_point(), hp_mult, float(game.map["speed"]))
+	var at := game.spawn_point(randf() * TAU, 0.0, float(cfg["radius"]) + 12.0)
+	boss = game.enemies.spawn(Config.BOSS, at, hp_mult, float(game.map["speed"]))
 	_boss_delay = -1.0
 	boss_spawned.emit(boss)
 	Sfx.play("boss_roar")
@@ -146,3 +148,9 @@ func _spawn_boss() -> void:
 func on_enemy_killed(e: Enemy) -> void:
 	if e == boss:
 		boss = null
+
+
+## A zombie was left too far behind and taken off the field: one more is owed.
+func on_enemy_lost(_e: Enemy) -> void:
+	if in_wave:
+		to_spawn += 1

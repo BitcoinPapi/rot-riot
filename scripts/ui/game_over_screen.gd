@@ -135,8 +135,15 @@ func show_results(stats: Dictionary, is_best: bool) -> void:
 	var found: Array[String] = []
 	for key: Variant in (stats.get("gear", []) as Array):
 		found.append(Config.gear_name(String(key)))
-	_loot.text = "" if found.is_empty() else "GEAR FOUND:  %s" % ",  ".join(found)
-	_loot.visible = not found.is_empty()
+	var lines: Array[String] = []
+	var chest_total := int(stats.get("chests_total", 0))
+	if chest_total > 0:
+		lines.append("TREASURE CHESTS OPENED:  %d of %d     MAP EXPLORED:  %d%%" % [
+				int(stats.get("chests", 0)), chest_total, int(floor(float(stats.get("explored", 0.0)) * 100.0))])
+	if not found.is_empty():
+		lines.append("GEAR FOUND:  %s" % ",  ".join(found))
+	_loot.text = "\n".join(lines)
+	_loot.visible = not lines.is_empty()
 
 	_put("SCORE", "%d" % int(stats.get("score", 0)))
 	_put("WAVE REACHED", "%d / %d" % [int(stats.get("wave", 0)), Config.WAVES_PER_MAP])

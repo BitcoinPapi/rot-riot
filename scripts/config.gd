@@ -11,24 +11,67 @@ extends Node
 ## ============================================================================
 
 const GAME_TITLE := "ROT RIOT"
-const GAME_VERSION := "0.5.0"
+const GAME_VERSION := "0.6.0"
 const HERO_NAME := "CLIFF"                    # the survivor you play
 # How he looks with nothing equipped (his gear is drawn over this, see scripts/autoload/art.gd).
 const HERO_LOOK := {"skin": "#dfae88", "skin_dark": "#b98660", "hair": "#3a2a1e", "shirt": "#23262b", "shirt_light": "#33373d",
 	"strap": "#6b4a2e", "pants": "#2c2f34", "pads": "#1a1c20", "boots": "#17181b", "belt": "#3a3d42", "pouch": "#3f4a2c", "metal": "#b9bec4"}
 
 # ----------------------------------------------------------------------------
-#  ARENA
+#  THE MAP - one big clearing in the woods, far larger than the screen
+#  (a screen shows about 1070 x 600 of it). A map may set its own "size".
 # ----------------------------------------------------------------------------
-const ARENA_SIZE := Vector2(2400.0, 1500.0)   # playable clearing
+const ARENA_SIZE := Vector2(6000.0, 4000.0)   # the playable area
 const ARENA_OUTER_MARGIN := 150.0             # painted ground beyond the playable edge
 const CAMERA_EDGE_MARGIN := 110.0             # how far past the edge the camera may look
-const SPAWN_DIST_MIN := 160.0                 # zombies appear this far outside the edge...
-const SPAWN_DIST_MAX := 330.0                 # ...hidden under the trees, then walk in
-const OBSTACLE_COUNT := 9                     # rocks / stumps scattered in the arena
+const OBSTACLES_PER_MILLION := 2.5            # rocks / stumps per 1000 x 1000 px of map
 const OBSTACLE_RADIUS_MIN := 34.0
 const OBSTACLE_RADIUS_MAX := 58.0
+const OBSTACLE_SPACING := 240.0               # free ground between two of them, so hordes can flow around
+const OBSTACLE_START_CLEAR := 300.0           # none this close to where the player starts
 const DECAL_RESOLUTION := 1.0                 # 1.0 = full detail blood layer. Lower (0.5) for weak devices / mobile.
+const DECAL_CHUNK_SIZE := 1024.0              # the blood layer is cut into squares of about this size; a square is only made when first needed
+const DECAL_CHUNK_AHEAD := 260.0              # ...which is when the screen comes this close to it
+
+# Where zombies come from: they claw out of the ground in a ring around the
+# player, just out of sight, wherever on the map the player is.
+const SPAWN_RING_MARGIN := 70.0               # the ring starts this far beyond the corner of the screen
+const SPAWN_RING_DEPTH := 240.0               # ...and is this deep
+const ENEMY_LEASH_EXTRA := 450.0              # a zombie left this far beyond the ring gives up and comes back with a later pack
+const BOSS_LEASH_EXTRA := 300.0               # a boss left this far beyond the ring digs through the ground and bursts out near you
+
+# Fog of war: the map starts hidden and clears, for the rest of the run,
+# wherever the player has been.
+const FOG_CELL := 50.0                        # the fog is remembered in squares of this size
+const FOG_CLEAR_RADIUS := 380.0               # everything this close to the player is uncovered
+const FOG_EDGE_RADIUS := 520.0                # ...fading back to full fog at this distance
+const FOG_START_MULT := 1.25                  # the first look around at the start is this much wider
+const FOG_DROP_MULT := 0.4                    # a weapon crate or a piece of gear landing in the fog clears a small hole around itself
+const FOG_COLOR := Color(0.035, 0.05, 0.045)  # the dark of the fog
+const FOG_LIGHT := Color(0.3, 0.37, 0.35)    # ...and its pale wisps
+const FOG_OPACITY := 0.97                     # 1 = nothing at all shows through
+
+# The minimap in the corner of the screen (the whole map, fog included).
+const MINIMAP_WIDTH := 236.0
+const MINIMAP_MARGIN := Vector2(22.0, 30.0)   # from the right and bottom edges of the screen
+const MINIMAP_GROUND := Color(0.47, 0.45, 0.35)
+const MINIMAP_FOG := Color(0.03, 0.04, 0.04, 0.95)
+
+# Treasure chests: a few are hidden on the map every run. Walk into one to
+# open it: a piece of gear (kept even if you die) and a handful of coins.
+const CHEST_COUNT := 4
+const CHEST_MIN_DIST_FROM_START := 1100.0     # never right beside the starting spot
+const CHEST_EDGE_MARGIN := 220.0              # ...or right at the edge of the map
+const CHEST_PLACE_TRIES := 12                 # more = chests spread more evenly over the map
+const CHEST_OPEN_RADIUS := 30.0
+const CHEST_SIZE := 60.0                      # how big it is drawn
+const CHEST_COINS_MIN := 12                   # coins that fly out (each worth the map's coin value)
+const CHEST_COINS_MAX := 24
+const CHEST_TIER_WEIGHTS := [0.70, 0.25, 0.05]   # chance of a COMMON / STURDY / FINE piece (later maps can add a tier, see "gear_up")
+const CHEST_TIER_UP_PER_WAVE := 0.01          # ...and so can a late wave: this much chance of one tier better per wave of the run
+const CHEST_TIER_UP_MAX := 0.5                # (at most; it is rolled when the chest is opened, so chests are worth more deep into a run)
+const CHEST_OPEN_SHAKE := 0.3
+const CHEST_OPEN_HITSTOP := 0.05
 
 # ----------------------------------------------------------------------------
 #  PLAYER
@@ -436,8 +479,8 @@ const CRATE_BLAST_MULT := 2.0           # explosions are this much harder on cra
 const CRATE_HIT_RADIUS := 24.0          # how big a target a crate is for bullets
 const CRATE_FLASH_TIME := 0.08          # it flashes white this long when hit
 const CRATE_BREAK_SHAKE := 0.25
-const CRATE_MIN_DIST_FROM_PLAYER := 260.0
-const CRATE_MAX_DIST_FROM_PLAYER := 700.0
+const CRATE_MIN_DIST_FROM_PLAYER := 260.0   # crates land near the player, wherever on the map that is
+const CRATE_MAX_DIST_FROM_PLAYER := 620.0
 
 const MEDKIT_HEAL := 25.0
 const MEDKIT_MAX_ON_FIELD := 2

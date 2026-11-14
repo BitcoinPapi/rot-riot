@@ -1,8 +1,8 @@
 class_name Hud
 extends Control
 ## The in-game overlay: health, rage, weapon timer, score, coins, wave info,
-## boss bar, crosshair and big announcements. Everything is drawn in _draw
-## from the Game's state, so there is nothing to keep in sync.
+## boss bar, minimap, crosshair and big announcements. Everything is drawn in
+## _draw from the Game's state, so there is nothing to keep in sync.
 
 var game: Game
 
@@ -85,6 +85,7 @@ func _draw() -> void:
 	_draw_xp(w, h)
 	_draw_score(w)
 	_draw_wave(w)
+	_draw_minimap(w, h)
 	_draw_announcement(w, h)
 	_draw_hint(w, h)
 	if p.alive:
@@ -280,6 +281,71 @@ func _draw_wave(w: float) -> void:
 		_text(Vector2(cx, by + 36), boss_name, 16, Color(1.0, 0.5, 0.4), 1)
 
 
+## The whole map in the corner: where you have been (the rest is fog), where
+## you are and what is on the field.
+func _draw_minimap(w: float, h: float) -> void:
+	var arena := game.arena.rect
+	var mw: float = Config.MINIMAP_WIDTH
+	var mh := mw * arena.size.y / arena.size.x
+	var box := Rect2(Vector2(w - Config.MINIMAP_MARGIN.x - mw, h - Config.MINIMAP_MARGIN.y - mh), Vector2(mw, mh))
+	var k := mw / arena.size.x                     # world pixels -> minimap pixels
+	var from := box.position - arena.position * k
+	draw_rect(box.grow(4.0), Color(0, 0, 0, 0.7))
+	draw_rect(box, Config.MINIMAP_GROUND)
+
+	# Zombies: small red dots (the fog is drawn over them).
+	var red := Color(0.95, 0.2, 0.15, 0.9)
+	for e: Enemy in game.enemies.active:
+		if e.alive and not e.is_big:
+			draw_rect(Rect2(from + e.pos * k - Vector2(1.0, 1.0), Vector2(2.0, 2.0)), red)
+
+	draw_texture_rect_region(game.fog.texture, box, game.fog.map_region(), Config.MINIMAP_FOG)
+
+	# What matters is drawn over the fog: chests you have seen, weapon
+	# crates, gear, the boss, you.
+	var chests_open := 0
+	for chest: Pickups.Chest in game.pickups.chests:
+		if chest.opened:
+			chests_open += 1
+			_map_mark(from + chest.pos * k, 2.0, Color(0.5, 0.42, 0.3))
+		elif chest.found:
+			_map_mark(from + chest.pos * k, 3.5 + 1.0 * sin(_time * 5.0), Color(1.0, 0.82, 0.3))
+	for crate: Pickups.Crate in game.pickups.crates:
+		var crate_color: Color = Config.CRATE_RARITIES[String(Config.WEAPONS[crate.weapon]["rarity"])]["color"]
+		_map_mark(from + crate.pos * k, 3.0, crate_color)
+	for piece: Pickups.Loot in game.pickups.loot:
+		_map_mark(from + piece.pos * k, 3.0, Config.gear_tier_def(Config.gear_tier_of(piece.key))["color"])
+	for boss: Enemy in game.enemies.bigs:
+		if boss.alive:
+			var pulse := 4.0 + 1.5 * sin(_time * 8.0)
+			_map_mark(from + boss.pos * k, pulse, Color(1.0, 0.15, 0.1))
+	# What the screen shows, and the player in the middle of it.
+	var view := game.cam.view_rect()
+	var seen := Rect2(from + view.position * k, view.size * k).intersection(box)
+	draw_rect(seen, Color(1, 1, 1, 0.3), false, 1.0)
+	var at := from + game.player.pos * k
+	var aim := game.player.aim
+	var side := Vector2(-aim.y, aim.x)
+	draw_colored_polygon(PackedVector2Array([at + aim * 7.0, at - aim * 4.0 + side * 4.5, at - aim * 4.0 - side * 4.5]), Color(0, 0, 0, 0.9))
+	draw_colored_polygon(PackedVector2Array([at + aim * 5.5, at - aim * 3.0 + side * 3.2, at - aim * 3.0 - side * 3.2]), Color.WHITE)
+	draw_rect(box, Color(1, 1, 1, 0.22), false, 1.0)
+
+	# Above the map: treasure chests opened, and how much of the map you have seen.
+	var label_y := box.position.y - 10.0
+	_text(Vector2(box.end.x, label_y), "%d%% explored" % int(floor(game.fog.explored * 100.0)), 13, Color(1, 1, 1, 0.6), 2, 4)
+	var chest_total := game.pickups.chests.size()
+	if chest_total > 0:
+		draw_texture_rect(Art.t("chest"), Rect2(box.position.x - 3.0, label_y - 19.0, 26.0, 26.0), false)
+		_text(Vector2(box.position.x + 27.0, label_y), "%d / %d" % [chests_open, chest_total], 15,
+				Color(1.0, 0.85, 0.35) if chests_open < chest_total else Color(0.6, 1.0, 0.5), 0, 4)
+
+
+## A small square mark on the minimap, with a dark edge so it shows on anything.
+func _map_mark(at: Vector2, half: float, color: Color) -> void:
+	draw_rect(Rect2(at - Vector2(half + 1.0, half + 1.0), Vector2(half + 1.0, half + 1.0) * 2.0), Color(0, 0, 0, 0.85))
+	draw_rect(Rect2(at - Vector2(half, half), Vector2(half, half) * 2.0), color)
+
+
 func _draw_announcement(w: float, h: float) -> void:
 	if _announce_t <= 0.0:
 		return
@@ -332,9 +398,12 @@ func _draw_crosshair(p: Player) -> void:
 					Color(1.0, 0.3, 0.25, 0.95) if low else Color(1, 1, 1, 0.6), 1, 4)
 
 
-## Arrows at the screen edge pointing to weapon crates and dropped gear that
-## are out of view.
+## Arrows at the screen edge pointing to weapon crates, dropped gear and
+## treasure chests you have seen but not opened, when they are out of view.
 func _draw_crate_arrows() -> void:
+	for chest: Pickups.Chest in game.pickups.chests:
+		if chest.found and not chest.opened:
+			_edge_arrow(chest.pos, Color(1.0, 0.82, 0.3), Art.t("chest"), Color.WHITE)
 	for crate: Pickups.Crate in game.pickups.crates:
 		_edge_arrow(crate.pos, Config.CRATE_RARITIES[String(Config.WEAPONS[crate.weapon]["rarity"])]["color"],
 				Art.t("icon_" + crate.weapon), Color.WHITE)

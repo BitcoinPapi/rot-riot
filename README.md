@@ -36,11 +36,22 @@ works on 4.5 and later.
 - **PLAY** opens the map screen. There are five maps and each has **100
   waves**. Clear wave 100 and the next map opens - with much tougher zombies
   and bigger rewards.
-- Zombies come out of the trees in waves that keep getting bigger. Every 5th
-  wave brings a boss. **Every boss you beat is a checkpoint**: next time you
+- **The map is big** - far bigger than the screen - and it starts hidden
+  under **fog**. The fog clears wherever you walk and stays clear for the
+  rest of the run. The **minimap** in the bottom right corner shows the whole
+  map: where you have been, where you are (the white arrow), zombies (red
+  dots), weapon crates, dropped gear and the boss.
+- **Treasure chests:** four are hidden somewhere on the map every run. When
+  the fog over one clears it appears on the minimap as a gold mark. Walk
+  into it to open it: you get a piece of gear (yours to keep, even if you
+  die) and a handful of coins. Chests opened in later waves hold better
+  gear. The counter above the minimap shows how many you have opened.
+- Zombies claw out of the ground around you in waves that keep getting
+  bigger, wherever on the map you are - you cannot outrun a wave, and a boss
+  you leave behind digs its way back to you. Every 5th wave brings a boss. **Every boss you beat is a checkpoint**: next time you
   can start that map from the wave after it (choose it on the map screen),
   with a weapon crate waiting beside you.
-- You play **Cliff**. He starts with a pistol. **Crates** drop into the arena
+- You play **Cliff**. He starts with a pistol. **Crates** drop near you
   with a better weapon that lasts about 20 seconds: SMG, shotgun, machine
   gun, rifle, sledgehammer, launcher, flamethrower or chainsaw. The crate
   shows a big picture of the weapon, and its name underneath in the colour
@@ -109,7 +120,7 @@ Close Godot, then double-click **Update Rot Riot.command** inside the project
 folder. A Terminal window opens, downloads the latest version and replaces the
 folder. Your coins, level and upgrades are stored elsewhere and are kept.
 Then open the project in Godot again. The version number is shown in the
-bottom right corner of the main menu (now v0.5.0).
+bottom right corner of the main menu (now v0.6.0).
 
 After an update that changes the upgrade screens, points you had already
 spent are handed back so you can place them again in the new trees.

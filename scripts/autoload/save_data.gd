@@ -57,6 +57,7 @@ var best_score: int = 0
 var best_wave: int = 0
 var total_kills: int = 0
 var runs_played: int = 0
+var chests_opened: int = 0      # treasure chests opened, over all runs
 var settings: Dictionary = {}
 
 ## True for one session after an old save was converted (the menu says so once).
@@ -80,6 +81,7 @@ func _reset_to_defaults() -> void:
 	best_wave = 0
 	total_kills = 0
 	runs_played = 0
+	chests_opened = 0
 	was_reset_by_update = false
 	points_returned = 0
 	weapon_points_returned = 0
@@ -149,6 +151,7 @@ func load_game() -> void:
 	best_wave = int(data.get("best_wave", 0))
 	total_kills = int(data.get("total_kills", 0))
 	runs_played = int(data.get("runs_played", 0))
+	chests_opened = int(data.get("chests_opened", 0))
 	var saved_settings: Variant = data.get("settings", {})
 	if typeof(saved_settings) == TYPE_DICTIONARY:
 		for key: String in settings.keys():
@@ -237,6 +240,7 @@ func save_game() -> void:
 		"best_wave": best_wave,
 		"total_kills": total_kills,
 		"runs_played": runs_played,
+		"chests_opened": chests_opened,
 		"settings": settings,
 	}
 	var file := FileAccess.open(save_path, FileAccess.WRITE)

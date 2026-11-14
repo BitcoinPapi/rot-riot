@@ -1,23 +1,33 @@
 class_name Arena
 extends Node2D
-## The battlefield: a clearing in the woods. Knows the playable rectangle,
-## the obstacles (rocks and stumps) and draws the ring of trees that hides
-## zombies until they walk in.
+## The battlefield: one big clearing in the woods, much larger than the
+## screen. Knows the playable rectangle, the obstacles (rocks and stumps) and
+## draws the ring of trees around the edge.
+##
+## There are dozens of obstacles, so they are sorted into coarse squares
+## ("buckets"): a bullet or a walker only checks the few rocks near it.
+
+const BUCKET := 256.0          # size of one square of the obstacle lookup
+const BUCKET_REACH := 70.0     # a rock is listed in every square this close to it (bigger than any walker)
 
 var rect: Rect2
 var obs_pos := PackedVector2Array()
 var obs_radius := PackedFloat32Array()
 var _obs_sprite := PackedStringArray()
 var _obs_rot := PackedFloat32Array()
+var _buckets: Array = []       # per square: PackedInt32Array of the obstacles near it
+var _bw := 1
+var _bh := 1
 
 var canopy: DrawLayer          # tree tops, drawn above everything in the world
 var tree_tint := Color(1, 1, 1)   # the map's colour for the tree tops
 var _trees: Array = []         # [pos, scale, rotation, tint]
 
 
-func _init() -> void:
-	rect = Rect2(Vector2.ZERO, Config.ARENA_SIZE)
+func _init(size: Vector2 = Config.ARENA_SIZE) -> void:
+	rect = Rect2(Vector2.ZERO, size)
 	_generate_obstacles()
+	_build_buckets()
 	_generate_trees()
 	canopy = DrawLayer.new()
 	canopy.painter = _paint_canopy
@@ -25,19 +35,20 @@ func _init() -> void:
 
 func _generate_obstacles() -> void:
 	var center := rect.get_center()
+	var wanted := int(round(rect.get_area() / 1000000.0 * Config.OBSTACLES_PER_MILLION))
 	var tries := 0
-	while obs_pos.size() < Config.OBSTACLE_COUNT and tries < 600:
+	while obs_pos.size() < wanted and tries < wanted * 80:
 		tries += 1
 		var radius := randf_range(Config.OBSTACLE_RADIUS_MIN, Config.OBSTACLE_RADIUS_MAX)
 		var pos := Vector2(
 			randf_range(rect.position.x + 190.0, rect.end.x - 190.0),
 			randf_range(rect.position.y + 190.0, rect.end.y - 190.0))
-		if pos.distance_to(center) < 300.0:
+		if pos.distance_to(center) < Config.OBSTACLE_START_CLEAR:
 			continue   # keep the player's starting spot open
 		var ok := true
 		for i in obs_pos.size():
 			# Spaced well apart so hordes can always flow around them.
-			if pos.distance_to(obs_pos[i]) < radius + obs_radius[i] + 240.0:
+			if pos.distance_to(obs_pos[i]) < radius + obs_radius[i] + Config.OBSTACLE_SPACING:
 				ok = false
 				break
 		if not ok:
@@ -48,12 +59,40 @@ func _generate_obstacles() -> void:
 		_obs_rot.append(randf() * TAU)
 
 
+## Sort the obstacles into squares, so nobody has to check all of them.
+func _build_buckets() -> void:
+	_bw = maxi(int(ceil(rect.size.x / BUCKET)), 1)
+	_bh = maxi(int(ceil(rect.size.y / BUCKET)), 1)
+	_buckets.resize(_bw * _bh)
+	for i in _buckets.size():
+		_buckets[i] = PackedInt32Array()
+	for i in obs_pos.size():
+		var c := obs_pos[i] - rect.position
+		var reach := obs_radius[i] + BUCKET_REACH
+		var x0 := clampi(int((c.x - reach) / BUCKET), 0, _bw - 1)
+		var x1 := clampi(int((c.x + reach) / BUCKET), 0, _bw - 1)
+		var y0 := clampi(int((c.y - reach) / BUCKET), 0, _bh - 1)
+		var y1 := clampi(int((c.y + reach) / BUCKET), 0, _bh - 1)
+		for by in range(y0, y1 + 1):
+			for bx in range(x0, x1 + 1):
+				var list: PackedInt32Array = _buckets[by * _bw + bx]
+				list.append(i)
+				_buckets[by * _bw + bx] = list
+
+
+## The obstacles near a point.
+func _near(pos: Vector2) -> PackedInt32Array:
+	var bx := clampi(int((pos.x - rect.position.x) / BUCKET), 0, _bw - 1)
+	var by := clampi(int((pos.y - rect.position.y) / BUCKET), 0, _bh - 1)
+	return _buckets[by * _bw + bx]
+
+
 func _generate_trees() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 90210
 	var tints := [Color(1, 1, 1), Color(0.86, 0.92, 0.86), Color(1.0, 1.0, 0.9), Color(0.8, 0.86, 0.8)]
-	# Two rows of tree tops around the clearing. The inner row just touches
-	# the edge; the outer row covers the area where zombies spawn.
+	# Two rows of tree tops around the clearing: the inner row just touches
+	# the edge, the outer row fills the view beyond it.
 	for row in 2:
 		var dist := 100.0 + row * 150.0
 		var spacing := 118.0
@@ -99,7 +138,7 @@ func _paint_canopy(ci: CanvasItem) -> void:
 # ----------------------------------------------------------------------------
 ## Push a circle out of every obstacle and keep it inside the arena.
 func resolve(pos: Vector2, radius: float) -> Vector2:
-	for i in obs_pos.size():
+	for i: int in _near(pos):
 		pos = push_out_of(i, pos, radius)
 	return clamp_inside(pos, radius)
 
@@ -131,16 +170,25 @@ func segment_hit(from: Vector2, to: Vector2) -> float:
 	var len2 := seg.length_squared()
 	if len2 < 0.0001:
 		return 2.0
+	# Only the squares the segment passes through (a bullet moves a few pixels
+	# per frame, so that is nearly always one square).
+	var x0 := clampi(int((minf(from.x, to.x) - rect.position.x) / BUCKET), 0, _bw - 1)
+	var x1 := clampi(int((maxf(from.x, to.x) - rect.position.x) / BUCKET), 0, _bw - 1)
+	var y0 := clampi(int((minf(from.y, to.y) - rect.position.y) / BUCKET), 0, _bh - 1)
+	var y1 := clampi(int((maxf(from.y, to.y) - rect.position.y) / BUCKET), 0, _bh - 1)
 	var best := 2.0
-	for i in obs_pos.size():
-		var c := obs_pos[i]
-		var r := obs_radius[i] - 5.0
-		var t := clampf((c - from).dot(seg) / len2, 0.0, 1.0)
-		var d2 := (from + seg * t).distance_squared_to(c)
-		if d2 <= r * r:
-			var enter := maxf(t - sqrt(r * r - d2) / sqrt(len2), 0.0)
-			if enter < best:
-				best = enter
+	var inv_len := 1.0 / sqrt(len2)
+	for by in range(y0, y1 + 1):
+		for bx in range(x0, x1 + 1):
+			for i: int in _buckets[by * _bw + bx]:
+				var c := obs_pos[i]
+				var r := obs_radius[i] - 5.0
+				var t := clampf((c - from).dot(seg) / len2, 0.0, 1.0)
+				var d2 := (from + seg * t).distance_squared_to(c)
+				if d2 <= r * r:
+					var enter := maxf(t - sqrt(r * r - d2) * inv_len, 0.0)
+					if enter < best:
+						best = enter
 	return best
 
 
@@ -165,18 +213,32 @@ func random_free_point(radius: float, margin: float = 80.0) -> Vector2:
 	return rect.get_center()
 
 
-## A random point outside the clearing, hidden under the trees, where zombies appear.
-func random_spawn_point() -> Vector2:
-	var d := randf_range(Config.SPAWN_DIST_MIN, Config.SPAWN_DIST_MAX)
-	var w := rect.size.x
-	var h := rect.size.y
-	var t := randf() * 2.0 * (w + h)
-	if t < w:
-		return Vector2(t, -d)
-	t -= w
-	if t < h:
-		return Vector2(w + d, t)
-	t -= h
-	if t < w:
-		return Vector2(t, h + d)
-	return Vector2(-d, t - w)
+## A free spot between `min_dist` and `max_dist` from `center` (for things
+## that should land near the player, wherever on the map that is).
+func random_free_point_near(center: Vector2, min_dist: float, max_dist: float, radius: float, margin: float = 80.0) -> Vector2:
+	var inner := rect.grow(-margin)
+	for _i in 40:
+		var p := center + Vector2.from_angle(randf() * TAU) * randf_range(min_dist, max_dist)
+		if inner.has_point(p) and is_free(p, radius):
+			return p
+	# Cornered: take a spot toward the middle of the map.
+	var toward := rect.get_center() - center
+	var dir := toward.normalized() if toward.length_squared() > 1.0 else Vector2.RIGHT
+	return resolve(clamp_inside(center + dir * min_dist, margin), radius)
+
+
+## Where a pack of zombies comes out of the ground: between `min_dist` and
+## `max_dist` from `center` (the player), in the direction `angle` if the map
+## has room there, otherwise in any direction that does.
+func spawn_point_around(center: Vector2, min_dist: float, max_dist: float, angle: float, edge: float = 40.0) -> Vector2:
+	var inner := rect.grow(-edge)
+	var a := angle
+	for _i in 18:
+		var p := center + Vector2.from_angle(a) * randf_range(min_dist, max_dist)
+		if inner.has_point(p):
+			return p
+		a = randf() * TAU
+	# Cornered: come from the direction of the middle of the map.
+	var toward := rect.get_center() - center
+	var dir := toward.normalized() if toward.length_squared() > 1.0 else Vector2.RIGHT
+	return clamp_inside(center + dir * min_dist, edge)

@@ -5,6 +5,8 @@ extends Node2D
 ##   crates   - appear on a timer, give a weapon for a limited time
 ##   medkits  - rare drops that heal
 ##   loot     - a piece of gear, dropped rarely (always by bosses); kept forever
+##   chests   - a few treasure chests hidden on the map each run; opening one
+##              gives a piece of gear and coins
 ## Coins are plain data in arrays (there can be hundreds); all of it is drawn
 ## by this one node.
 
@@ -27,7 +29,14 @@ class Loot:
 	var life := 0.0
 	var age := 0.0
 
+class Chest:
+	var pos := Vector2.ZERO
+	var found := false         # the fog over it has cleared: from then on it is marked on the minimap
+	var opened := false
+	var age := 0.0             # seconds since it was opened
+
 var game: Game
+var chests: Array[Chest] = []
 var crates: Array[Crate] = []
 var medkits: Array[Medkit] = []
 var loot: Array[Loot] = []
@@ -46,6 +55,8 @@ var _coin_tex: Texture2D
 var _crate_tex: Texture2D
 var _crate_flash_tex: Texture2D
 var _medkit_tex: Texture2D
+var _chest_tex: Texture2D
+var _chest_open_tex: Texture2D
 var _glow: Texture2D
 var _ring_tex: Texture2D
 var _font: Font
@@ -58,6 +69,8 @@ func _ready() -> void:
 	_crate_tex = Art.t("crate")
 	_crate_flash_tex = Art.t("crate_flash")
 	_medkit_tex = Art.t("medkit")
+	_chest_tex = Art.t("chest")
+	_chest_open_tex = Art.t("chest_open")
 	_glow = Art.t("glow")
 	var cap: int = Config.MAX_COINS_ON_FIELD
 	_coin_pos.resize(cap)
@@ -91,9 +104,56 @@ func _roll_gear(e: Enemy) -> void:
 		spawn_gear(e.pos, _pick_gear("brutes" if e.kind == Config.BRUTE else "zombies"))
 
 
+## Hide this run's treasure chests on the map: away from the starting spot
+## and spread out (each one goes to the best of a few random spots: the one
+## furthest from the chests already placed).
+func place_chests() -> void:
+	chests.clear()
+	var arena := game.arena
+	var start := game.player.pos
+	for n in Config.CHEST_COUNT:
+		var best := Vector2.ZERO
+		var best_gap := -1.0
+		for _try in Config.CHEST_PLACE_TRIES:
+			var p := arena.random_free_point(44.0, Config.CHEST_EDGE_MARGIN)
+			if p.distance_to(start) < Config.CHEST_MIN_DIST_FROM_START:
+				continue
+			var gap := 1000000.0
+			for other: Chest in chests:
+				gap = minf(gap, other.pos.distance_to(p))
+			if gap > best_gap:
+				best_gap = gap
+				best = p
+		if best_gap < 0.0:
+			continue      # (a map too small to hide anything on)
+		var chest := Chest.new()
+		chest.pos = best
+		chests.append(chest)
+
+
+## What a treasure chest holds: any piece that zombies or brutes drop on this
+## map (rings and amulets stay with the bosses) - usually COMMON, sometimes better.
+func roll_chest_gear() -> String:
+	var weights: Array = Config.CHEST_TIER_WEIGHTS
+	var roll := randf()
+	var tier := weights.size()
+	for i in weights.size():
+		roll -= float(weights[i])
+		if roll < 0.0:
+			tier = i + 1
+			break
+	if randf() < float(game.map["gear_up"]):
+		tier += 1
+	# The deeper into the run the chest is opened, the better.
+	if randf() < minf(float(game.director.wave) * Config.CHEST_TIER_UP_PER_WAVE, Config.CHEST_TIER_UP_MAX):
+		tier += 1
+	return _pick_gear("brutes", mini(tier, Config.GEAR_TIERS.size()))
+
+
 ## Choose a piece for a drop. `source`: "zombies" = pieces any zombie drops,
 ## "brutes" = those plus the brute pieces, "bosses" = boss-only pieces.
-func _pick_gear(source: String) -> String:
+## `tier` 0 = the usual for a drop (COMMON, or one better on later maps).
+func _pick_gear(source: String, tier: int = 0) -> String:
 	var options: Array[String] = []
 	for item: String in Config.GEAR_ORDER:
 		var def: Dictionary = Config.GEAR_ITEMS[item]
@@ -102,7 +162,8 @@ func _pick_gear(source: String) -> String:
 		var from := String(def["from"])
 		if from == source or (source == "brutes" and from == "zombies"):
 			options.append(item)
-	var tier := 2 if randf() < float(game.map["gear_up"]) else 1
+	if tier <= 0:
+		tier = 2 if randf() < float(game.map["gear_up"]) else 1
 	return Config.gear_key(options[randi() % options.size()], tier)
 
 
@@ -112,6 +173,7 @@ func spawn_gear(at: Vector2, key: String) -> void:
 	l.key = key
 	l.life = Config.GEAR_LIFETIME
 	loot.append(l)
+	game.fog.reveal(l.pos, Config.FOG_DROP_MULT)      # its light burns a hole in the fog
 	var color: Color = Config.gear_tier_def(Config.gear_tier_of(key))["color"]
 	game.fx.ring(l.pos, 8.0, 110.0, 0.5, Color(color.r, color.g, color.b, 0.9))
 	game.fx.light(l.pos, 260.0, 0.4, Color(color.r, color.g, color.b, 0.6))
@@ -137,6 +199,7 @@ func spawn_crate(at: Vector2, weapon: String = "") -> void:
 	c.weapon = weapon if weapon != "" else _pick_crate_weapon()
 	c.life = Config.CRATE_LIFETIME
 	crates.append(c)
+	game.fog.reveal(c.pos, Config.FOG_DROP_MULT)
 	game.fx.dust(c.pos, 8)
 	Sfx.play("crate_spawn")
 
@@ -241,16 +304,16 @@ func _pick_crate_weapon() -> String:
 	return options[options.size() - 1]
 
 
+## Crates land near the player, wherever on the map that is - on ground that
+## is already uncovered if there is any in reach.
 func _random_crate_spot() -> Vector2:
-	var ppos := game.player.pos
-	var best := game.arena.random_free_point(26.0, 110.0)
-	for _i in 24:
-		var p := game.arena.random_free_point(26.0, 110.0)
-		var d := p.distance_to(ppos)
-		if d >= Config.CRATE_MIN_DIST_FROM_PLAYER and d <= Config.CRATE_MAX_DIST_FROM_PLAYER:
-			return p
-		best = p
-	return best
+	var spot := Vector2.ZERO
+	for _i in 10:
+		spot = game.arena.random_free_point_near(game.player.pos, Config.CRATE_MIN_DIST_FROM_PLAYER,
+				Config.CRATE_MAX_DIST_FROM_PLAYER, 26.0, 110.0)
+		if game.fog.is_clear(spot):
+			break
+	return spot
 
 
 # ----------------------------------------------------------------------------
@@ -342,6 +405,18 @@ func tick(dt: float) -> void:
 		else:
 			i += 1
 
+	# --- treasure chests ---
+	for chest: Chest in chests:
+		if chest.opened:
+			chest.age += dt
+			continue
+		if not chest.found and game.fog.is_clear(chest.pos):
+			chest.found = true
+			game.fx.text(chest.pos + Vector2(0, -46), "TREASURE CHEST", Color(1.0, 0.85, 0.3), 18, 1.8)
+			Sfx.play_pitched("gear_drop", 0.8, -5.0)
+		if can_collect and chest.pos.distance_to(ppos) < Config.CHEST_OPEN_RADIUS + player.radius:
+			game.open_chest(chest)
+
 	# --- gear ---
 	i = 0
 	while i < loot.size():
@@ -372,6 +447,28 @@ func next_coin_pitch() -> float:
 #  Drawing
 # ----------------------------------------------------------------------------
 func _draw() -> void:
+	# Treasure chests: a closed one glints gold; an opened one stays where it is.
+	var chest_size := Vector2(Config.CHEST_SIZE, Config.CHEST_SIZE)
+	for chest: Chest in chests:
+		if chest.opened:
+			var fade := clampf(1.0 - chest.age / 1.5, 0.0, 1.0)
+			if fade > 0.0:
+				var burst := Vector2(220.0, 220.0) * (0.6 + 0.4 * fade)
+				draw_texture_rect(_glow, Rect2(chest.pos - burst * 0.5, burst), false, Color(1.0, 0.85, 0.35, 0.7 * fade))
+			var pop := chest_size * (1.0 + 0.25 * fade)
+			draw_texture_rect(_chest_open_tex, Rect2(chest.pos - pop * 0.5, pop), false, Color(0.72, 0.7, 0.68).lerp(Color.WHITE, fade))
+			continue
+		var pulse := 0.5 + 0.5 * sin(_time * 3.0)
+		var halo := Vector2(130.0, 130.0) * (1.0 + 0.12 * pulse)
+		draw_texture_rect(_glow, Rect2(chest.pos - halo * 0.5, halo), false, Color(1.0, 0.82, 0.3, 0.3 + 0.15 * pulse))
+		draw_texture_rect(_chest_tex, Rect2(chest.pos - chest_size * 0.5, chest_size), false)
+		# Two glints wander over the brass.
+		for k in 2:
+			var t := _time * 1.3 + float(k) * 1.7
+			var glint := chest.pos + Vector2(cos(t * 1.3) * 18.0, sin(t) * 10.0 - 4.0)
+			var gs := 9.0 * maxf(sin(t * 2.4), 0.0)
+			draw_texture_rect(_glow, Rect2(glint - Vector2(gs, gs) * 0.5, Vector2(gs, gs)), false, Color(1, 1, 0.85, 0.95))
+
 	# Coins: a little pulse, and they blink before they vanish.
 	var blink_on := fmod(_time, 0.2) < 0.12
 	for i in coin_count:

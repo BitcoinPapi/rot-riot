@@ -19,6 +19,9 @@ extends Node
 ##   --keep-weapon      ...and it never runs out
 ##   --cycle            the bot is handed each weapon in turn every 6 seconds
 ##   --wave=N           jump straight to wave N
+##   --at=X,Y           start the run at this spot of the map (the middle is 3000,2000)
+##   --no-fog           the whole map is uncovered from the start
+##   --show-chests      one second into a run, put a closed treasure chest beside the player and open another
 ##   --god              the player cannot die
 ##   --frames=N         quit after N frames and print a summary
 ##   --autotest         play through the whole game loop automatically and report PASS/FAIL
@@ -123,6 +126,16 @@ func _process(_delta: float) -> void:
 		if _args.has("wave") and _frame == 2:
 			game.director.wave = int(_args["wave"]) - 1
 			game.director.intermission = 0.1
+		if _args.has("at") and _frame == 2:
+			var spot := String(_args["at"]).split(",")
+			game.player.place(game.arena.resolve(Vector2(float(spot[0]), float(spot[1])), game.player.radius))
+			game.cam.snap_to(game.player.pos)
+		if _args.has("no-fog") and _frame == 2:
+			game.fog.reveal_all()
+		if _args.has("show-chests") and _frame == 60 and game.pickups.chests.size() >= 2:
+			game.pickups.chests[0].pos = game.player.pos + Vector2(190.0, -60.0)
+			game.pickups.chests[1].pos = game.player.pos + Vector2(-200.0, 70.0)
+			game.open_chest(game.pickups.chests[1])
 		if _args.has("drop-gear") and _frame == 60:
 			var drops := ["hard_hat:1", "work_gloves:2", "iron_band:3", "combat_boots:4", "gorger_fang:5"]
 			for i in drops.size():
@@ -728,6 +741,9 @@ func _run_autotest() -> void:
 	pl.give_weapon("pistol")
 	_check(pl.weapon_id == "pistol" and pl.dual and pl.weapon_time > 0.0, "a pistol crate gives dual pistols for a while")
 	pl.hp = pl.max_hp
+	# (No crates for the bot to walk into while the pistols run out.)
+	game.pickups.crates.clear()
+	game.pickups.set("_crate_timer", 20.0)
 	await _frames(60)
 	pl.weapon_time = 0.02
 	await _until(func() -> bool: return not pl.dual)
@@ -914,10 +930,11 @@ func _run_autotest() -> void:
 		var boss := game.director.boss
 		# Fire one bullet straight at it from close by (bosses are too big for
 		# the zombie grid and are hit through a separate check).
+		# (From three sides, in case a rock or a zombie is in the way of one.)
 		var boss_hp := boss.hp
-		var muzzle := boss.pos + Vector2(boss.radius + 60.0, 0.0)
-		game.projectiles.spawn(muzzle, Vector2.LEFT, Config.WEAPONS["pistol"], "pistol", 25.0, 0.0)
-		await _frames(6)
+		for side: Vector2 in [Vector2.RIGHT, Vector2.LEFT, Vector2.UP]:
+			game.projectiles.spawn(boss.pos + side * (boss.radius + 60.0), -side, Config.WEAPONS["pistol"], "pistol", 25.0, 0.0)
+		await _until(func() -> bool: return boss.hp < boss_hp, 60)
 		_check(boss.hp < boss_hp, "bullets hurt the boss")
 		# Let it run its charge / summon logic for a while, then finish it off.
 		for i in 600:
@@ -971,6 +988,137 @@ func _run_autotest() -> void:
 	SaveData.pets_owned.clear()
 	SaveData.pet_active = ""
 	pl.refresh_stats()
+
+	# --- the big map: ground in pieces, fog of war, treasure chests, zombies around the player ---
+	game.enemies.clear_all()
+	var field := game.arena.rect
+	var middle := field.get_center()
+	_check(field.size.x >= 4000.0 and field.size.y >= 3000.0, "the map is much bigger than the screen (%d x %d)" % [int(field.size.x), int(field.size.y)])
+	_check(game.decals.chunks_made > 0 and game.decals.chunks_made < game.decals.chunk_count(),
+			"the ground is only made where the player has been (%d of %d pieces)" % [game.decals.chunks_made, game.decals.chunk_count()])
+	var chests := game.pickups.chests
+	_check(chests.size() == Config.CHEST_COUNT, "%d treasure chests are hidden on the map" % Config.CHEST_COUNT)
+	var chests_ok := true
+	for hidden: Pickups.Chest in chests:
+		if not field.grow(1.0 - Config.CHEST_EDGE_MARGIN).has_point(hidden.pos) or hidden.pos.distance_to(middle) < Config.CHEST_MIN_DIST_FROM_START - 1.0:
+			chests_ok = false
+	_check(chests_ok, "the chests lie inside the map, away from the starting spot")
+	var chest_pool_ok := true
+	var chest_wave := game.director.wave
+	game.director.wave = 0             # (a late wave can add a tier; see below)
+	for i in 300:
+		var held: String = game.pickups.roll_chest_gear()
+		if String(Config.GEAR_ITEMS[Config.gear_item_of(held)]["from"]) == "bosses" or Config.gear_tier_of(held) > Config.CHEST_TIER_WEIGHTS.size():
+			chest_pool_ok = false
+	_check(chest_pool_ok, "a chest holds a COMMON to FINE piece, never a boss-only one")
+	var early_tiers := 0
+	var late_tiers := 0
+	for i in 400:
+		game.director.wave = 0
+		early_tiers += Config.gear_tier_of(game.pickups.roll_chest_gear())
+		game.director.wave = 60
+		late_tiers += Config.gear_tier_of(game.pickups.roll_chest_gear())
+	game.director.wave = chest_wave
+	_check(late_tiers > early_tiers, "a chest opened deep into a run holds better gear (average tier %.2f at the start, %.2f at wave 60)" % [
+			early_tiers / 400.0, late_tiers / 400.0])
+	var chest: Pickups.Chest = null
+	for hidden: Pickups.Chest in chests:
+		if not hidden.opened and not hidden.found:
+			chest = hidden
+	if chest != null:
+		# Walk up to a chest nobody has seen yet: the fog clears, it shows, it opens.
+		_check(not game.fog.is_clear(chest.pos), "the map is under fog where the player has not been")
+		var seen_before := game.fog.explored
+		var gear_before := game.gear_run.size()
+		var opened_before := SaveData.chests_opened
+		var coins_before := game.pickups.coin_count + game.coins_run
+		var away := (middle - chest.pos).normalized()
+		# (A spot that is under fog now and too far from the chest to be uncovered by going there.)
+		var still_hidden := chest.pos
+		for i in 200:
+			var probe := game.arena.random_free_point(20.0, 100.0)
+			if not game.fog.is_clear(probe) and probe.distance_to(chest.pos) > Config.FOG_EDGE_RADIUS + 400.0:
+				still_hidden = probe
+				break
+		pl.place(chest.pos + away * (Config.CHEST_OPEN_RADIUS + pl.radius + 80.0))
+		game.cam.snap_to(pl.pos)
+		await _until(func() -> bool: return chest.found, 30)
+		_check(game.fog.is_clear(pl.pos) and game.fog.explored > seen_before, "the fog clears around the player (%.1f%% of the map explored)" % (game.fog.explored * 100.0))
+		_check(still_hidden != chest.pos and not game.fog.is_clear(still_hidden), "...and only around the player")
+		_check(chest.found and not chest.opened, "a chest shows up once the fog over it has cleared")
+		await _until(func() -> bool: return game.decals.has_ground(pl.pos), 30)
+		_check(game.decals.has_ground(pl.pos), "there is ground wherever the player goes")
+		# (Blood on a part of the map nobody has seen yet makes the ground there.)
+		var bare := pl.pos
+		for i in 300:
+			var probe := game.arena.random_free_point(20.0, 100.0)
+			if not game.decals.has_ground(probe):
+				bare = probe
+				break
+		if bare != pl.pos:
+			var pieces_before := game.decals.chunks_made
+			game.decals.blood_splat(bare, 40.0)
+			# (One piece, or two if the splash lies across the line between them.)
+			_check(game.decals.has_ground(bare) and game.decals.chunks_made > pieces_before, "ground is made the moment something needs it")
+		pl.place(chest.pos + away * 10.0)
+		await _until(func() -> bool: return chest.opened, 30)
+		_check(chest.opened and game.chests_run >= 1 and SaveData.chests_opened == opened_before + 1, "walking into a chest opens it")
+		_check(game.gear_run.size() == gear_before + 1 and SaveData.gear_count(game.gear_run[-1]) >= 1,
+				"a chest gives a piece of gear (%s)" % (game.gear_run[-1] if not game.gear_run.is_empty() else "nothing"))
+		await _until(func() -> bool: return game.pickups.coin_count + game.coins_run > coins_before, 30)
+		_check(game.pickups.coin_count + game.coins_run > coins_before, "...and coins")
+		var opened_now := game.chests_run
+		await _frames(6)
+		_check(game.chests_run == opened_now, "an opened chest stays open")
+	else:
+		_check(false, "there is a chest left that the bot has not found")
+
+	# Zombies come out of the ground in a ring around the screen, never in view.
+	var was_wave := game.director.wave
+	var was_in_wave := game.director.in_wave
+	game.cam.snap_to(pl.pos)
+	await _frames(2)
+	game.enemies.clear_all()
+	game.director.wave = 8
+	game.director.in_wave = true
+	game.director.to_spawn = 40
+	game.director.call("_spawn_pack")
+	var screen_middle := game.cam.center_for(pl.pos)
+	var ring_ok := game.enemies.alive_count > 0
+	var nearest_new := 99999.0
+	for e: Enemy in game.enemies.active:
+		var gap := e.pos.distance_to(screen_middle)
+		nearest_new = minf(nearest_new, gap)
+		if gap < game.spawn_min - 1.0 or not field.has_point(e.pos) or e.spawn_t <= 0.0:
+			ring_ok = false
+	_check(ring_ok, "a pack claws out of the ground around the player, out of sight (%d zombies, the nearest %d px away, the screen ends at %d)" % [
+			game.enemies.alive_count, int(nearest_new), int(game.spawn_min - Config.CAM_AIM_LEAD_MAX - Config.SPAWN_RING_MARGIN)])
+
+	# A zombie left far behind is taken off the field and owed back; a boss digs its way back.
+	game.enemies.clear_all()
+	game.director.to_spawn = 0
+	game.director.set("_pack_timer", 30.0)
+	var kills_before := game.kills
+	var toward_middle := (middle - pl.pos).normalized()
+	var straggler := game.enemies.spawn(Config.SHAMBLER, game.arena.clamp_inside(pl.pos + toward_middle * (game.leash_dist + 150.0), 40.0))
+	await _until(func() -> bool: return not straggler.alive, 30)
+	_check(not straggler.alive and game.director.to_spawn == 1 and game.kills == kills_before,
+			"a zombie left far behind gives up and comes back with a later pack (no reward)")
+	var digger := game.enemies.spawn(Config.BOSS, game.arena.clamp_inside(pl.pos + toward_middle * (game.boss_leash + 150.0), 80.0))
+	await _until(func() -> bool: return digger.pos.distance_to(pl.pos) < game.boss_leash, 30)
+	_check(digger.alive and digger.pos.distance_to(pl.pos) < game.boss_leash, "a boss left far behind digs its way back to the player")
+	game.enemies.clear_all()
+	game.director.to_spawn = 0
+	game.director.wave = was_wave
+	game.director.in_wave = was_in_wave
+
+	# Weapon crates land near the player, wherever that is.
+	var crate_spots_ok := true
+	for i in 30:
+		var spot: Vector2 = game.pickups.call("_random_crate_spot")
+		if spot.distance_to(pl.pos) > Config.CRATE_MAX_DIST_FROM_PLAYER + 1.0 or not field.has_point(spot):
+			crate_spots_ok = false
+	_check(crate_spots_ok, "weapon crates land near the player, wherever on the map that is")
 
 	# --- death and game over ---
 	_auto_bot = false

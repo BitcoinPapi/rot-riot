@@ -61,6 +61,8 @@ Other dev flags (all after `--`, see `scripts/dev/dev_tools.gd`): `--play`,
 `--gear=N` (start with N random pieces, some worn), `--drop-gear` (drop a piece of every tier in a run),
 `--drop-crates` (drop four weapon crates, two of them damaged), `--pets=N` (own the first N pets;
 needs `--level=18` or more),
+`--at=X,Y` (start the run at that spot of the map; the middle is 3000,2000), `--no-fog` (whole map
+uncovered), `--show-chests` (a closed chest beside the player and an opened one),
 `--shot=PATH --shot-frame=N` (screenshot; needs a real display, e.g. `xvfb-run`),
 `--dump-sfx=DIR` (writes every generated sound as .wav),
 `--gallery=PREFIX[,PREFIX] --gallery-scale=N` (shows generated sprites enlarged, e.g.
@@ -101,14 +103,19 @@ scripts/game/
   pet.gd                 the companion in a run: heel, bite, fetch, guard (numbers arrive via PlayerStats)
   enemy.gd               one zombie = data + Sprite2D (no logic)
   enemy_manager.gd       ALL zombie logic in one loop: spatial grid, separation, attacks, boss AI, damage, queries
-  wave_director.gd       waves, packs, enemy mix, boss waves, map multipliers, end of the map
+  wave_director.gd       waves, packs (rising in a ring around the screen), enemy mix, boss waves,
+                         map multipliers, end of the map
   projectiles.gd         bullets + grenades (plain data, swept hits, explosions)
-  pickups.gd             coins, weapon crates (breakable), medkits, gear drops
+  pickups.gd             coins, weapon crates (breakable), medkits, gear drops, treasure chests
   fx.gd                  particles, casings, corpses, muzzle flash, rings, floating text
-  decals.gd              ground + permanent blood/bodies/casings (never-cleared SubViewport)
-  arena.gd               bounds, obstacles, tree ring, collision helpers
+  decals.gd              ground + permanent blood/bodies/casings (never-cleared SubViewports, one per
+                         "chunk" of the map, made when first needed)
+  arena.gd               the big map: bounds, obstacles (in lookup buckets), tree ring, collision
+                         helpers, "a free spot near the player", "a spawn spot out of sight"
+  fog.gd                 fog of war: which squares of the map have been seen this run, the misty
+                         overlay (a small shader), the picture the minimap draws
   game_camera.gd         follow, aim lead, trauma shake, recoil kick
-  hud.gd                 in-game overlay drawn in _draw
+  hud.gd                 in-game overlay drawn in _draw (bars, weapon panel, minimap, arrows)
   draw_layer.gd          blank canvas whose _draw is forwarded to a manager
 scripts/ui/              ui_kit.gd (theme + helpers), menu_background, main_menu, map_screen (Play),
                          character_screen (the hero, his gear, inventory and forge),
@@ -139,13 +146,46 @@ and unlocks the next map, where zombies have much more health and damage
 beaten (every 5th wave, `CHECKPOINT_EVERY`) unlocks the next starting wave
 on that map, so a map is finished over several sessions; a checkpoint run
 starts with a weapon crate beside the player. All five maps use the same
-clearing for now, with a colour wash per map (`ground` / `trees`); the real
-themed scenery is roadmap step 5. The owner calls maps "levels"; the UI
+big clearing for now, with a colour wash per map (`ground` / `trees`); the
+real themed scenery is roadmap step 5 (a map may already set its own
+`"size"`). The owner calls maps "levels"; the UI
 says MAP so it is not confused with the character LEVEL.
 
-**Arena:** a 2400x1500 clearing ringed by trees, with 9 random rocks/stumps.
-Zombies spawn outside the clearing under the tree canopy (never in view) and
-walk in. Camera zoom 1.2, may look 110 px past the edge.
+**The map** (THE MAP section of config.gd): one big clearing of 6000x4000
+ringed by trees (the screen shows about 1070x600 of it), with about 60 random
+rocks/stumps. The player starts in the middle. Camera zoom 1.2, may look
+110 px past the edge.
+- *Zombies hunt the player wherever they are.* A pack claws out of the
+  ground (`rising`) in a ring around the middle of the screen, just out of
+  sight: `Game.spawn_min` = screen centre-to-corner + aim lead +
+  `SPAWN_RING_MARGIN`, measured from `GameCamera.center_for(player)` because
+  near the map's edge the player is not in the middle of the screen. Later
+  waves split a pack over several directions. A zombie left further behind
+  than `Game.leash_dist` is taken off the field without a reward and the
+  director owes one more (`on_enemy_lost`); a boss left behind
+  (`Game.boss_leash`) digs through the ground and bursts out near the player
+  - there is no running away on a big map.
+- *Fog of war* (`fog.gd`): the map starts under mist and clears for the rest
+  of the run wherever the player has been (`FOG_CLEAR_RADIUS` 380 px, soft
+  edge to 520; the screen is 533 px to each side, so unexplored land shows
+  as mist at the sides of the screen). A weapon crate or piece of gear
+  landing in fog clears a small hole around itself; crates prefer uncovered
+  ground. The fog resets every run.
+- *Minimap* (bottom right, drawn by the HUD): the whole map, fog included;
+  zombies as red dots under the fog; over it the chests already seen (gold),
+  opened chests (dim), weapon crates, gear, the boss, the screen's outline
+  and the player's arrow. Above it: chests opened / total and "% explored".
+- *Treasure chests* (`CHEST_*`): 4 are hidden each run, at least 1100 px
+  from the start and spread out. A chest shows (and gets a minimap mark, and
+  an edge arrow when off-screen) once the fog over it clears; walking into
+  it opens it: a piece of gear straight into the bag (kept even if you die)
+  and 12-24 coins flying out. Chest gear: any piece zombies or brutes drop
+  on that map (**rings and amulets stay boss-only**), tier by
+  `CHEST_TIER_WEIGHTS` (70% COMMON / 25% STURDY / 5% FINE), plus the map's
+  `gear_up` chance of one tier more, plus 1% per wave of the run (max 50%)
+  of one tier more - rolled when opened, so chests are worth more deep into
+  a run. The results screen shows chests opened and map explored.
+- *Weapon crates* land 260-620 px from the player.
 
 **Player:** instant movement (no acceleration), 100 HP, 0.55 s of safety after
 a hit plus a shove that pushes the crowd back. Zombies body-block the player.
@@ -215,9 +255,10 @@ Every new enemy or character needs a `_hurt` variant.
 
 **Waves** (`Config.wave_*` helpers), same curve on every map and stretched
 over 100 waves: count = 22 + 9(w-1), capped at 500 per wave and 240 alive.
-Zombies arrive in packs from the tree line so they form hordes; pack size and
-rate grow with the wave, and every 5 waves the packs come from one more
-direction at once (up to 4) so hordes surround the player; per wave +6% HP,
+Zombies arrive in packs (out of the ground around the screen, see "The map")
+so they form hordes; pack size and rate grow with the wave, and every 5 waves
+the packs come from one more direction at once (up to 4) so hordes surround
+the player; per wave +6% HP,
 +1% damage, +0.5% speed, +1% XP per kill, all multiplied by the map. Boss HP
 = 1700 x wave growth x map x (+25% per earlier boss). Clearing a wave pays
 a coin and XP bonus. The slope is deliberately gentle so that every bit of
@@ -299,7 +340,8 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   pieces only from brutes, and one piece per kind only from map 2 onwards.
   Later maps also sometimes drop a piece one tier up (`gear_up`). A drop is a
   pillar of light in the tier's colour with a HUD arrow; picking it up puts it
-  straight in the bag (kept even if you die).
+  straight in the bag (kept even if you die). **Treasure chests** on the map
+  are the other source (see "The map"): up to 4 pieces per run for exploring.
   **Five tiers** (colours): COMMON, STURDY, FINE, SUPERIOR, LEGENDARY, with
   stat multipliers 1 / 2 / 3 / 5 / 8. **Forging**: two identical pieces of the
   same tier make one of the next tier with the owner's odds - 100% / 90% /
@@ -371,10 +413,26 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   `dt = 0` for a few hundredths of a second (rate-limited by
   `HITSTOP_MIN_INTERVAL`, `force` bypasses it); slow motion scales `dt`.
   Camera and HUD always use real time.
-- **Persistent gore is free.** `decals.gd` paints the ground once into a
-  SubViewport that is never cleared, then stamps blood, bodies and casings
-  onto it (viewport set to UPDATE_ONCE for the frames that have stamps).
-  Tens of thousands of decals cost the same as none.
+- **Persistent gore is free.** `decals.gd` paints the ground once into
+  SubViewports that are never cleared, then stamps blood, bodies and casings
+  onto them (a viewport is set to UPDATE_ONCE for the frames that have
+  stamps). Tens of thousands of decals cost the same as none. The map is too
+  big for one picture, so it is cut into chunks (7x5 of about 900x860 px); a
+  chunk is only made when the screen comes within `DECAL_CHUNK_AHEAD` of it
+  (one per frame at most) or something is stamped on it. Whatever can lie
+  across the line between two chunks (the big soft ground patches, the edge
+  shadows) is derived from the run's seed and painted in the same order by
+  both, so there is no visible seam. Worst case, with the whole map
+  explored, the chunks hold about 108 MB of video memory
+  (`DECAL_RESOLUTION` 0.5 would quarter that).
+- **Obstacles in buckets.** `arena.gd` sorts the ~60 rocks into 256 px
+  squares; `resolve()` and `segment_hit()` (every bullet, every frame) only
+  look at the rocks listed in the squares they touch.
+- **Fog is one tiny picture**: one pixel per 50 px square of the map, alpha =
+  how thick the fog still is, stretched over the map with linear filtering
+  (soft edges) by a small canvas shader that adds drifting wisps. The HUD
+  draws the same picture as the minimap's fog. The shader is the only one in
+  the game; like all drawing it only runs with a real renderer.
 - **Rendering cost.** Zombies are Sprite2Ds sharing a few textures (batched by
   the renderer); everything else high-count is drawn as textured rects/lines
   from a handful of nodes. Avoid `draw_circle` / polygons for anything
@@ -393,12 +451,14 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
 
 | zombies | avg ms | p95 ms |
 |--------:|-------:|-------:|
-| 150     | 1.1    | 1.7    |
-| 250     | 2.4    | 3.7    |
-| 400     | 4.7    | 7.3    |
+| 150     | 1.2    | 2.1    |
+| 250     | 2.6    | 3.9    |
+| 400     | 4.1    | 5.6    |
+
+(Measured on the big map; the same as on the old small arena.)
 
 60 fps allows 16.6 ms per frame. With a real renderer 250 zombies plus
-effects were ~280 draw calls. Not yet measured on the owner's hardware.
+effects were ~330 draw calls (minimap and fog included). Not yet measured on the owner's hardware.
 
 ## Not verified yet (needs a human)
 
@@ -406,6 +466,11 @@ effects were ~280 draw calls. Not yet measured on the owner's hardware.
 - The balance of the 100-wave maps, the tree prices, the keystones, the
   perks, gear drop rates and gear stats, pet prices and pet strength: all
   first guesses, only checked with the bot and the tests.
+- The big map on real hardware: whether making a new piece of ground causes
+  a hitch when walking into new territory, how much video memory a fully
+  explored map takes (about 108 MB by calculation), how the fog looks in
+  motion (only still screenshots were checked), whether the minimap is big
+  enough to read. Chest count and chest loot are first guesses.
 - The skill tree and the Character screen with a real mouse / trackpad /
   gamepad (only simulated input was tested).
 - How Cliff looks to a human eye: he is simple shapes in the general style
@@ -421,7 +486,8 @@ effects were ~280 draw calls. Not yet measured on the owner's hardware.
   ~1.5 kHz, rifle ~1 kHz with the longest echo, machine gun ~700 Hz with a
   bolt clank, shotgun ~330 Hz, launcher ~260 Hz. Measured, not heard. The
   owner may buy sound assets later: drop them in `assets/sfx/`. The gear
-  sounds (drop "ting", pickup, forge success / fail / break) are unheard too.
+  sounds (drop "ting", pickup, forge success / fail / break) and the chest
+  opening are unheard too.
 - A physical gamepad (only simulated gamepad events were tested).
 - The exported Windows .exe and macOS .app on real Windows / macOS machines
   (exports succeed and the exported game data passes the autotest on Linux).
@@ -470,6 +536,12 @@ effects were ~280 draw calls. Not yet measured on the owner's hardware.
   at most 15%; pet damage and perks in their own skill tree branch) -> built
   (awaiting feedback). How pets are obtained (levels / map clears + coins)
   was Claude's choice - ask the owner if they would rather find them as drops.
+- Fourth playtest (v0.5): "the game is much better and understandable".
+  Asked for the skill families to be called VITALITY, STRENGTH and INSTINCT
+  (done; the stats that shared those names are shown as HEALTH and DAMAGE),
+  and to continue -> the big map with fog of war, minimap and treasure
+  chests (built, awaiting feedback). First guesses to ask about: the size of
+  the map, four chests per run, how thick and how wide the fog is.
 - The owner's Mac: browser downloads do not work there, so updates go through
   Terminal (curl) or the double-click updater. Always give the full update
   command and say plainly that Return must be pressed.
@@ -487,23 +559,24 @@ Build one stage at a time; the owner plays each before the next starts.
 2b. **100-wave maps, skill tree, weapon upgrades. DONE (awaiting the owner's
    playtest).** See "Maps" and "Progression" above.
 3. **Gear. DONE (awaiting the owner's playtest).** See "Gear" under
-   Progression. Still open from the owner's wishes: treasure chests that give
-   gear (comes with the big map, step 4). Ideas if the owner wants more:
+   Progression. Ideas if the owner wants more:
    more pieces per kind, set bonuses, a way to sell or break down spare gear.
 3b. **Pets. DONE (awaiting the owner's playtest).** See "Pets" under
    Progression. Ideas if the owner wants more: more pets per rarity, pets as
    rare boss drops, a pet that flies and fetches from far away.
-4. **Big-map engine.** Much bigger maps (a large "farming map"), fog of war
-   that clears as the player explores, a minimap, treasure chests to find
-   each round that give gear. Waves stay: zombies hunt the player wherever
-   they are; exploring for chests happens during and between waves. Needs: spawning around the player instead of
-   at the map edge, and the decal layer split into chunks (one never-cleared
-   viewport cannot cover a huge map).
-5. **Five themed maps**, each telling a story through its scenery: forest
-   campsite, abandoned farm, graveyard, crashed-convoy highway, quarantine
-   lab. (Map select, unlock order and difficulty already exist; this step
-   is the scenery.)
-6. **Many more enemy types** (ongoing).
+4. **Big map. DONE (awaiting the owner's playtest).** A 6000x4000 map, fog of
+   war, a minimap, four treasure chests per run that give gear; zombies rise
+   around the player wherever they are. See "The map" above. Ideas if the
+   owner wants more: an even bigger map or different sizes per map, a full
+   map on a key, chests guarded by a pack, a key or boss needed for a
+   special chest, landmarks to find.
+5. **More enemy types, including some that shoot from range** (owner, after
+   v0.5: "next add more enemies including some that shoot from range. put
+   working on the new maps last").
+6. **Five themed maps** - LAST, by the owner's order - each telling a story
+   through its scenery: forest campsite, abandoned farm, graveyard,
+   crashed-convoy highway, quarantine lab. (Map select, unlock order and
+   difficulty already exist; this step is the scenery.)
 
 Design rule from the owner: progression must feel incremental and endless.
 

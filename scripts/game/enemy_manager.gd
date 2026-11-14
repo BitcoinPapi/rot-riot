@@ -38,9 +38,9 @@ var _time := 0.0
 
 func setup(g: Game) -> void:
 	game = g
-	var pad := Config.SPAWN_DIST_MAX + CELL * 3.0
-	_origin = -Vector2(pad, pad)
-	var size := Config.ARENA_SIZE + Vector2(pad, pad) * 2.0
+	var pad := CELL * 3.0
+	_origin = game.arena.rect.position - Vector2(pad, pad)
+	var size := game.arena.rect.size + Vector2(pad, pad) * 2.0
 	_gw = int(ceil(size.x / CELL)) + 2
 	_gh = int(ceil(size.y / CELL)) + 2
 	_head.resize(_gw * _gh)
@@ -52,18 +52,25 @@ func setup(g: Game) -> void:
 func _build_obstacle_cells() -> void:
 	_cell_obstacle.resize(_gw * _gh)
 	_cell_obstacle.fill(-1)
+	# (Walks the obstacles, not the cells: a big map has thousands of cells.)
 	var arena := game.arena
-	for cy in _gh:
-		for cx in _gw:
-			var cell_rect := Rect2(_origin + Vector2(cx, cy) * CELL, Vector2(CELL, CELL))
-			for i in arena.obs_pos.size():
-				var c := arena.obs_pos[i]
+	for i in arena.obs_pos.size():
+		var c := arena.obs_pos[i]
+		var reach := arena.obs_radius[i] + 36.0
+		var x0 := clampi(int((c.x - reach - _origin.x) * INV_CELL), 0, _gw - 1)
+		var x1 := clampi(int((c.x + reach - _origin.x) * INV_CELL), 0, _gw - 1)
+		var y0 := clampi(int((c.y - reach - _origin.y) * INV_CELL), 0, _gh - 1)
+		var y1 := clampi(int((c.y + reach - _origin.y) * INV_CELL), 0, _gh - 1)
+		for cy in range(y0, y1 + 1):
+			for cx in range(x0, x1 + 1):
+				if _cell_obstacle[cy * _gw + cx] != -1:
+					continue
+				var cell_rect := Rect2(_origin + Vector2(cx, cy) * CELL, Vector2(CELL, CELL))
 				var nearest_pt := Vector2(
 					clampf(c.x, cell_rect.position.x, cell_rect.end.x),
 					clampf(c.y, cell_rect.position.y, cell_rect.end.y))
-				if nearest_pt.distance_to(c) <= arena.obs_radius[i] + 36.0:
+				if nearest_pt.distance_to(c) <= reach:
 					_cell_obstacle[cy * _gw + cx] = i
-					break
 
 
 # ----------------------------------------------------------------------------
@@ -191,6 +198,7 @@ func tick(dt: float) -> void:
 	var decals := game.decals
 	var push_total := Vector2.ZERO
 	var has_bigs := not bigs.is_empty()
+	var leash := game.leash_dist
 
 	for i in n:
 		var e := active[i]
@@ -229,6 +237,10 @@ func tick(dt: float) -> void:
 		var er := e.radius
 		var to_p := ppos - epos
 		var dist := to_p.length()
+		# Left far behind on the big map: it gives up, and comes back with a later pack.
+		if dist > leash:
+			_lose(e)
+			continue
 		var dirp := to_p / maxf(dist, 0.001)
 		var reach := er + pr + reach_pad
 
@@ -370,6 +382,9 @@ func _tick_boss(e: Enemy, dt: float) -> void:
 	match e.state:
 		B_CHASE:
 			e.phase += dt * 5.0
+			if dist > game.boss_leash and player.alive:
+				_relocate_boss(e)
+				return
 			if dist > reach:
 				e.pos += dirp * (e.speed * dt)
 			e.face = lerp_angle(e.face, dirp.angle(), turn)
@@ -526,6 +541,32 @@ func _kill(e: Enemy, dir: Vector2, kill_hitstop: float, source: String) -> void:
 	if e.is_big:
 		bigs.erase(e)
 	game.on_enemy_killed(e, dir, kill_hitstop, source)
+
+
+## A zombie that was left far behind is taken off the field without a reward;
+## the wave director sends another in its place.
+func _lose(e: Enemy) -> void:
+	e.alive = false
+	e.visible = false
+	_dead_count += 1
+	alive_count -= 1
+	game.director.on_enemy_lost(e)
+
+
+## A boss that was left far behind digs through the ground and bursts out
+## near the player: on a big map there is no running away from it.
+func _relocate_boss(e: Enemy) -> void:
+	var cfg: Dictionary = Config.ENEMIES[Config.BOSS]
+	game.fx.dust(e.pos, 14)
+	e.pos = game.spawn_point(randf() * TAU, 0.0, e.radius + 12.0)
+	e.kb = Vector2.ZERO
+	e.entered = true
+	e.charge_cd = maxf(e.charge_cd, float(cfg["charge_cooldown"]) * 0.5)
+	e.position = e.pos
+	game.fx.dust(e.pos, 14)
+	game.fx.ring(e.pos, e.radius, 260.0, 0.5, Color(1.0, 0.3, 0.2, 0.7))
+	Sfx.play("boss_roar")
+	game.shake(float(cfg["roar_shake"]))
 
 
 ## Radial blast: shoves (and optionally hurts) everything within `radius`.

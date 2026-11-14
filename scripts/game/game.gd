@@ -21,6 +21,7 @@ var player: Player
 var pet: Pet                    # the companion, if one comes along (null = none)
 var projectiles: Projectiles
 var fx: Fx
+var fog: Fog                    # fog of war over the parts of the map not visited yet
 var cam: GameCamera
 var director: WaveDirector
 var hud: Hud
@@ -46,7 +47,15 @@ var victory := false            # the map's last wave was cleared
 var new_checkpoint := 0         # a starting wave unlocked during this run (0 = none)
 var unlocked_map := -1          # a map unlocked by this run (-1 = none)
 var gear_run: Array[String] = []   # gear picked up this run (already in the bag)
+var chests_run := 0             # treasure chests opened this run
 var sim_usec := 0               # how long the last simulation step took (for the benchmark)
+# How far from the middle of the screen "out of sight" is (worked out from
+# the size of the window): zombies come out of the ground between spawn_min
+# and spawn_max.
+var spawn_min := 800.0
+var spawn_max := 1040.0
+var leash_dist := 2100.0        # a zombie further from the player than this is taken off the field
+var boss_leash := 1950.0        # ...and a boss this far away digs its way back
 
 var _hitstop := 0.0
 var _hitstop_cooldown := 0.0
@@ -66,10 +75,11 @@ func _ready() -> void:
 	enemy_xp_mult = float(map["xp"])
 
 	# Children are added bottom layer first.
-	arena = Arena.new()
+	arena = Arena.new(map.get("size", Config.ARENA_SIZE))
 	arena.tree_tint = map["trees"]
 	decals = Decals.new()
 	decals.ground_tint = map["ground"]
+	decals.setup(arena.rect)
 	add_child(decals)          # ground + blood
 	add_child(arena)           # rocks and stumps
 
@@ -100,9 +110,18 @@ func _ready() -> void:
 	arena.canopy.z_index = 50  # tree tops above everything
 	add_child(arena.canopy)
 
+	fog = Fog.new()            # ...and the fog above the trees
+	fog.setup(arena.rect)
+	add_child(fog)
+	fog.reveal(player.pos, Config.FOG_START_MULT)
+	pickups.place_chests()
+
 	cam = GameCamera.new()
+	cam.bounds = arena.rect
 	add_child(cam)
 	cam.snap_to(player.pos)
+	_measure_view()
+	decals.show_area(cam.view_rect().grow(Config.DECAL_CHUNK_AHEAD))
 
 	director = WaveDirector.new()
 	director.game = self
@@ -161,7 +180,29 @@ func _process(delta: float) -> void:
 	if player.alive:
 		lead = player.aim * Config.CAM_AIM_LEAD_MAX * GameInput.get_aim_distance_factor(player)
 	cam.tick(real_dt, player.pos, lead)
+	_measure_view()
+	# Ground is made as the screen comes near it (one new piece per frame at most).
+	decals.show_area(cam.view_rect().grow(Config.DECAL_CHUNK_AHEAD), 1)
 	hud.tick(real_dt)
+
+
+## "Out of sight" depends on the size of the window: just past its corner.
+func _measure_view() -> void:
+	var half := get_viewport_rect().size.length() * 0.5 / cam.zoom.x     # the middle of the screen to its corner
+	spawn_min = half + Config.CAM_AIM_LEAD_MAX + Config.SPAWN_RING_MARGIN
+	spawn_max = spawn_min + Config.SPAWN_RING_DEPTH
+	# (Near the map's edge the player is not in the middle of the screen, so
+	# the ring can lie up to half a screen further from him than usual.)
+	leash_dist = spawn_max + half + Config.ENEMY_LEASH_EXTRA
+	boss_leash = spawn_max + half + Config.BOSS_LEASH_EXTRA
+
+
+## A spot out of sight where zombies can come out of the ground: in the
+## direction `angle` from the middle of the screen if the map has room there.
+## `extra` pushes it further out (for the middle of a pack); `edge` keeps it
+## off the map's edge.
+func spawn_point(angle: float, extra: float = 0.0, edge: float = 40.0) -> Vector2:
+	return arena.spawn_point_around(cam.center_for(player.pos), spawn_min + extra, spawn_max + extra, angle, edge)
 
 
 func _simulate(dt: float) -> void:
@@ -169,6 +210,8 @@ func _simulate(dt: float) -> void:
 		time_alive += dt
 		_tick_combo_and_rage(dt)
 	player.tick(dt)
+	if player.alive:
+		fog.reveal(player.pos)
 	if pet != null:
 		pet.tick(dt)
 	director.tick(dt)
@@ -195,7 +238,8 @@ func _tick_combo_and_rage(dt: float) -> void:
 func get_stats() -> Dictionary:
 	return {"score": score, "wave": director.wave, "kills": kills, "coins": coins_run, "time": time_alive,
 			"xp": xp_run, "levels": levels_run, "map": map_index, "start": start_wave, "cleared": director.cleared,
-			"victory": victory, "checkpoint": new_checkpoint, "unlocked": unlocked_map, "gear": gear_run}
+			"victory": victory, "checkpoint": new_checkpoint, "unlocked": unlocked_map, "gear": gear_run,
+			"chests": chests_run, "chests_total": pickups.chests.size(), "explored": fog.explored}
 
 
 # ----------------------------------------------------------------------------
@@ -407,6 +451,29 @@ func collect_gear(piece: Pickups.Loot) -> void:
 	fx.light(piece.pos, 320.0, 0.35, Color(color.r, color.g, color.b, 0.7))
 	shake(Config.GEAR_PICKUP_SHAKE)
 	Sfx.play("gear_pickup")
+
+
+## A treasure chest is opened: a piece of gear (straight into the bag, kept
+## even if you die) and a fountain of coins.
+func open_chest(chest: Pickups.Chest) -> void:
+	chest.opened = true
+	chest.found = true
+	chests_run += 1
+	SaveData.chests_opened += 1
+	var key := pickups.roll_chest_gear()
+	SaveData.add_gear(key)
+	gear_run.append(key)
+	pickups.spawn_coins(chest.pos, randi_range(Config.CHEST_COINS_MIN, Config.CHEST_COINS_MAX))
+	var color: Color = Config.gear_tier_def(Config.gear_tier_of(key))["color"]
+	fx.text(player.pos + Vector2(0, -72), "TREASURE!", Color(1.0, 0.85, 0.3), 18, 2.2)
+	fx.text(player.pos + Vector2(0, -46), Config.gear_name(key), color, 26, 2.2)
+	fx.ring(chest.pos, 16.0, 200.0, 0.5, Color(1.0, 0.85, 0.3, 0.95))
+	fx.ring(chest.pos, 10.0, 130.0, 0.4, Color(color.r, color.g, color.b, 0.9))
+	fx.light(chest.pos, 380.0, 0.4, Color(1.0, 0.8, 0.3, 0.7))
+	fx.sparks(chest.pos, Vector2.UP, 10)
+	shake(Config.CHEST_OPEN_SHAKE)
+	hitstop(Config.CHEST_OPEN_HITSTOP, true)
+	Sfx.play("chest_open")
 
 
 func collect_medkit(at: Vector2) -> void:

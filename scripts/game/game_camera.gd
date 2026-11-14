@@ -3,6 +3,7 @@ extends Camera2D
 ## Follows the player, leans toward where they aim, and does all the screen
 ## shake and recoil jolts. All strengths come from Config.
 
+var bounds := Rect2(Vector2.ZERO, Config.ARENA_SIZE)   # the map; the view stays inside it (plus a small margin)
 var trauma := 0.0            # 0..1, decays over time. Shake = trauma squared.
 var _kick := Vector2.ZERO    # recoil jolt, springs back to zero
 var _focus := Vector2.ZERO
@@ -53,16 +54,29 @@ func tick(real_delta: float, target: Vector2, lead: Vector2) -> void:
 func _limit(center: Vector2) -> Vector2:
 	var view := get_viewport_rect().size / zoom
 	var half := view * 0.5
-	var bounds := Rect2(Vector2.ZERO, Config.ARENA_SIZE).grow(Config.CAMERA_EDGE_MARGIN)
-	if bounds.size.x <= view.x:
-		center.x = bounds.get_center().x
+	var limit := bounds.grow(Config.CAMERA_EDGE_MARGIN)
+	if limit.size.x <= view.x:
+		center.x = limit.get_center().x
 	else:
-		center.x = clampf(center.x, bounds.position.x + half.x, bounds.end.x - half.x)
-	if bounds.size.y <= view.y:
-		center.y = bounds.get_center().y
+		center.x = clampf(center.x, limit.position.x + half.x, limit.end.x - half.x)
+	if limit.size.y <= view.y:
+		center.y = limit.get_center().y
 	else:
-		center.y = clampf(center.y, bounds.position.y + half.y, bounds.end.y - half.y)
+		center.y = clampf(center.y, limit.position.y + half.y, limit.end.y - half.y)
 	return center
+
+
+## Where the middle of the screen is when the player stands at `target` and
+## aims nowhere in particular (near the edge of the map the view stops, so
+## this is not always the player's own position).
+func center_for(target: Vector2) -> Vector2:
+	return _limit(target)
+
+
+## The part of the world on screen right now.
+func view_rect() -> Rect2:
+	var view := get_viewport_rect().size / zoom
+	return Rect2(position - view * 0.5, view)
 
 
 func _shake_setting() -> float:

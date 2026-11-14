@@ -136,6 +136,8 @@ func _build() -> void:
 	_svg("crate", 38, 38, SVG_CRATE)
 	_flash("crate")
 	_svg("medkit", 28, 28, SVG_MEDKIT)
+	_svg("chest", 60, 60, SVG_CHEST)
+	_svg("chest_open", 60, 60, SVG_CHEST_OPEN)
 
 	# --- scenery ---
 	_svg("rock", 120, 120, SVG_ROCK)
@@ -1100,6 +1102,38 @@ const SVG_CRATE := """
 <path d="M-13.6,-4.6 L13.6,-4.6 M-13.6,4.6 L13.6,4.6" stroke="#7d5427" stroke-width="1.6"/>
 <path d="M-12.6,-12.6 L12.6,12.6 M12.6,-12.6 L-12.6,12.6" stroke="#8c6030" stroke-width="2.6"/>
 <rect x="-13.6" y="-13.6" width="27.2" height="27.2" rx="2.2" fill="none" stroke="#d8a868" stroke-width="1.4"/>
+"""
+
+# A treasure chest seen from above: dark wood, brass bands and a lock.
+const SVG_CHEST := """
+<rect x="-26" y="-17" width="52" height="38" rx="7" fill="#000000" fill-opacity="0.3"/>
+<rect x="-24" y="-18" width="48" height="36" rx="5" fill="#231407"/>
+<rect x="-22" y="-16" width="44" height="32" rx="3.5" fill="#8a5527"/>
+<rect x="-22" y="-16" width="44" height="9" rx="3.5" fill="#a56a33"/>
+<path d="M-22,-6.5 L22,-6.5 M-22,4 L22,4" stroke="#603a17" stroke-width="1.6"/>
+<rect x="-15.5" y="-16" width="6" height="32" fill="#d9ae42" stroke="#6e4f10" stroke-width="1"/>
+<rect x="9.5" y="-16" width="6" height="32" fill="#d9ae42" stroke="#6e4f10" stroke-width="1"/>
+<circle cx="-12.5" cy="-11" r="1.3" fill="#fff0b0"/><circle cx="-12.5" cy="10.5" r="1.3" fill="#8a6414"/>
+<circle cx="12.5" cy="-11" r="1.3" fill="#fff0b0"/><circle cx="12.5" cy="10.5" r="1.3" fill="#8a6414"/>
+<rect x="-5.5" y="0.5" width="11" height="12" rx="2.4" fill="#f0c74c" stroke="#6e4f10" stroke-width="1.2"/>
+<circle cx="0" cy="5" r="1.9" fill="#3a2607"/><rect x="-0.9" y="5" width="1.8" height="4.6" fill="#3a2607"/>
+<rect x="-22" y="-16" width="44" height="32" rx="3.5" fill="none" stroke="#c98d47" stroke-width="1.2" stroke-opacity="0.7"/>
+"""
+
+# The same chest with its lid thrown back: empty inside.
+const SVG_CHEST_OPEN := """
+<rect x="-26" y="-23" width="52" height="46" rx="7" fill="#000000" fill-opacity="0.3"/>
+<rect x="-24" y="-26" width="48" height="13" rx="4" fill="#231407"/>
+<rect x="-22" y="-24" width="44" height="9" rx="2.5" fill="#6e4420"/>
+<rect x="-15.5" y="-24" width="6" height="9" fill="#b08a30" stroke="#6e4f10" stroke-width="1"/>
+<rect x="9.5" y="-24" width="6" height="9" fill="#b08a30" stroke="#6e4f10" stroke-width="1"/>
+<rect x="-24" y="-14" width="48" height="36" rx="5" fill="#231407"/>
+<rect x="-22" y="-12" width="44" height="32" rx="3.5" fill="#8a5527"/>
+<rect x="-18" y="-8" width="36" height="24" rx="2.5" fill="#150b04"/>
+<rect x="-18" y="-8" width="36" height="6" rx="2.5" fill="#000000" fill-opacity="0.45"/>
+<rect x="-22" y="-12" width="4" height="32" fill="#d9ae42" fill-opacity="0.0"/>
+<path d="M-15.5,-12 L-9.5,-12 L-9.5,-8 L-15.5,-8 Z M9.5,-12 L15.5,-12 L15.5,-8 L9.5,-8 Z M-15.5,16 L-9.5,16 L-9.5,20 L-15.5,20 Z M9.5,16 L15.5,16 L15.5,20 L9.5,20 Z" fill="#d9ae42" stroke="#6e4f10" stroke-width="0.8"/>
+<rect x="-22" y="-12" width="44" height="32" rx="3.5" fill="none" stroke="#c98d47" stroke-width="1.2" stroke-opacity="0.7"/>
 """
 
 const SVG_MEDKIT := """
