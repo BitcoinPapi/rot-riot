@@ -12,7 +12,9 @@ extends Node2D
 const CELL := 64.0
 const INV_CELL := 1.0 / 64.0
 
-# Boss states
+# States of a zombie with an attack of its own (the boss, shooters, the
+# Gasbag, the Lunger): coming at you -> winding up (the warning) -> attacking
+# -> getting over it.
 const B_CHASE := 0
 const B_WINDUP := 1
 const B_CHARGE := 2
@@ -34,6 +36,10 @@ var _head := PackedInt32Array()     # first zombie in each cell (-1 = empty)
 var _next := PackedInt32Array()     # next zombie in the same cell
 var _cell_obstacle := PackedInt32Array()   # obstacle near each cell (-1 = none)
 var _time := 0.0
+var _bursts: Array = []             # Gasbags about to go off: [seconds left, where]
+var _in_burst := false              # true while a burst is hurting what is around it
+var _view := Rect2()                # what the screen shows this frame (zombies only use their special attacks in sight)
+var _tip_owed: Array[bool] = []     # per kind: its one-time tip has not been shown yet
 
 
 func setup(g: Game) -> void:
@@ -47,6 +53,9 @@ func setup(g: Game) -> void:
 	_head.fill(-1)
 	_next.resize(512)
 	_build_obstacle_cells()
+	# The first time a new kind of zombie comes into view, the player is told what it does.
+	for kind in Art.ENEMY_SPRITE.size():
+		_tip_owed.append(Config.ENEMIES[kind].has("tip") and not SaveData.enemies_seen.has(Art.ENEMY_SPRITE[kind]))
 
 
 func _build_obstacle_cells() -> void:
@@ -119,8 +128,18 @@ func spawn(kind: int, at: Vector2, hp_mult: float = 1.0, speed_mult: float = 1.0
 	e.shake_mult = c["shake_mult"]
 	e.blood = c["blood"]
 	e.is_big = kind == Config.BOSS
+	e.ai = int(c.get("ai", Config.AI_WALKER))
+	e.cfg = c
 	e.state = B_CHASE
 	e.state_t = 0.0
+	e.melee_t = Config.ENEMY_FIRST_ATTACK_DELAY
+	if e.ai != Config.AI_WALKER:
+		e.warn = c["warn_color"]
+	if e.ai == Config.AI_SHOOTER:
+		e.shoot_range = float(c["range"]) * randf_range(0.82, 1.0)
+		e.attack_t = randf_range(Config.SHOOTER_FIRST_SHOT_MIN, Config.SHOOTER_FIRST_SHOT_MAX)
+	elif e.ai == Config.AI_LEAPER:
+		e.charge_cd = float(c["leap_cooldown"]) * randf_range(0.15, 0.6)
 	if e.is_big:
 		e.charge_cd = float(c["charge_cooldown"]) * 0.6
 		e.summon_cd = float(c["summon_cooldown"]) * 0.5
@@ -149,6 +168,7 @@ func tick(dt: float) -> void:
 	_time += dt
 	if _dead_count > 0:
 		_compact()
+	_view = game.cam.view_rect().grow(-24.0)
 	var n := active.size()
 	if _next.size() < n + 64:
 		_next.resize(n + 256)
@@ -173,6 +193,10 @@ func tick(dt: float) -> void:
 		e.cell = c
 		_next[i] = _head[c]
 		_head[c] = i
+
+	# Gasbags that are due go off (now that the grid knows where everybody is).
+	if not _bursts.is_empty():
+		_tick_bursts(dt)
 
 	# 2) Move, separate, attack.
 	var player := game.player
@@ -251,6 +275,12 @@ func tick(dt: float) -> void:
 			e.scale = Vector2(rs, rs)
 		elif e.stagger_t > 0.0:
 			e.stagger_t -= dt
+			if e.state != B_CHASE:
+				_knocked(e)
+		elif e.ai != 0:
+			epos = _tick_special(e, epos, dt, to_p, dist, turn)
+			if not e.alive:
+				continue
 		else:
 			if dist > reach:
 				var d := dirp
@@ -540,7 +570,222 @@ func _kill(e: Enemy, dir: Vector2, kill_hitstop: float, source: String) -> void:
 	alive_count -= 1
 	if e.is_big:
 		bigs.erase(e)
+	# A Gasbag goes off however it dies (a moment later if another burst set it off).
+	if e.ai == Config.AI_BURSTER:
+		_bursts.append([float(e.cfg["burst_chain_delay"]) if _in_burst else 0.0, e.pos])
 	game.on_enemy_killed(e, dir, kill_hitstop, source)
+
+
+# ----------------------------------------------------------------------------
+#  Zombies with an attack of their own. Each of them warns before it attacks:
+#  it stops, swells and flushes with colour for a moment.
+# ----------------------------------------------------------------------------
+## One step for a shooter, a Gasbag or a Lunger. Returns where it now stands.
+func _tick_special(e: Enemy, epos: Vector2, dt: float, to_p: Vector2, dist: float, turn: float) -> Vector2:
+	var c := e.cfg
+	var player := game.player
+	var dirp := to_p / maxf(dist, 0.001)
+	var reach := e.radius + player.radius + Config.ENEMY_ATTACK_REACH
+
+	if e.state == B_CHASE:
+		e.phase += dt * 8.0
+		if _tip_owed[e.kind] and _view.has_point(epos) and game.fog.is_clear(epos):
+			_tip(e)
+		var walk := true
+		match e.ai:
+			Config.AI_SHOOTER:
+				# It attacks from where it can see the player: close enough, on
+				# screen, and not hidden in the fog.
+				if dist < e.shoot_range and _view.has_point(epos) and game.fog.is_clear(epos):
+					walk = false
+					e.attack_t -= dt
+					if e.attack_t <= 0.0 and player.alive:
+						_wind_up(e, float(c["shot_windup"]), "gobber_windup" if e.kind == Config.GOBBER else "chucker_windup")
+				# A player who walks into it gets hit the plain way.
+				if dist <= reach:
+					e.melee_t -= dt
+					if e.melee_t <= 0.0 and player.alive:
+						e.melee_t = e.attack_cd
+						game.damage_player(e.damage, epos)
+			Config.AI_BURSTER:
+				if dist <= reach + float(c["burst_trigger"]) and player.alive:
+					walk = false
+					_wind_up(e, float(c["burst_fuse"]), "gasbag_fuse")
+			Config.AI_LEAPER:
+				e.charge_cd -= dt
+				if e.charge_cd <= 0.0 and dist > float(c["leap_range_min"]) and dist < float(c["leap_range_max"]) \
+						and player.alive and _view.has_point(epos):
+					walk = false
+					_wind_up(e, float(c["leap_windup"]), "lunger_shriek")
+				elif dist <= reach:
+					walk = false
+					e.attack_t -= dt
+					if e.attack_t <= 0.0 and player.alive:
+						e.attack_t = e.attack_cd
+						game.damage_player(e.damage, epos)
+		if walk and dist > reach:
+			var d := dirp
+			if dist > 90.0:
+				d = (to_p + e.flank * minf(dist * 0.004, 1.0)).normalized()
+			var step := e.speed * dt
+			if e.crowd_prev > Config.ENEMY_CROWD_FREE:
+				step *= float(Config.ENEMY_CROWD_FREE + 1) / float(e.crowd_prev + 1)
+			epos += d * step
+			e.face = lerp_angle(e.face, d.angle(), turn)
+		else:
+			e.face = lerp_angle(e.face, dirp.angle(), turn)
+		return epos
+
+	e.state_t -= dt
+	match e.state:
+		B_WINDUP:
+			# The warning: it swells and flushes, and keeps its eyes on the player.
+			var total := float(c["burst_fuse"]) if e.ai == Config.AI_BURSTER else (
+					float(c["leap_windup"]) if e.ai == Config.AI_LEAPER else float(c["shot_windup"]))
+			var f := clampf(1.0 - e.state_t / total, 0.0, 1.0)
+			var blink := 0.5 + 0.5 * sin(_time * 34.0)
+			var puff := e.base_scale * (1.0 + Config.SPECIAL_SWELL * f * (1.6 if e.ai == Config.AI_BURSTER else 1.0))
+			if e.ai == Config.AI_LEAPER:
+				puff = e.base_scale * (1.0 - 0.16 * f)        # (it crouches instead)
+			e.scale = Vector2(puff, puff)
+			e.modulate = Color.WHITE.lerp(e.warn, f * (0.55 + 0.45 * blink))
+			e.phase += dt * 30.0
+			e.face = lerp_angle(e.face, dirp.angle(), minf(dt * 10.0, 1.0))
+			if e.state_t <= 0.0:
+				match e.ai:
+					Config.AI_SHOOTER:
+						_shoot(e, epos, dirp)
+						_settle(e)
+						e.attack_t = float(c["shot_cooldown"]) * randf_range(0.85, 1.2)
+					Config.AI_BURSTER:
+						_kill(e, dirp, 0.0, "")
+					Config.AI_LEAPER:
+						e.state = B_CHARGE
+						e.state_t = c["leap_time"]
+						e.charge_dir = dirp
+						e.charge_hit = false
+						e.modulate = Config.BURN_TINT if e.burn_t > 0.0 else Color.WHITE
+						game.fx.dust(epos, 3)
+		B_CHARGE:
+			# In the air, in a straight line at where the player was.
+			epos += e.charge_dir * (float(c["leap_speed"]) * dt)
+			var air := e.base_scale * 1.22
+			e.scale = Vector2(air, air)
+			e.face = e.charge_dir.angle()
+			if not e.charge_hit and dist < e.radius + player.radius + 6.0 and player.alive:
+				e.charge_hit = true
+				game.damage_player(float(c["leap_damage"]) * game.enemy_damage_mult, epos)
+			if e.state_t <= 0.0 or e.charge_hit:
+				e.state = B_RECOVER
+				e.state_t = c["leap_recover"]
+				e.scale = Vector2(e.base_scale, e.base_scale)
+				game.fx.dust(epos, 4)
+		B_RECOVER:
+			# Dazed after landing: the moment to shoot it.
+			e.modulate = Color(0.72, 0.72, 0.8)
+			if e.state_t <= 0.0:
+				_settle(e)
+				e.charge_cd = float(c["leap_cooldown"]) * randf_range(0.85, 1.2)
+	return epos
+
+
+## The one-time introduction of a new kind of zombie: its name, what it does,
+## and a ring around it so it is clear which one is meant.
+func _tip(e: Enemy) -> void:
+	_tip_owed[e.kind] = false
+	SaveData.enemies_seen.append(Art.ENEMY_SPRITE[e.kind])
+	game.hud.show_tip(String(e.cfg["name"]).to_upper(), String(e.cfg["tip"]), e.warn, Config.ENEMY_TIP_TIME)
+	game.fx.ring(e.pos, 90.0, e.radius + 8.0, 0.7, e.warn)
+	game.fx.ring(e.pos, 130.0, e.radius + 8.0, 1.0, e.warn)
+
+
+## Start the warning before an attack.
+func _wind_up(e: Enemy, seconds: float, sound: String) -> void:
+	e.state = B_WINDUP
+	e.state_t = seconds
+	if _view.has_point(e.pos):
+		Sfx.play(sound, -4.0, 0.15)
+
+
+## Back to walking, looking normal again.
+func _settle(e: Enemy) -> void:
+	e.state = B_CHASE
+	e.scale = Vector2(e.base_scale, e.base_scale)
+	e.modulate = Config.BURN_TINT if e.burn_t > 0.0 else Color.WHITE
+
+
+## A hit staggered it in the middle of its attack.
+func _knocked(e: Enemy) -> void:
+	match e.ai:
+		Config.AI_SHOOTER:
+			# A Gobber swallows its spit and has to start again; a Chucker just waits.
+			if e.state == B_WINDUP and bool(e.cfg["shot_interrupt"]):
+				_settle(e)
+				e.attack_t = float(e.cfg["shot_cooldown"]) * 0.5
+		Config.AI_LEAPER:
+			# Shot out of the air (or out of its crouch): it drops, dazed.
+			if e.state == B_CHARGE or e.state == B_WINDUP:
+				e.state = B_RECOVER
+				e.state_t = float(e.cfg["leap_recover"]) * 0.6
+				e.scale = Vector2(e.base_scale, e.base_scale)
+
+
+## A shooter lets fly: a Gobber spits straight at the player, a Chucker lobs
+## rubble onto the spot where the player stands right now.
+func _shoot(e: Enemy, epos: Vector2, dirp: Vector2) -> void:
+	var c := e.cfg
+	if e.kind == Config.GOBBER:
+		var dir := dirp.rotated(deg_to_rad(randf_range(-1.0, 1.0) * float(c["shot_spread_deg"])))
+		game.enemy_shots.spit(epos + dirp * (e.radius + 4.0), dir, c, float(c["shot_damage"]) * game.enemy_damage_mult)
+	else:
+		var off := Vector2.from_angle(randf() * TAU) * (randf() * float(c["lob_aim_error"]))
+		game.enemy_shots.lob(epos + dirp * e.radius, game.player.pos + off, c, float(c["lob_damage"]) * game.enemy_damage_mult)
+
+
+## Gasbags that are due go off.
+func _tick_bursts(dt: float) -> void:
+	var i := 0
+	while i < _bursts.size():
+		var b: Array = _bursts[i]
+		b[0] = float(b[0]) - dt
+		if float(b[0]) <= 0.0:
+			_bursts.remove_at(i)
+			_burst(b[1])
+		else:
+			i += 1
+
+
+## A Gasbag bursts: everything around it is hurt and thrown back - zombies
+## (the kills are the player's), the player, weapon crates.
+func _burst(at: Vector2) -> void:
+	var c: Dictionary = Config.ENEMIES[Config.GASBAG]
+	var radius: float = c["burst_radius"]
+	var edge: float = c["burst_edge_damage"]
+	var hurt: float = float(c["burst_zombie_damage"]) * game.enemy_hp_mult
+	_in_burst = true
+	for e: Enemy in in_radius(at, radius):
+		var away := e.pos - at
+		var d := away.length()
+		var dir := away / d if d > 0.01 else Vector2.from_angle(randf() * TAU)
+		var f := clampf(d / radius, 0.0, 1.0)
+		damage(e, hurt * lerpf(1.0, edge, f), dir, float(c["burst_knockback"]) * lerpf(1.0, 0.5, f), float(c["burst_stagger"]), 0.0)
+	_in_burst = false
+	var player := game.player
+	if player.alive and player.pos.distance_to(at) < radius + player.radius:
+		game.damage_player(float(c["burst_damage"]) * game.enemy_damage_mult, at)
+	game.pickups.blast_crates(at, radius, float(c["burst_crate_damage"]) / Config.CRATE_BLAST_MULT, edge)
+	# A wet bang and a cloud of foul gas.
+	var fx := game.fx
+	fx.blood_burst(at, 26, 1.7)
+	fx.cloud(at, 16, 46.0, Color(0.62, 0.72, 0.2, 0.5), 150.0)
+	fx.ring(at, 16.0, radius, 0.32, Color(0.85, 0.95, 0.35, 0.85))
+	fx.light(at, radius * 2.4, 0.25, Color(0.8, 0.95, 0.3, 0.6))
+	for k in 4:
+		game.decals.blood_splat(at + Vector2.from_angle(randf() * TAU) * randf_range(8.0, radius * 0.5), randf_range(44.0, 80.0))
+	game.decals.stamp(Art.t("glow"), at, 0.0, Vector2(radius, radius) * 1.7, Color(0.36, 0.42, 0.08, 0.4))
+	game.shake(float(c["burst_shake"]))
+	game.hitstop(float(c["burst_hitstop"]), true)
+	Sfx.play("gas_burst", 0.0, 0.12)
 
 
 ## A zombie that was left far behind is taken off the field without a reward;
@@ -596,6 +841,7 @@ func clear_all() -> void:
 	bigs.clear()
 	alive_count = 0
 	_dead_count = 0
+	_bursts.clear()
 	_head.fill(-1)
 
 

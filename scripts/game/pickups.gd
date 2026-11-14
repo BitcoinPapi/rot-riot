@@ -101,7 +101,7 @@ func _roll_gear(e: Enemy) -> void:
 	var chance: float = float(Config.GEAR_DROP_CHANCE[e.kind]) * float(game.map["gear"]) \
 			* (1.0 + game.player.stats.coin_luck * Config.GEAR_LUCK_FACTOR)
 	if loot.size() < Config.GEAR_MAX_ON_FIELD and randf() < chance:
-		spawn_gear(e.pos, _pick_gear("brutes" if e.kind == Config.BRUTE else "zombies"))
+		spawn_gear(e.pos, _pick_gear("brutes" if e.kind == Config.BRUTE else String(e.cfg.get("gear_pool", "zombies"))))
 
 
 ## Hide this run's treasure chests on the map: away from the starting spot

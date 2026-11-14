@@ -11,7 +11,7 @@ extends Node
 ## ============================================================================
 
 const GAME_TITLE := "ROT RIOT"
-const GAME_VERSION := "0.6.0"
+const GAME_VERSION := "0.7.0"
 const HERO_NAME := "CLIFF"                    # the survivor you play
 # How he looks with nothing equipped (his gear is drawn over this, see scripts/autoload/art.gd).
 const HERO_LOOK := {"skin": "#dfae88", "skin_dark": "#b98660", "hair": "#3a2a1e", "shirt": "#23262b", "shirt_light": "#33373d",
@@ -289,6 +289,16 @@ const SHAMBLER := 0
 const RUNNER := 1
 const BRUTE := 2
 const BOSS := 3
+const GOBBER := 4      # spits at you from a distance
+const CHUCKER := 5     # lobs rubble that lands where you were standing
+const GASBAG := 6      # bursts when it dies or reaches you - and takes the zombies around it along
+const LUNGER := 7      # crouches, then leaps at you
+
+# How a kind behaves ("ai" below). Walkers just come at you.
+const AI_WALKER := 0
+const AI_SHOOTER := 1  # stops at "range" and attacks from there (Gobber, Chucker)
+const AI_BURSTER := 2  # Gasbag
+const AI_LEAPER := 3   # Lunger
 
 const ENEMIES := {
 	SHAMBLER: {
@@ -334,7 +344,95 @@ const ENEMIES := {
 		"arrive_delay": 3.0,           # seconds into a boss wave before it walks in
 		"roar_shake": 0.35, "spawn_shake": 0.5, "charge_shake": 0.3, "wall_slam_shake": 0.55,
 	},
+	# --- Zombies that attack from range. They only attack when you can see
+	# --- them: on screen and on ground the fog has cleared from.
+	GOBBER: {
+		"name": "Gobber", "ai": AI_SHOOTER, "hp": 20.0, "speed": 80.0, "speed_var": 0.15, "radius": 13.0,
+		"damage": 8.0, "attack_cd": 1.0, "score": 25, "rage": 3.0, "xp": 8,
+		"coin_chance": 0.30, "coins_min": 1, "coins_max": 2, "medkit_chance": 0.02,
+		"kb_mult": 1.0, "stagger_mult": 1.0, "mass": 0.9, "push_player": 0.8,
+		"hitstop_mult": 1.0, "shake_mult": 1.0, "blood": 1.0,
+		"range": 400.0,                # stops and spits when this close
+		"shot_cooldown": 2.8,          # seconds between spits
+		"shot_windup": 0.6,            # it swells up this long first: the warning. Any hit makes it swallow the spit.
+		"shot_interrupt": true,
+		"shot_speed": 330.0,           # slow enough to sidestep
+		"shot_damage": 11.0,
+		"shot_range": 640.0,
+		"shot_radius": 8.0,
+		"shot_spread_deg": 3.5,
+		"warn_color": Color(0.75, 1.0, 0.3),
+		"tip": "It spits from a distance. Shoot it while it swells up and it has to start again.",
+	},
+	CHUCKER: {
+		"name": "Chucker", "ai": AI_SHOOTER, "hp": 90.0, "speed": 62.0, "speed_var": 0.1, "radius": 20.0,
+		"damage": 16.0, "attack_cd": 1.1, "score": 45, "rage": 6.0, "xp": 16,
+		"coin_chance": 0.8, "coins_min": 1, "coins_max": 2, "medkit_chance": 0.06,
+		"kb_mult": 0.5, "stagger_mult": 0.5, "mass": 3.0, "push_player": 1.6,
+		"hitstop_mult": 1.8, "shake_mult": 2.2, "blood": 1.8, "gear_pool": "brutes",
+		"range": 470.0,
+		"shot_cooldown": 4.4,
+		"shot_windup": 0.8,            # it heaves the lump up over its head first (hits do not stop it)
+		"shot_interrupt": false,
+		"lob_time": 1.15,              # seconds the lump is in the air: your time to step out of the red ring
+		"lob_radius": 78.0,            # everything this close to where it lands is hit
+		"lob_damage": 20.0,
+		"lob_aim_error": 22.0,         # px it can be off
+		"lob_shake": 0.3,
+		"warn_color": Color(1.0, 0.6, 0.3),
+		"tip": "It lobs rubble at where you stand. Get out of the red ring.",
+	},
+	# --- The Gasbag: walks up to you and bursts. Shoot it while it is still
+	# --- among other zombies and the blast is yours.
+	GASBAG: {
+		"name": "Gasbag", "ai": AI_BURSTER, "hp": 55.0, "speed": 66.0, "speed_var": 0.1, "radius": 19.0,
+		"damage": 0.0, "attack_cd": 1.0, "score": 35, "rage": 4.0, "xp": 12,
+		"coin_chance": 0.5, "coins_min": 1, "coins_max": 2, "medkit_chance": 0.04,
+		"kb_mult": 0.7, "stagger_mult": 0.6, "mass": 2.5, "push_player": 1.4,
+		"hitstop_mult": 1.6, "shake_mult": 1.0, "blood": 3.0, "no_corpse": true,
+		"burst_trigger": 16.0,         # px beyond touching at which it starts to swell
+		"burst_fuse": 0.65,            # it swells this long before it goes off by itself
+		"burst_radius": 125.0,
+		"burst_damage": 20.0,          # to you (times the map / wave damage)
+		"burst_zombie_damage": 70.0,   # to zombies (times the map / wave health, so it stays worth doing)
+		"burst_edge_damage": 0.5,      # share of that at the edge of the blast
+		"burst_crate_damage": 60.0,    # weapon crates are caught in it too
+		"burst_knockback": 520.0,
+		"burst_stagger": 0.35,
+		"burst_chain_delay": 0.14,     # a Gasbag caught in a burst goes off this much later: pop, pop, pop
+		"burst_shake": 0.4, "burst_hitstop": 0.05,
+		"warn_color": Color(1.0, 0.95, 0.35),
+		"tip": "It bursts when it dies. Pop it among other zombies - not next to you.",
+	},
+	# --- The Lunger: fast and thin. It crouches (the warning), then leaps in
+	# --- a straight line at where you were. Step aside and it lands dazed.
+	LUNGER: {
+		"name": "Lunger", "ai": AI_LEAPER, "hp": 30.0, "speed": 118.0, "speed_var": 0.12, "radius": 12.0,
+		"damage": 9.0, "attack_cd": 0.8, "score": 30, "rage": 3.4, "xp": 10,
+		"coin_chance": 0.3, "coins_min": 1, "coins_max": 2, "medkit_chance": 0.02,
+		"kb_mult": 1.1, "stagger_mult": 1.0, "mass": 0.8, "push_player": 0.8,
+		"hitstop_mult": 1.0, "shake_mult": 1.0, "blood": 0.9,
+		"leap_range_min": 120.0,       # it leaps when you are between these distances
+		"leap_range_max": 310.0,
+		"leap_cooldown": 3.4,
+		"leap_windup": 0.45,
+		"leap_speed": 660.0,
+		"leap_time": 0.44,
+		"leap_damage": 16.0,
+		"leap_recover": 0.75,          # it lies dazed this long after landing
+		"warn_color": Color(1.0, 0.4, 0.35),
+		"tip": "It crouches, then leaps. Step aside and shoot it while it lies dazed.",
+	},
 }
+
+# Things thrown and spat at the player.
+const ENEMY_SHOT_CRATE_DAMAGE := 20.0   # what a glob of spit does to a weapon crate in its way
+const LOB_CRATE_DAMAGE := 60.0          # ...and a lump of rubble landing beside one
+const LOB_ARC_HEIGHT := 90.0            # how high the lump is drawn at the top of its flight
+const SHOOTER_FIRST_SHOT_MIN := 0.4     # a shooter that has just got you in sight waits this long (at least / at most)
+const SHOOTER_FIRST_SHOT_MAX := 1.3     # ...before its first attack
+const SPECIAL_SWELL := 0.28             # how much a zombie puffs up while it winds up an attack
+const ENEMY_TIP_TIME := 4.5             # seconds the one-time tip about a new kind of zombie stays up
 
 # Badly hurt zombies look it: wounds, a limp, and a trail of blood.
 const WOUNDED_AT := 0.3                 # below this fraction of health a zombie shows its wounds
@@ -414,12 +512,20 @@ const WAVE_DAMAGE_GROWTH := 0.01        # +1% zombie damage per wave (wave 100 =
 const WAVE_SPEED_GROWTH := 0.005        # +0.5% zombie speed per wave
 const WAVE_SPEED_MAX_MULT := 1.45
 const WAVE_XP_GROWTH := 0.01            # +1% XP per kill per wave (tougher zombies are worth more)
-const RUNNER_START_WAVE := 2
-const RUNNER_WEIGHT_PER_WAVE := 0.10
-const RUNNER_WEIGHT_MAX := 0.45
-const BRUTE_START_WAVE := 3
-const BRUTE_WEIGHT_PER_WAVE := 0.035
-const BRUTE_WEIGHT_MAX := 0.18
+# Who is in a wave. Each kind first shows up in wave "start", then its share
+# of the horde grows by "per_wave" every wave up to "max". Whatever is left
+# over is Shamblers - and at least ENEMY_MIX_SHAMBLERS of every wave is
+# (the others are scaled down together if they would take more).
+const ENEMY_MIX := [
+	{"kind": RUNNER, "start": 2, "per_wave": 0.10, "max": 0.45},
+	{"kind": BRUTE, "start": 3, "per_wave": 0.035, "max": 0.18},
+	{"kind": GOBBER, "start": 3, "per_wave": 0.03, "max": 0.12},
+	{"kind": LUNGER, "start": 4, "per_wave": 0.03, "max": 0.10},
+	{"kind": GASBAG, "start": 6, "per_wave": 0.02, "max": 0.08},
+	{"kind": CHUCKER, "start": 8, "per_wave": 0.015, "max": 0.06},
+]
+const ENEMY_MIX_SHAMBLERS := 0.2
+const RUNNER_START_WAVE := 2            # (runner packs can show up after this wave)
 const BOSS_EVERY := 5                   # a boss arrives every N waves
 const BOSS_WAVE_COUNT_MULT := 0.6       # boss waves have fewer regular zombies
 const RUNNER_PACK_CHANCE := 0.14        # chance that a pack is all runners (after runners unlock)
@@ -811,7 +917,8 @@ const GEAR_ITEMS := {
 
 # Drops. Chance per kill that the zombie leaves a piece of gear (before the
 # map's "gear" multiplier and the LUCK stat). Deliberately rare.
-const GEAR_DROP_CHANCE := {SHAMBLER: 0.004, RUNNER: 0.005, BRUTE: 0.04, BOSS: 1.0}
+const GEAR_DROP_CHANCE := {SHAMBLER: 0.004, RUNNER: 0.005, BRUTE: 0.04, BOSS: 1.0,
+	GOBBER: 0.008, CHUCKER: 0.03, GASBAG: 0.012, LUNGER: 0.008}
 const GEAR_BOSS_EXTRA_CHANCE := 0.4     # a boss always drops a ring or an amulet; this is the chance of a second, ordinary piece
 const GEAR_LUCK_FACTOR := 0.5           # how much of the LUCK coin bonus also applies to gear drops
 const GEAR_MAX_ON_FIELD := 4
@@ -1026,6 +1133,25 @@ func wave_speed_mult(wave: int) -> float:
 
 func wave_pack_size(wave: int) -> int:
 	return int(round(minf(WAVE_PACK_SIZE_BASE + WAVE_PACK_SIZE_PER_WAVE * float(wave - 1), WAVE_PACK_SIZE_MAX)))
+
+
+## The share of the horde each special kind has in this wave: {kind: 0..1}.
+## (What is left over is Shamblers.)
+func wave_mix(wave: int) -> Dictionary:
+	var mix := {}
+	var total := 0.0
+	for entry: Dictionary in ENEMY_MIX:
+		var start := int(entry["start"])
+		if wave < start:
+			continue
+		var share := minf(float(wave - start + 1) * float(entry["per_wave"]), float(entry["max"]))
+		mix[int(entry["kind"])] = share
+		total += share
+	var room := 1.0 - ENEMY_MIX_SHAMBLERS
+	if total > room:
+		for kind: int in mix.keys():
+			mix[kind] = float(mix[kind]) * room / total
+	return mix
 
 
 ## How many directions the packs of this wave come from at once.

@@ -48,9 +48,26 @@ works on 4.5 and later.
   gear. The counter above the minimap shows how many you have opened.
 - Zombies claw out of the ground around you in waves that keep getting
   bigger, wherever on the map you are - you cannot outrun a wave, and a boss
-  you leave behind digs its way back to you. Every 5th wave brings a boss. **Every boss you beat is a checkpoint**: next time you
-  can start that map from the wave after it (choose it on the map screen),
-  with a weapon crate waiting beside you.
+  you leave behind digs its way back to you. Every 5th wave brings a boss.
+  **Every boss you beat is a checkpoint**: next time you can start that map
+  from the wave after it (choose it on the map screen), with a weapon crate
+  waiting beside you.
+- **Know your zombies.** Besides the plain Shambler, the fast Runner and the
+  big Brute there are four with a trick of their own. Each one **warns you
+  first**: it stops, swells up and changes colour for a moment. The first
+  time you meet one, the game tells you what it does.
+  - **Gobber** (yellow, puffed cheeks) - spits at you from a distance. The
+    glob is slow: sidestep it, or hide behind a rock. Shoot the Gobber while
+    it swells up and it has to start again.
+  - **Chucker** (big, grey, carries rocks) - lobs a lump of rubble at the
+    spot where you stand. A **red ring** on the ground shows where it will
+    land: get out of the ring.
+  - **Gasbag** (round and bloated) - bursts when it dies, or when it reaches
+    you. The blast kills the zombies around it too, so pop it while it is in
+    a crowd - and never right next to you.
+  - **Lunger** (thin, blue-grey, claws) - crouches, then leaps at you in a
+    straight line. Step aside and shoot it while it lies dazed.
+  Zombies that attack from a distance only do so when you can see them.
 - You play **Cliff**. He starts with a pistol. **Crates** drop near you
   with a better weapon that lasts about 20 seconds: SMG, shotgun, machine
   gun, rifle, sledgehammer, launcher, flamethrower or chainsaw. The crate
@@ -120,7 +137,7 @@ Close Godot, then double-click **Update Rot Riot.command** inside the project
 folder. A Terminal window opens, downloads the latest version and replaces the
 folder. Your coins, level and upgrades are stored elsewhere and are kept.
 Then open the project in Godot again. The version number is shown in the
-bottom right corner of the main menu (now v0.6.0).
+bottom right corner of the main menu (now v0.7.0).
 
 After an update that changes the upgrade screens, points you had already
 spent are handed back so you can place them again in the new trees.

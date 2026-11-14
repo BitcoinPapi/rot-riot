@@ -164,6 +164,16 @@ func smoke(pos: Vector2, count: int, size: float) -> void:
 				size * randf_range(0.8, 1.3), size * 1.4, 2.0, Color(grey, grey, grey, 0.5))
 
 
+## Puffs of coloured vapour (gas, spit, rock dust).
+func cloud(pos: Vector2, count: int, size: float, color: Color, spread: float = 60.0) -> void:
+	for k in count:
+		var d := Vector2.from_angle(randf() * TAU)
+		var tint := color.lightened(randf_range(-0.12, 0.12)) if color.v > 0.2 else color
+		tint.a = color.a
+		_emit(P_SMOKE, pos + d * randf() * size * 0.4, d * randf_range(spread * 0.2, spread), randf_range(0.4, 1.0),
+				size * randf_range(0.7, 1.2), size * 1.3, 2.4, tint)
+
+
 func dust(pos: Vector2, count: int) -> void:
 	for k in count:
 		var d := Vector2.from_angle(randf() * TAU)

@@ -21,6 +21,8 @@ var _coins_seen := 0
 var _coin_pop := 0.0
 var _crosshair_kick := 0.0
 var _hint_t := 7.0
+var _tips: Array = []           # one-time explanations waiting their turn: [title, text, colour, seconds]
+var _tip_t := 0.0               # how long the first of them has left
 
 
 func _ready() -> void:
@@ -35,6 +37,15 @@ func announce(title: String, subtitle: String, color: Color, duration: float = 2
 	_announce_color = color
 	_announce_t = duration
 	_announce_len = duration
+
+
+## A one-time explanation (a new kind of zombie...). It gets a line of its
+## own near the bottom of the screen, so the wave banners cannot push it away;
+## several are shown one after the other.
+func show_tip(title: String, text: String, color: Color, duration: float) -> void:
+	_tips.append([title, text, color, duration])
+	if _tips.size() == 1:
+		_tip_t = duration
 
 
 func hurt() -> void:
@@ -56,6 +67,12 @@ func tick(real_dt: float) -> void:
 	_hurt = maxf(_hurt - real_dt * 2.2, 0.0)
 	_announce_t = maxf(_announce_t - real_dt, 0.0)
 	_hint_t = maxf(_hint_t - real_dt, 0.0)
+	if not _tips.is_empty():
+		_tip_t -= real_dt
+		if _tip_t <= 0.0:
+			_tips.pop_front()
+			if not _tips.is_empty():
+				_tip_t = float((_tips[0] as Array)[3])
 	_crosshair_kick = lerpf(_crosshair_kick, 0.0, minf(real_dt * 12.0, 1.0))
 	if absf(_score_shown - game.score) > 0.5:
 		_score_shown = lerpf(_score_shown, float(game.score), minf(real_dt * 10.0, 1.0))
@@ -88,6 +105,7 @@ func _draw() -> void:
 	_draw_minimap(w, h)
 	_draw_announcement(w, h)
 	_draw_hint(w, h)
+	_draw_tip(w, h)
 	if p.alive:
 		_draw_crosshair(p)
 
@@ -357,6 +375,26 @@ func _draw_announcement(w: float, h: float) -> void:
 	_text(Vector2(w * 0.5, h * 0.3), _announce, int(64.0 * pop), color, 1, 12)
 	if _announce_sub != "":
 		_text(Vector2(w * 0.5, h * 0.3 + 40), _announce_sub, 24, Color(1, 1, 1, alpha), 1)
+
+
+func _draw_tip(w: float, h: float) -> void:
+	if _tips.is_empty():
+		return
+	var entry: Array = _tips[0]
+	var total := float(entry[3])
+	var alpha := clampf((total - _tip_t) / 0.2, 0.0, 1.0) * clampf(_tip_t / 0.5, 0.0, 1.0)
+	var color: Color = entry[2]
+	var title := "NEW:  %s" % String(entry[0])
+	var text := String(entry[1])
+	var text_w := _font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 19).x
+	var title_w := _font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, 24).x
+	var bw := maxf(text_w, title_w) + 48.0
+	var box := Rect2(w * 0.5 - bw * 0.5, h - 206.0, bw, 70.0)
+	draw_rect(box, Color(0, 0, 0, 0.62 * alpha))
+	draw_rect(Rect2(box.position, Vector2(5.0, box.size.y)), Color(color.r, color.g, color.b, alpha))
+	draw_rect(Rect2(box.end.x - 5.0, box.position.y, 5.0, box.size.y), Color(color.r, color.g, color.b, alpha))
+	_text(Vector2(w * 0.5, box.position.y + 29.0), title, 24, Color(color.r, color.g, color.b, alpha), 1)
+	_text(Vector2(w * 0.5, box.position.y + 56.0), text, 19, Color(1, 1, 1, alpha), 1, 4)
 
 
 func _draw_hint(w: float, h: float) -> void:

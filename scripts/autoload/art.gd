@@ -23,8 +23,15 @@ const SHAMBLER_VARIANTS := 4
 const RUNNER_VARIANTS := 2
 const BRUTE_VARIANTS := 2
 
-const ENEMY_SPRITE := ["shambler", "runner", "brute", "boss"]   # indexed by enemy kind (see Config)
-const ENEMY_VARIANTS := [SHAMBLER_VARIANTS, RUNNER_VARIANTS, BRUTE_VARIANTS, 1]
+const GOBBER_VARIANTS := 2
+const CHUCKER_VARIANTS := 2
+const GASBAG_VARIANTS := 2
+const LUNGER_VARIANTS := 2
+
+# Indexed by enemy kind (see Config).
+const ENEMY_SPRITE := ["shambler", "runner", "brute", "boss", "gobber", "chucker", "gasbag", "lunger"]
+const ENEMY_VARIANTS := [SHAMBLER_VARIANTS, RUNNER_VARIANTS, BRUTE_VARIANTS, 1,
+	GOBBER_VARIANTS, CHUCKER_VARIANTS, GASBAG_VARIANTS, LUNGER_VARIANTS]
 
 
 func _ready() -> void:
@@ -102,6 +109,46 @@ func _build() -> void:
 	_svg("boss_0", 176, 176, boss)
 	_svg("boss_0_hurt", 176, 176, boss + WOUNDS_BOSS)
 	_flash("boss_0")
+
+	# The Gobber: sickly yellow, cheeks full of spit.
+	var gobber_shirts := ["#5a4a6b", "#6b5a3a"]
+	for i in GOBBER_VARIANTS:
+		var gobber := SVG_GOBBER.format({
+			"line": "#1d2110", "skin": "#b9c552", "sac": "#dff06e", "shirt": gobber_shirts[i],
+			"hair": "#4a4f22", "eye": "#fbffd0", "mouth": "#2a3310"})
+		_svg("gobber_%d" % i, 56, 56, gobber)
+		_svg("gobber_%d_hurt" % i, 56, 56, gobber + WOUNDS_GOBBER)
+	_flash("gobber_0")
+
+	# The Chucker: a dusty hulk with a lump of rubble in its fist.
+	var chucker_shirts := ["#4d5a3f", "#5a4a3a"]
+	for i in CHUCKER_VARIANTS:
+		var chucker := SVG_CHUCKER.format({
+			"line": "#1c1a16", "skin": "#a39883", "skin2": "#857a67", "shirt": chucker_shirts[i],
+			"rock": "#8d929b", "rock2": "#6f747d", "eye": "#ffb84a"})
+		_svg("chucker_%d" % i, 84, 84, chucker)
+		_svg("chucker_%d_hurt" % i, 84, 84, chucker + WOUNDS_CHUCKER)
+	_flash("chucker_0")
+	_svg("rubble", 30, 30, SVG_RUBBLE)
+
+	# The Gasbag: stretched tight and about to go.
+	var gasbag_bellies := ["#c9d47a", "#d4c97a"]
+	for i in GASBAG_VARIANTS:
+		var gasbag := SVG_GASBAG.format({
+			"line": "#22240f", "belly": gasbag_bellies[i], "belly2": "#e6ee9f", "vein": "#7d8a35",
+			"skin": "#a9b85f", "boil": "#f2e36b", "eye": "#ff7a3b"})
+		_svg("gasbag_%d" % i, 76, 76, gasbag)
+		_svg("gasbag_%d_hurt" % i, 76, 76, gasbag + WOUNDS_GASBAG)
+	_flash("gasbag_0")
+
+	# The Lunger: thin, cold-skinned, all claws.
+	var lunger_skins := ["#5f7f8f", "#6a7590"]
+	for i in LUNGER_VARIANTS:
+		var lunger := SVG_LUNGER.format({
+			"line": "#0f171c", "skin": lunger_skins[i], "skin2": "#465f6c", "bone": "#e6dcc0", "eye": "#ff4a3b"})
+		_svg("lunger_%d" % i, 56, 56, lunger)
+		_svg("lunger_%d_hurt" % i, 56, 56, lunger + WOUNDS_LUNGER)
+	_flash("lunger_0")
 
 	# --- player and weapons ---
 	refresh_hero()
@@ -623,6 +670,106 @@ const SVG_BOSS := """
 <path d="M2,-14 Q-6,0 2,14" stroke="{line}" stroke-width="3.4" fill="none" stroke-linecap="round"/>
 """
 
+const SVG_GOBBER := """
+<circle cx="0" cy="0" r="19" fill="#000000" fill-opacity="0.22"/>
+<path d="M-2,-10 L-13,-15" stroke="{line}" stroke-width="8.4" stroke-linecap="round" fill="none"/>
+<path d="M-2,10 L-13,15" stroke="{line}" stroke-width="8.4" stroke-linecap="round" fill="none"/>
+<path d="M-2,-10 L-13,-15" stroke="{skin}" stroke-width="5" stroke-linecap="round" fill="none"/>
+<path d="M-2,10 L-13,15" stroke="{skin}" stroke-width="5" stroke-linecap="round" fill="none"/>
+<ellipse cx="-3" cy="0" rx="10.4" ry="13.4" fill="{line}"/>
+<ellipse cx="-3" cy="0" rx="8.9" ry="11.9" fill="{shirt}"/>
+<path d="M-9,4 L-4,7 L-8,11 Z" fill="{sac}" fill-opacity="0.7"/>
+<circle cx="5" cy="0" r="8.6" fill="{line}"/>
+<circle cx="5" cy="0" r="7.1" fill="{skin}"/>
+<circle cx="8.6" cy="-6.6" r="4.8" fill="{line}"/>
+<circle cx="8.6" cy="6.6" r="4.8" fill="{line}"/>
+<circle cx="8.6" cy="-6.6" r="3.6" fill="{sac}"/>
+<circle cx="8.6" cy="6.6" r="3.6" fill="{sac}"/>
+<circle cx="7.6" cy="-7.6" r="1.1" fill="#ffffff" fill-opacity="0.8"/>
+<circle cx="7.6" cy="5.6" r="1.1" fill="#ffffff" fill-opacity="0.8"/>
+<ellipse cx="11.4" cy="0" rx="2.9" ry="3.7" fill="{line}"/>
+<ellipse cx="11.2" cy="0" rx="1.9" ry="2.7" fill="{mouth}"/>
+<circle cx="14.4" cy="1.8" r="1.5" fill="{sac}" stroke="{line}" stroke-width="0.6"/>
+<circle cx="6.4" cy="-2.6" r="1.5" fill="{eye}"/>
+<circle cx="6.4" cy="2.6" r="1.5" fill="{eye}"/>
+<path d="M-1.5,-4 Q-4.6,0 -1.5,4 Q1,0 -1.5,-4 Z" fill="{hair}"/>
+"""
+
+const SVG_CHUCKER := """
+<circle cx="0" cy="0" r="30" fill="#000000" fill-opacity="0.24"/>
+<circle cx="-17" cy="-8" r="6.4" fill="{rock2}" stroke="{line}" stroke-width="1.5"/>
+<circle cx="-19" cy="5" r="7.4" fill="{rock}" stroke="{line}" stroke-width="1.5"/>
+<circle cx="-13" cy="13" r="5.2" fill="{rock2}" stroke="{line}" stroke-width="1.5"/>
+<path d="M0,-17 L15,-20" stroke="{line}" stroke-width="13" stroke-linecap="round" fill="none"/>
+<path d="M0,-17 L15,-20" stroke="{skin}" stroke-width="9.4" stroke-linecap="round" fill="none"/>
+<circle cx="18" cy="-20.5" r="6" fill="{skin2}" stroke="{line}" stroke-width="1.5"/>
+<path d="M0,17 L19,16" stroke="{line}" stroke-width="16" stroke-linecap="round" fill="none"/>
+<path d="M0,17 L19,16" stroke="{skin}" stroke-width="12.2" stroke-linecap="round" fill="none"/>
+<path d="M21,6 L30,7 L35,14 L32,23 L23,25 L18,18 Z" fill="{rock}" stroke="{line}" stroke-width="1.8" stroke-linejoin="round"/>
+<path d="M21,6 L27,14 L35,14 M27,14 L23,25" stroke="{rock2}" stroke-width="1.4" fill="none"/>
+<ellipse cx="-3" cy="0" rx="16.6" ry="21.6" fill="{line}"/>
+<ellipse cx="-3" cy="0" rx="14.9" ry="19.9" fill="{shirt}"/>
+<path d="M-12,-15 L2,-10 M-12,15 L2,10" stroke="{line}" stroke-width="3" stroke-linecap="round"/>
+<path d="M-15,-2 L-9,3 M-13,6 L-8,9" stroke="{skin2}" stroke-width="2" stroke-linecap="round"/>
+<circle cx="5" cy="0" r="10.2" fill="{line}"/>
+<circle cx="5" cy="0" r="8.6" fill="{skin}"/>
+<path d="M8.4,-7 L12.6,-2.4 M8.4,7 L12.6,2.4" stroke="{line}" stroke-width="1.8" stroke-linecap="round"/>
+<circle cx="10.6" cy="-3.4" r="1.9" fill="{eye}"/>
+<circle cx="10.6" cy="3.4" r="1.9" fill="{eye}"/>
+<path d="M0,-6 Q-4,0 0,6" stroke="{skin2}" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+"""
+
+# The lump a Chucker throws (also left lying where it lands).
+const SVG_RUBBLE := """
+<path d="M-9,-6 L-1,-12 L9,-8 L12,2 L6,11 L-5,12 L-12,4 Z" fill="#8d929b" stroke="#1c1a16" stroke-width="2" stroke-linejoin="round"/>
+<path d="M-9,-6 L0,-1 L9,-8 M0,-1 L-5,12 M0,-1 L12,2" stroke="#6f747d" stroke-width="1.5" fill="none"/>
+<path d="M-6,-6 L-1,-9 L4,-7" stroke="#b9bec6" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+"""
+
+const SVG_GASBAG := """
+<circle cx="0" cy="0" r="28" fill="#000000" fill-opacity="0.24"/>
+<path d="M4,-17 L14,-21" stroke="{line}" stroke-width="8.6" stroke-linecap="round" fill="none"/>
+<path d="M4,17 L14,21" stroke="{line}" stroke-width="8.6" stroke-linecap="round" fill="none"/>
+<path d="M4,-17 L14,-21" stroke="{skin}" stroke-width="5.2" stroke-linecap="round" fill="none"/>
+<path d="M4,17 L14,21" stroke="{skin}" stroke-width="5.2" stroke-linecap="round" fill="none"/>
+<circle cx="-3" cy="0" r="21" fill="{line}"/>
+<circle cx="-3" cy="0" r="19.3" fill="{belly}"/>
+<ellipse cx="-9" cy="-7" rx="8" ry="6" fill="{belly2}" fill-opacity="0.75"/>
+<path d="M-20,2 Q-12,6 -8,0 Q-4,-6 4,-8 M-14,14 Q-8,8 -2,12 Q4,14 10,8 M-6,-18 Q-2,-12 6,-14" stroke="{vein}" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+<circle cx="-12" cy="9" r="3.2" fill="{boil}" stroke="{line}" stroke-width="0.9"/>
+<circle cx="2" cy="-12" r="2.6" fill="{boil}" stroke="{line}" stroke-width="0.9"/>
+<circle cx="-1" cy="5" r="2.1" fill="{boil}" stroke="{line}" stroke-width="0.9"/>
+<circle cx="-16" cy="-6" r="1.9" fill="{boil}" stroke="{line}" stroke-width="0.9"/>
+<circle cx="8" cy="9" r="1.8" fill="{boil}" stroke="{line}" stroke-width="0.9"/>
+<circle cx="15" cy="0" r="7.4" fill="{line}"/>
+<circle cx="15" cy="0" r="6" fill="{skin}"/>
+<circle cx="18.2" cy="-2.3" r="1.3" fill="{eye}"/>
+<circle cx="18.2" cy="2.3" r="1.3" fill="{eye}"/>
+"""
+
+const SVG_LUNGER := """
+<circle cx="0" cy="0" r="17" fill="#000000" fill-opacity="0.22"/>
+<path d="M-5,-5 L-16,-11" stroke="{line}" stroke-width="6.6" stroke-linecap="round" fill="none"/>
+<path d="M-5,5 L-16,11" stroke="{line}" stroke-width="6.6" stroke-linecap="round" fill="none"/>
+<path d="M-5,-5 L-16,-11" stroke="{skin2}" stroke-width="3.6" stroke-linecap="round" fill="none"/>
+<path d="M-5,5 L-16,11" stroke="{skin2}" stroke-width="3.6" stroke-linecap="round" fill="none"/>
+<path d="M0,-8 L15,-11.5" stroke="{line}" stroke-width="6.8" stroke-linecap="round" fill="none"/>
+<path d="M0,8 L15,11.5" stroke="{line}" stroke-width="6.8" stroke-linecap="round" fill="none"/>
+<path d="M0,-8 L15,-11.5" stroke="{skin}" stroke-width="3.8" stroke-linecap="round" fill="none"/>
+<path d="M0,8 L15,11.5" stroke="{skin}" stroke-width="3.8" stroke-linecap="round" fill="none"/>
+<path d="M16,-14.4 L23,-13.4 L16.6,-11.2 L22.6,-9.6 L16,-8.6 Z" fill="{bone}" stroke="{line}" stroke-width="0.8" stroke-linejoin="round"/>
+<path d="M16,14.4 L23,13.4 L16.6,11.2 L22.6,9.6 L16,8.6 Z" fill="{bone}" stroke="{line}" stroke-width="0.8" stroke-linejoin="round"/>
+<ellipse cx="-3" cy="0" rx="10" ry="8.8" fill="{line}"/>
+<ellipse cx="-3" cy="0" rx="8.5" ry="7.3" fill="{skin}"/>
+<path d="M-9,0 L3,0" stroke="{skin2}" stroke-width="2.4" stroke-linecap="round"/>
+<circle cx="-7" cy="0" r="1.2" fill="{bone}"/><circle cx="-3.4" cy="0" r="1.2" fill="{bone}"/><circle cx="0.2" cy="0" r="1.2" fill="{bone}"/>
+<ellipse cx="7" cy="0" rx="7" ry="5.8" fill="{line}"/>
+<ellipse cx="7" cy="0" rx="5.6" ry="4.4" fill="{skin}"/>
+<path d="M10.6,-2.6 L13.4,-1.6 L10.8,-0.6 L13.4,0.6 L10.6,1.6 L13.2,2.6" stroke="{bone}" stroke-width="1" fill="none" stroke-linejoin="round"/>
+<circle cx="8.4" cy="-2.3" r="1.4" fill="{eye}"/>
+<circle cx="8.4" cy="2.3" r="1.4" fill="{eye}"/>
+"""
+
 # Wounds drawn on top of a zombie once it is badly hurt: open gashes, bare
 # ribs, a lost eye, bloody hands. (To replace with real art: <name>_hurt.png.)
 const WOUNDS_SHAMBLER := """
@@ -656,6 +803,50 @@ const WOUNDS_BRUTE := """
 <circle cx="27" cy="18" r="6.2" fill="#7a1010"/>
 <path d="M10,-20 L22,-18" stroke="#7a1010" stroke-width="5" stroke-linecap="round"/>
 <circle cx="-22" cy="-16" r="2.4" fill="#7a1010"/><circle cx="-10" cy="-22" r="1.8" fill="#7a1010"/><circle cx="-16" cy="20" r="2" fill="#7a1010"/>
+"""
+
+const WOUNDS_GOBBER := """
+<path d="M-10,-4 L-4,0 L-7,8 L-12,4 Z" fill="#4a0a0a"/>
+<path d="M-9,0 L-6,3 M-8.5,4 L-6,6" stroke="#e8dcc0" stroke-width="1.4" stroke-linecap="round"/>
+<circle cx="8.6" cy="6.6" r="3.8" fill="#4d5a12"/>
+<path d="M8.6,6.6 L12,11 M7,9 L6,13" stroke="#8ea520" stroke-width="1.6" stroke-linecap="round"/>
+<circle cx="6.4" cy="-2.6" r="2" fill="#1a0505"/>
+<path d="M0,-6 L4,-8 L3,-3 Z" fill="#7a1010"/>
+<path d="M-8,13 L-13,15" stroke="#7a1010" stroke-width="3.6" stroke-linecap="round"/>
+<circle cx="-12" cy="-8" r="1.4" fill="#7a1010"/><circle cx="-4" cy="13" r="1.2" fill="#7a1010"/>
+"""
+
+const WOUNDS_CHUCKER := """
+<path d="M-15,-8 L-5,-3 L-10,10 L-17,5 Z" fill="#3a0606"/>
+<path d="M-13,-3 L-8,0 M-13,3 L-8,6" stroke="#e8dcc0" stroke-width="1.9" stroke-linecap="round"/>
+<path d="M0,-7 L7,-9 L6,-3 L1,-2 Z" fill="#7a1010"/>
+<circle cx="10.6" cy="3.4" r="2.6" fill="#1a0505"/>
+<path d="M10.6,3.4 L13.6,8" stroke="#7a1010" stroke-width="1.7" stroke-linecap="round"/>
+<path d="M6,-19 L14,-20" stroke="#7a1010" stroke-width="5" stroke-linecap="round"/>
+<path d="M-2,13 L7,16 L2,21 L-5,18 Z" fill="#7a1010"/>
+<circle cx="-18" cy="-14" r="2.2" fill="#7a1010"/><circle cx="-8" cy="-19" r="1.7" fill="#7a1010"/><circle cx="-13" cy="18" r="1.9" fill="#7a1010"/>
+"""
+
+const WOUNDS_GASBAG := """
+<path d="M-14,-10 L-6,-6 L-9,3 L-17,-1 Z" fill="#4a0a0a"/>
+<path d="M-4,8 L4,11 L0,17 L-7,14 Z" fill="#4a0a0a"/>
+<path d="M-12,-5 L-8,-2 M-2,11 L1,14" stroke="#b5c431" stroke-width="1.6" stroke-linecap="round"/>
+<circle cx="-18" cy="-4" r="3.4" fill="#d9ec5a" fill-opacity="0.55"/>
+<circle cx="-20" cy="-9" r="2.2" fill="#d9ec5a" fill-opacity="0.4"/>
+<circle cx="2" cy="19" r="3" fill="#d9ec5a" fill-opacity="0.55"/>
+<circle cx="18.2" cy="2.3" r="1.9" fill="#1a0505"/>
+<path d="M6,-14 L12,-12 L9,-8 Z" fill="#7a1010"/>
+<circle cx="-10" cy="16" r="1.6" fill="#7a1010"/><circle cx="6" cy="-18" r="1.4" fill="#7a1010"/>
+"""
+
+const WOUNDS_LUNGER := """
+<path d="M-8,-3 L-2,0 L-5,6 L-9,3 Z" fill="#4a0a0a"/>
+<path d="M-7,1 L-4.4,3" stroke="#e8dcc0" stroke-width="1.3" stroke-linecap="round"/>
+<path d="M3,-3 L8,-4 L6,0 Z" fill="#7a1010"/>
+<circle cx="8.4" cy="2.3" r="1.9" fill="#1a0505"/>
+<path d="M8,-10 L14,-11.4" stroke="#7a1010" stroke-width="3.4" stroke-linecap="round"/>
+<path d="M-10,8 L-16,11" stroke="#7a1010" stroke-width="3.2" stroke-linecap="round"/>
+<circle cx="-11" cy="-7" r="1.3" fill="#7a1010"/><circle cx="1" cy="7" r="1.1" fill="#7a1010"/>
 """
 
 const WOUNDS_BOSS := """

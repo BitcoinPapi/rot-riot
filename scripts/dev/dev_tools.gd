@@ -22,6 +22,8 @@ extends Node
 ##   --at=X,Y           start the run at this spot of the map (the middle is 3000,2000)
 ##   --no-fog           the whole map is uncovered from the start
 ##   --show-chests      one second into a run, put a closed treasure chest beside the player and open another
+##   --horde=K:N,K:N    one second into a run, put N zombies of kind K around the player
+##                      (shambler, runner, brute, boss, gobber, chucker, gasbag, lunger), e.g. --horde=gobber:3,gasbag:2
 ##   --god              the player cannot die
 ##   --frames=N         quit after N frames and print a summary
 ##   --autotest         play through the whole game loop automatically and report PASS/FAIL
@@ -132,6 +134,15 @@ func _process(_delta: float) -> void:
 			game.cam.snap_to(game.player.pos)
 		if _args.has("no-fog") and _frame == 2:
 			game.fog.reveal_all()
+		if _args.has("horde") and _frame == 60:
+			for part: String in String(_args["horde"]).split(","):
+				var bits := part.split(":")
+				var which := Art.ENEMY_SPRITE.find(bits[0])
+				if which < 0:
+					continue
+				for i in (int(bits[1]) if bits.size() > 1 else 1):
+					var at := game.player.pos + Vector2.from_angle(randf() * TAU) * randf_range(230.0, 290.0)
+					game.enemies.spawn(which, game.arena.clamp_inside(at, 40.0), game.enemy_hp_mult, game.enemy_speed_mult)
 		if _args.has("show-chests") and _frame == 60 and game.pickups.chests.size() >= 2:
 			game.pickups.chests[0].pos = game.player.pos + Vector2(190.0, -60.0)
 			game.pickups.chests[1].pos = game.player.pos + Vector2(-200.0, 70.0)
@@ -291,6 +302,14 @@ func _bench(game: Game) -> void:
 			kind = Config.BRUTE
 		elif roll > 0.7:
 			kind = Config.RUNNER
+		elif roll > 0.63:
+			kind = Config.GOBBER
+		elif roll > 0.57:
+			kind = Config.LUNGER
+		elif roll > 0.53:
+			kind = Config.GASBAG
+		elif roll > 0.5:
+			kind = Config.CHUCKER
 		var at := p + Vector2.from_angle(randf() * TAU) * randf_range(260.0, 620.0)
 		game.enemies.spawn(kind, game.arena.clamp_inside(at, 30.0))
 	if not _args.has("bot"):
@@ -1119,6 +1138,169 @@ func _run_autotest() -> void:
 		if spot.distance_to(pl.pos) > Config.CRATE_MAX_DIST_FROM_PLAYER + 1.0 or not field.has_point(spot):
 			crate_spots_ok = false
 	_check(crate_spots_ok, "weapon crates land near the player, wherever on the map that is")
+
+	# --- the zombies with an attack of their own: Gobber, Chucker, Gasbag, Lunger ---
+	# (In the middle of the map, where there are no rocks, with nothing else about.)
+	var shots := game.enemy_shots
+	var new_kinds := [Config.GOBBER, Config.CHUCKER, Config.GASBAG, Config.LUNGER]
+	var kinds_ok := true
+	for kind: int in new_kinds:
+		for v in int(Art.ENEMY_VARIANTS[kind]):
+			if Art.enemy_tex(kind, v) == null or Art.enemy_hurt_tex(kind, v) == null:
+				kinds_ok = false
+		if Art.enemy_flash_tex(kind) == null or not Config.GEAR_DROP_CHANCE.has(kind) or not Config.ENEMIES[kind].has("tip"):
+			kinds_ok = false
+	_check(kinds_ok, "every new kind of zombie has its pictures (a wounded one too), a tip and a gear drop chance")
+	game.enemies.clear_all()
+	game.pickups.crates.clear()
+	game.pickups.set("_crate_timer", 9999.0)
+	var stand := middle + Vector2(110.0, 0.0)
+	pl.place(stand)
+	game.cam.snap_to(pl.pos)
+	game.fog.reveal(pl.pos, 1.5)
+	pl.stats.evasion = 0.0
+	pl.hp = pl.max_hp
+	await _frames(3)
+
+	# The Gobber: stops in range, swells (the warning), spits; a hit while it swells stops it.
+	SaveData.enemies_seen.clear()
+	game.enemies.set("_tip_owed", [false, false, false, false, true, true, true, true] as Array[bool])
+	var gob := game.enemies.spawn(Config.GOBBER, middle + Vector2(-110.0, 0.0))
+	gob.attack_t = 0.05
+	await _until(func() -> bool: return gob.state == EnemyManager.B_WINDUP, 60)
+	_check(gob.state == EnemyManager.B_WINDUP and shots.spits.is_empty(), "a Gobber in range stops and swells up before it spits")
+	_check(SaveData.enemies_seen.has("gobber"), "the first Gobber ever seen is introduced with a tip")
+	var gob_at := gob.pos
+	await _until(func() -> bool: return not shots.spits.is_empty(), 90)
+	_check(not shots.spits.is_empty() and gob.pos.distance_to(gob_at) < 12.0, "...then spits a glob at the player")
+	var hp_spit := pl.hp
+	pl.invuln = 0.0
+	await _until(func() -> bool: return pl.hp < hp_spit or shots.spits.is_empty(), 120)
+	_check(pl.hp < hp_spit, "the spit hurts a player who stands still (%.0f damage)" % (hp_spit - pl.hp))
+	gob.attack_t = 0.05
+	await _until(func() -> bool: return gob.state == EnemyManager.B_WINDUP, 90)
+	game.enemies.damage(gob, 1.0, Vector2.LEFT, 0.0, 0.3, 0.0)
+	await _until(func() -> bool: return gob.state == EnemyManager.B_CHASE, 30)
+	_check(gob.alive and gob.state == EnemyManager.B_CHASE and gob.attack_t > 0.5 and shots.spits.is_empty(),
+			"shooting a Gobber while it swells makes it swallow its spit")
+	game.enemies.clear_all()
+	var lurker := game.enemies.spawn(Config.GOBBER, game.arena.clamp_inside(pl.pos + Vector2(-900.0, 0.0), 40.0))
+	lurker.attack_t = 0.0
+	var lurk_from := lurker.pos.distance_to(pl.pos)
+	await _frames(40)
+	_check(lurker.state == EnemyManager.B_CHASE and shots.spits.is_empty() and lurker.pos.distance_to(pl.pos) < lurk_from - 10.0,
+			"a Gobber that is out of sight does not spit: it comes closer first")
+	game.enemies.clear_all()
+	# Spit is stopped by a rock and by a weapon crate (and wears the crate down).
+	var rock := game.arena.obs_pos[0]
+	var rock_r := game.arena.obs_radius[0]
+	pl.place(rock + Vector2(rock_r + 70.0, 0.0))
+	game.cam.snap_to(pl.pos)
+	var hp_rock := pl.hp
+	pl.invuln = 0.0
+	shots.spit(rock + Vector2(-rock_r - 50.0, 0.0), Vector2.RIGHT, Config.ENEMIES[Config.GOBBER], 10.0)
+	await _until(func() -> bool: return shots.spits.is_empty(), 90)
+	_check(shots.spits.is_empty() and is_equal_approx(pl.hp, hp_rock), "a rock stops spit")
+	pl.place(stand)
+	game.cam.snap_to(pl.pos)
+	game.pickups.spawn_crate(middle + Vector2(0.0, -150.0), "shotgun")
+	var spat_on: Pickups.Crate = game.pickups.crates[0]
+	shots.spit(spat_on.pos + Vector2(-80.0, 0.0), Vector2.RIGHT, Config.ENEMIES[Config.GOBBER], 10.0)
+	await _until(func() -> bool: return shots.spits.is_empty(), 90)
+	_check(is_equal_approx(spat_on.hp, Config.CRATE_HP - Config.ENEMY_SHOT_CRATE_DAMAGE), "spit that hits a weapon crate damages it")
+	game.pickups.crates.clear()
+
+	# The Chucker: lobs rubble onto the spot where the player stands.
+	var chuck := game.enemies.spawn(Config.CHUCKER, middle + Vector2(-120.0, 0.0))
+	chuck.attack_t = 0.05
+	await _until(func() -> bool: return not shots.lobs.is_empty(), 150)
+	_check(shots.lobs.size() == 1 and shots.lobs[0].target.distance_to(pl.pos) <= float(Config.ENEMIES[Config.CHUCKER]["lob_aim_error"]) + 1.0,
+			"a Chucker lobs rubble at the spot where the player stands")
+	var hp_lob := pl.hp
+	pl.invuln = 0.0
+	await _until(func() -> bool: return shots.lobs.is_empty(), 150)
+	_check(pl.hp < hp_lob, "rubble hurts a player who stays in the red ring (%.0f damage)" % (hp_lob - pl.hp))
+	game.enemies.clear_all()
+	shots.lob(pl.pos + Vector2(-200.0, 0.0), pl.pos, Config.ENEMIES[Config.CHUCKER], 20.0)
+	pl.place(stand + Vector2(0.0, 170.0))
+	hp_lob = pl.hp
+	pl.invuln = 0.0
+	await _until(func() -> bool: return shots.lobs.is_empty(), 150)
+	_check(is_equal_approx(pl.hp, hp_lob), "...and misses one who steps out of it")
+
+	# The Gasbag: bursts when it dies, takes zombies along, sets off the next one.
+	pl.place(stand)
+	var bag := game.enemies.spawn(Config.GASBAG, middle + Vector2(-190.0, 0.0))
+	var beside_a := game.enemies.spawn(Config.SHAMBLER, bag.pos + Vector2(40.0, 30.0))
+	var beside_b := game.enemies.spawn(Config.SHAMBLER, bag.pos + Vector2(-40.0, -30.0))
+	var next_bag := game.enemies.spawn(Config.GASBAG, bag.pos + Vector2(0.0, 90.0))
+	next_bag.hp = 10.0
+	var kills_gas := game.kills
+	var hp_gas := pl.hp
+	pl.invuln = 0.0
+	game.enemies.damage(bag, bag.hp + 1.0, Vector2.RIGHT, 0.0, 0.0, 0.0)
+	await _until(func() -> bool: return not beside_a.alive and not beside_b.alive, 30)
+	_check(not beside_a.alive and not beside_b.alive, "a Gasbag that is shot bursts and takes the zombies around it along")
+	await _until(func() -> bool: return not next_bag.alive and game.kills >= kills_gas + 4, 60)
+	_check(not next_bag.alive and game.kills >= kills_gas + 4, "...and sets off the next Gasbag (all of them the player's kills)")
+	_check(is_equal_approx(pl.hp, hp_gas), "the burst does not reach a player who keeps away")
+	game.enemies.clear_all()
+	await _frames(20)
+	var creeper := game.enemies.spawn(Config.GASBAG, pl.pos + Vector2(-70.0, 0.0))
+	await _until(func() -> bool: return creeper.state == EnemyManager.B_WINDUP, 150)
+	_check(creeper.alive and creeper.state == EnemyManager.B_WINDUP, "a Gasbag that reaches the player swells up")
+	hp_gas = pl.hp
+	await _until(func() -> bool: return not creeper.alive, 90)
+	pl.invuln = 0.0
+	await _until(func() -> bool: return pl.hp < hp_gas, 30)
+	_check(not creeper.alive and pl.hp < hp_gas, "...and bursts in the player's face (%.0f damage)" % (hp_gas - pl.hp))
+	game.enemies.clear_all()
+	await _frames(20)
+
+	# The Lunger: crouches, leaps in a straight line, lands dazed.
+	pl.hp = pl.max_hp
+	var lun := game.enemies.spawn(Config.LUNGER, middle + Vector2(-110.0, 0.0))
+	lun.charge_cd = 0.05
+	await _until(func() -> bool: return lun.state == EnemyManager.B_WINDUP, 60)
+	_check(lun.state == EnemyManager.B_WINDUP, "a Lunger crouches before it leaps")
+	var crouched_at := lun.pos
+	await _until(func() -> bool: return lun.state == EnemyManager.B_CHARGE, 60)
+	var hp_leap := pl.hp
+	pl.invuln = 0.0
+	await _until(func() -> bool: return lun.state == EnemyManager.B_RECOVER, 90)
+	_check(lun.state == EnemyManager.B_RECOVER and lun.pos.distance_to(crouched_at) > 120.0 and pl.hp < hp_leap,
+			"...then leaps at the player and hits one who stands still (%.0f damage)" % (hp_leap - pl.hp))
+	game.enemies.clear_all()
+	var lun2 := game.enemies.spawn(Config.LUNGER, middle + Vector2(-110.0, 0.0))
+	lun2.charge_cd = 0.05
+	await _until(func() -> bool: return lun2.state == EnemyManager.B_CHARGE, 120)
+	pl.place(stand + Vector2(0.0, 170.0))
+	hp_leap = pl.hp
+	pl.invuln = 0.0
+	await _until(func() -> bool: return lun2.state == EnemyManager.B_RECOVER, 90)
+	_check(lun2.state == EnemyManager.B_RECOVER and is_equal_approx(pl.hp, hp_leap), "...and flies past one who steps aside, landing dazed")
+	game.enemies.clear_all()
+	_check(SaveData.enemies_seen.size() == 4, "each new kind is introduced once (%s)" % ", ".join(SaveData.enemies_seen))
+
+	# Who is in a wave.
+	var mix_wave := game.director.wave
+	var counted := {}
+	game.director.wave = 1
+	for i in 300:
+		counted[game.director.call("_pick_kind")] = true
+	_check(counted.size() == 1 and counted.has(Config.SHAMBLER), "wave 1 is all Shamblers")
+	counted = {}
+	game.director.wave = 30
+	for i in 4000:
+		var picked: int = game.director.call("_pick_kind")
+		counted[picked] = int(counted.get(picked, 0)) + 1
+	_check(counted.size() == 7, "by wave 30 every kind of zombie is in the horde")
+	_check(int(counted.get(Config.SHAMBLER, 0)) > 4000 * (Config.ENEMY_MIX_SHAMBLERS - 0.04), "...and Shamblers are still a good part of it (%d of 4000)" % int(counted.get(Config.SHAMBLER, 0)))
+	game.director.wave = mix_wave
+	shots.spits.clear()
+	shots.lobs.clear()
+	pl.refresh_stats()
+	pl.hp = pl.max_hp
 
 	# --- death and game over ---
 	_auto_bot = false

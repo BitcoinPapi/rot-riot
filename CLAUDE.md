@@ -63,6 +63,8 @@ Other dev flags (all after `--`, see `scripts/dev/dev_tools.gd`): `--play`,
 needs `--level=18` or more),
 `--at=X,Y` (start the run at that spot of the map; the middle is 3000,2000), `--no-fog` (whole map
 uncovered), `--show-chests` (a closed chest beside the player and an opened one),
+`--horde=KIND:N,KIND:N` (put zombies around the player: shambler, runner, brute, boss, gobber,
+chucker, gasbag, lunger - e.g. `--horde=gobber:3,gasbag:2`),
 `--shot=PATH --shot-frame=N` (screenshot; needs a real display, e.g. `xvfb-run`),
 `--dump-sfx=DIR` (writes every generated sound as .wav),
 `--gallery=PREFIX[,PREFIX] --gallery-scale=N` (shows generated sprites enlarged, e.g.
@@ -102,7 +104,9 @@ scripts/game/
   skill_tree.gd          builds the skill tree (three families, 52 nodes) from Config; describes nodes only
   pet.gd                 the companion in a run: heel, bite, fetch, guard (numbers arrive via PlayerStats)
   enemy.gd               one zombie = data + Sprite2D (no logic)
-  enemy_manager.gd       ALL zombie logic in one loop: spatial grid, separation, attacks, boss AI, damage, queries
+  enemy_manager.gd       ALL zombie logic in one loop: spatial grid, separation, attacks, boss AI, the
+                         zombies with an attack of their own (_tick_special), Gasbag bursts, damage, queries
+  enemy_shots.gd         what zombies spit and throw: spit globs and lobbed rubble (data + one draw node)
   wave_director.gd       waves, packs (rising in a ring around the screen), enemy mix, boss waves,
                          map multipliers, end of the map
   projectiles.gd         bullets + grenades (plain data, swept hits, explosions)
@@ -246,7 +250,34 @@ show the damage.
 **Enemies** (`Config.ENEMIES`): Shambler (basic), Runner (fast, zig-zags),
 Brute (tank, resists knockback and stagger), boss "The Gorger" every 5th wave
 (charge with a telegraphed wind-up, dazed afterwards; summons shamblers out of
-the ground; +60% HP each time it returns).
+the ground; +60% HP each time it returns), and four kinds with an attack of
+their own (owner: "more enemies including some that shoot from range"):
+- **Gobber** (ranged): stops about 400 px away, swells for 0.6 s, spits a
+  slow glob (330 px/s, 11 damage) that rocks and weapon crates stop. Any hit
+  while it swells makes it swallow the spit and start over.
+- **Chucker** (ranged, tough): heaves a lump of rubble onto the spot where
+  the player stands; it lands 1.15 s later and hits everything within 78 px
+  (20 damage). A red ring on the ground shows where and fills as it falls.
+  Hits do not stop it. Drops from the brute gear pool.
+- **Gasbag**: walks up, swells for 0.65 s and bursts (125 px; 20 damage to
+  the player). It bursts however it dies, and the blast hurts zombies too
+  (70 x the wave's health multiplier - the kills are the player's) and sets
+  off other Gasbags a moment later. Shoot it in a crowd, not next to you.
+- **Lunger**: thin and quick; crouches 0.45 s, then leaps ~290 px in a
+  straight line at where the player was (16 damage) and lies dazed for
+  0.75 s. Shooting it out of the air drops it.
+*Rules for these* (keep them for any new kind): every special attack has a
+**warning** first (the zombie stops, swells and flushes with its
+`warn_color`); shooters only attack when the player can see them (**on
+screen and on ground the fog has cleared from**, otherwise they walk
+closer); enemy projectiles **damage weapon crates** like the player's do
+(owner's earlier wish). The first time a kind is seen it is introduced
+once per save with a banner near the bottom of the screen ("NEW: GOBBER" +
+the `"tip"` from config, `Hud.show_tip`, `SaveData.enemies_seen`) and a ring
+around it. In code they share the boss's states (chase / wind-up / attack /
+recover) and are stepped by `EnemyManager._tick_special`; `"ai"` in config
+says which behaviour a kind has. Names must stay original (checked: no
+"Spitter", "Boomer", "Bloater", "Hunter" and the like).
 *Wounded look:* below 30% health (`WOUNDED_AT`) a zombie switches to its
 `<sprite>_hurt` texture (gashes, bare ribs, a lost eye), limps, walks a
 little slower and leaves a trail of blood drops; its corpse keeps the wounds.
@@ -258,7 +289,10 @@ over 100 waves: count = 22 + 9(w-1), capped at 500 per wave and 240 alive.
 Zombies arrive in packs (out of the ground around the screen, see "The map")
 so they form hordes; pack size and rate grow with the wave, and every 5 waves
 the packs come from one more direction at once (up to 4) so hordes surround
-the player; per wave +6% HP,
+the player; who is in a wave comes from `Config.ENEMY_MIX` (Runners from
+wave 2, Brutes and Gobbers from 3, Lungers from 4, Gasbags from 6, Chuckers
+from 8; each kind's share grows per wave to its maximum; at least 20% of
+every wave stays Shamblers); per wave +6% HP,
 +1% damage, +0.5% speed, +1% XP per kill, all multiplied by the map. Boss HP
 = 1700 x wave growth x map x (+25% per earlier boss). Clearing a wave pays
 a coin and XP bonus. The slope is deliberately gentle so that every bit of
@@ -451,11 +485,13 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
 
 | zombies | avg ms | p95 ms |
 |--------:|-------:|-------:|
-| 150     | 1.2    | 2.1    |
-| 250     | 2.6    | 3.9    |
-| 400     | 4.1    | 5.6    |
+| 150     | 1.5    | 2.1    |
+| 250     | 2.7    | 3.9    |
+| 400     | 5.6    | 8.4    |
 
-(Measured on the big map; the same as on the old small arena.)
+(Measured on the big map with all eight kinds of zombie in the horde. The
+400 case got slower with Gasbags in it: their chain bursts kill twice as
+many zombies per second.)
 
 60 fps allows 16.6 ms per frame. With a real renderer 250 zombies plus
 effects were ~330 draw calls (minimap and fog included). Not yet measured on the owner's hardware.
@@ -466,6 +502,10 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
 - The balance of the 100-wave maps, the tree prices, the keystones, the
   perks, gear drop rates and gear stats, pet prices and pet strength: all
   first guesses, only checked with the bot and the tests.
+- The new enemies: whether their warnings are long enough to react to,
+  whether ranged zombies are fair or annoying, how often each should appear
+  (first guesses; the bot gets about as far as before, wave 5-11 as a new
+  character). Their sounds are unheard.
 - The big map on real hardware: whether making a new piece of ground causes
   a hitch when walking into new territory, how much video memory a fully
   explored map takes (about 108 MB by calculation), how the fog looks in
@@ -542,6 +582,10 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   and to continue -> the big map with fog of war, minimap and treasure
   chests (built, awaiting feedback). First guesses to ask about: the size of
   the map, four chests per run, how thick and how wide the fog is.
+- While v0.6 was being built: "next add more enemies including some that
+  shoot from range. put working on the new maps last." -> Gobber, Chucker,
+  Gasbag, Lunger (built, awaiting feedback); themed maps moved to the end of
+  the roadmap.
 - The owner's Mac: browser downloads do not work there, so updates go through
   Terminal (curl) or the double-click updater. Always give the full update
   command and say plainly that Return must be pressed.
@@ -570,9 +614,10 @@ Build one stage at a time; the owner plays each before the next starts.
    owner wants more: an even bigger map or different sizes per map, a full
    map on a key, chests guarded by a pack, a key or boss needed for a
    special chest, landmarks to find.
-5. **More enemy types, including some that shoot from range** (owner, after
-   v0.5: "next add more enemies including some that shoot from range. put
-   working on the new maps last").
+5. **More enemy types, including some that shoot from range. DONE (awaiting
+   the owner's playtest).** Gobber, Chucker, Gasbag, Lunger - see "Enemies"
+   above. More can be added the same way (ideas: a shielded zombie that must
+   be flanked, a screamer that speeds up the horde, a second boss).
 6. **Five themed maps** - LAST, by the owner's order - each telling a story
    through its scenery: forest campsite, abandoned farm, graveyard,
    crashed-convoy highway, quarantine lab. (Map select, unlock order and

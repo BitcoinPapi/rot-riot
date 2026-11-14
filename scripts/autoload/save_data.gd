@@ -46,6 +46,7 @@ var _gear_ranks := {}            # worked out from gear_worn: passive id -> rank
 var pets_owned: Array[String] = []
 var pet_active: String = ""      # the pet that comes along ("" = none)
 var pet_seen: bool = false       # the Pet screen has been opened since the first pet joined (menu badge)
+var enemies_seen: Array = []     # kinds of zombie whose one-time tip has been shown (their sprite names)
 
 # Maps: how many are open, and the highest wave cleared on each one.
 var maps_unlocked: int = 1
@@ -115,6 +116,7 @@ func _reset_progress() -> void:
 	pets_owned = []
 	pet_active = ""
 	pet_seen = false
+	enemies_seen = []
 	maps_unlocked = 1
 	map_best = []
 	for i in Config.MAPS.size():
@@ -198,6 +200,11 @@ func load_game() -> void:
 	if not pets_owned.has(pet_active):
 		pet_active = ""
 	pet_seen = bool(data.get("pet_seen", false))
+	enemies_seen = []
+	var seen_kinds: Variant = data.get("enemies_seen", [])
+	if typeof(seen_kinds) == TYPE_ARRAY:
+		for kind_name: Variant in (seen_kinds as Array):
+			enemies_seen.append(String(kind_name))
 	maps_unlocked = clampi(int(data.get("maps_unlocked", 1)), 1, Config.MAPS.size())
 	var saved_best: Variant = data.get("map_best")
 	if typeof(saved_best) == TYPE_ARRAY:
@@ -232,6 +239,7 @@ func save_game() -> void:
 		"pets_owned": pets_owned,
 		"pet_active": pet_active,
 		"pet_seen": pet_seen,
+		"enemies_seen": enemies_seen,
 		"maps_unlocked": maps_unlocked,
 		"map_best": map_best,
 		"selected_map": selected_map,

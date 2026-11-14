@@ -20,6 +20,8 @@ var wave_total := 0
 var boss: Enemy = null            # the living boss, if any
 var intermission: float = Config.WAVE_FIRST_DELAY
 
+var _mix: Dictionary = {}         # this wave's share of each special kind (see Config.wave_mix)
+var _mix_wave := -1
 var _pack_timer := 0.0
 var _boss_delay := -1.0           # > 0 while a boss is on its way
 
@@ -118,18 +120,16 @@ func _spawn_pack() -> void:
 	to_spawn -= size
 
 
+## Which kind of zombie comes next: by this wave's mix (Config.ENEMY_MIX).
 func _pick_kind() -> int:
-	var runner_w := 0.0
-	if wave >= Config.RUNNER_START_WAVE:
-		runner_w = minf(float(wave - Config.RUNNER_START_WAVE + 1) * Config.RUNNER_WEIGHT_PER_WAVE, Config.RUNNER_WEIGHT_MAX)
-	var brute_w := 0.0
-	if wave >= Config.BRUTE_START_WAVE:
-		brute_w = minf(float(wave - Config.BRUTE_START_WAVE + 1) * Config.BRUTE_WEIGHT_PER_WAVE, Config.BRUTE_WEIGHT_MAX)
+	if _mix_wave != wave:
+		_mix_wave = wave
+		_mix = Config.wave_mix(wave)
 	var roll := randf()
-	if roll < brute_w:
-		return Config.BRUTE
-	if roll < brute_w + runner_w:
-		return Config.RUNNER
+	for kind: int in _mix.keys():
+		roll -= float(_mix[kind])
+		if roll < 0.0:
+			return kind
 	return Config.SHAMBLER
 
 

@@ -37,6 +37,15 @@ var RECIPES := {
 	"zombie_die": [_make_zombie_die, -4.0, 0.05],
 	"boss_roar": [_make_boss_roar, 0.0, 0.3],
 	"boss_charge": [_make_boss_charge, -1.0, 0.3],
+	"gobber_windup": [_make_gobber_windup, -5.0, 0.12],
+	"spit": [_make_spit, -4.0, 0.1],
+	"spit_hit": [_make_spit_hit, -6.0, 0.1],
+	"chucker_windup": [_make_chucker_windup, -3.0, 0.2],
+	"lob_throw": [_make_lob_throw, -4.0, 0.12],
+	"lob_land": [_make_lob_land, -1.0, 0.15],
+	"gasbag_fuse": [_make_gasbag_fuse, -4.0, 0.2],
+	"gas_burst": [_make_gas_burst, 0.0, 0.15],
+	"lunger_shriek": [_make_lunger_shriek, -4.0, 0.12],
 	"player_hurt": [_make_player_hurt, -1.0, 0.1],
 	"player_die": [_make_player_die, 0.0, 0.5],
 	"coin": [_make_coin, -6.0, 0.03],
@@ -593,6 +602,88 @@ func _make_boss_roar(s: Synth) -> void:
 	s.tone(0.0, 1.2, 0.5, 111.0, 62.0, 0.5, Synth.SAW, 0.12, 13.0, 0.09)
 	s.noise(0.0, 1.2, 0.5, 0.5, 950.0, 300.0, 0.1)
 	s.lowpass(1500.0)
+
+
+func _make_gobber_windup(s: Synth) -> void:
+	# A wet gargle at the back of the throat, getting louder.
+	s.length(0.55)
+	s.drive = 1.5
+	s.band(0.0, 0.5, 0.7, 0.3, 420.0, 5.0, 0.25)
+	s.tone(0.0, 0.5, 0.35, 95.0, 120.0, 0.35, Synth.SAW, 0.2, 24.0, 0.25)
+	s.noise(0.0, 0.5, 0.3, 0.3, 1400.0, 1900.0, 0.3, 500.0)
+	s.lowpass(2600.0)
+
+
+func _make_spit(s: Synth) -> void:
+	# "Ptoo": a sharp wet pop.
+	s.length(0.18)
+	s.drive = 1.4
+	s.noise(0.0, 0.05, 1.3, 0.012, 5200.0, 1500.0, 0.0005, 700.0)
+	s.band(0.0, 0.14, 0.9, 0.04, 760.0, 5.0)
+	s.band(0.02, 0.12, 0.4, 0.04, 1500.0, 7.0)
+
+
+func _make_spit_hit(s: Synth) -> void:
+	# A splat.
+	s.length(0.2)
+	s.noise(0.0, 0.16, 1.2, 0.04, 2400.0, 420.0, 0.001)
+	s.band(0.0, 0.12, 0.5, 0.04, 300.0, 3.0)
+
+
+func _make_chucker_windup(s: Synth) -> void:
+	# A deep grunt of effort and stone scraping.
+	s.length(0.7)
+	s.drive = 2.0
+	s.tone(0.0, 0.65, 0.8, 68.0, 92.0, 0.45, Synth.SAW, 0.12, 15.0, 0.06)
+	s.band(0.1, 0.5, 0.4, 0.3, 520.0, 2.5, 0.2)
+	s.lowpass(1500.0)
+
+
+func _make_lob_throw(s: Synth) -> void:
+	# A heavy thing swung through the air.
+	s.length(0.4)
+	s.noise(0.0, 0.36, 0.9, 0.16, 500.0, 1700.0, 0.12, 180.0)
+	s.band(0.0, 0.3, 0.35, 0.12, 260.0, 2.0, 0.08)
+
+
+func _make_lob_land(s: Synth) -> void:
+	# Stone hitting the ground: a deep thud, a crack, bits rattling away.
+	s.length(0.75)
+	s.drive = 1.8
+	s.band(0.0, 0.3, 1.5, 0.09, 85.0, 2.0)
+	s.noise(0.0, 0.1, 1.2, 0.025, 4200.0, 700.0, 0.0005, 150.0)
+	s.band(0.0, 0.18, 0.6, 0.05, 430.0, 4.0)
+	for i in 5:
+		s.band(0.1 + i * 0.08, 0.06, 0.45 - i * 0.07, 0.015, 900.0 + 230.0 * i, 8.0)
+	s.reverb(0.2, 0.3, 2000.0)
+
+
+func _make_gasbag_fuse(s: Synth) -> void:
+	# Skin stretching and gas hissing out, rising.
+	s.length(0.65)
+	s.noise(0.0, 0.62, 0.8, 0.6, 2200.0, 7000.0, 0.5, 1600.0)
+	s.band(0.0, 0.6, 0.5, 0.5, 240.0, 6.0, 0.45)
+
+
+func _make_gas_burst(s: Synth) -> void:
+	# A fat wet bang and a hiss of gas after it.
+	s.length(0.9)
+	s.drive = 2.2
+	s.band(0.0, 0.3, 1.6, 0.1, 120.0, 2.0)
+	s.noise(0.0, 0.14, 1.5, 0.035, 3600.0, 380.0, 0.0005)
+	s.band(0.0, 0.2, 0.7, 0.06, 340.0, 3.0)
+	s.noise(0.08, 0.7, 0.45, 0.3, 5200.0, 1800.0, 0.02, 1400.0)
+	s.reverb(0.22, 0.4, 2400.0)
+
+
+func _make_lunger_shriek(s: Synth) -> void:
+	# A thin, rasping screech.
+	s.length(0.42)
+	s.drive = 1.8
+	s.band(0.0, 0.38, 1.0, 0.2, 1750.0, 9.0, 0.03)
+	s.band(0.0, 0.38, 0.6, 0.2, 2620.0, 9.0, 0.05)
+	s.tone(0.0, 0.36, 0.3, 190.0, 150.0, 0.2, Synth.SAW, 0.02, 34.0, 0.3)
+	s.noise(0.0, 0.3, 0.3, 0.15, 6000.0, 3000.0, 0.02, 2000.0)
 
 
 func _make_boss_charge(s: Synth) -> void:

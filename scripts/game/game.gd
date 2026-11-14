@@ -20,6 +20,7 @@ var pickups: Pickups
 var player: Player
 var pet: Pet                    # the companion, if one comes along (null = none)
 var projectiles: Projectiles
+var enemy_shots: EnemyShots     # what zombies spit and throw
 var fx: Fx
 var fog: Fog                    # fog of war over the parts of the map not visited yet
 var cam: GameCamera
@@ -103,9 +104,13 @@ func _ready() -> void:
 	projectiles.game = self
 	add_child(projectiles)
 
+	enemy_shots = EnemyShots.new()
+	enemy_shots.game = self
+
 	fx = Fx.new()
 	fx.game = self
 	add_child(fx)
+	add_child(enemy_shots)     # over the effects: a warning must never be hidden
 
 	arena.canopy.z_index = 50  # tree tops above everything
 	add_child(arena.canopy)
@@ -217,6 +222,7 @@ func _simulate(dt: float) -> void:
 	director.tick(dt)
 	enemies.tick(dt)
 	projectiles.tick(dt)
+	enemy_shots.tick(dt)
 	pickups.tick(dt)
 	fx.tick(dt)
 
@@ -299,7 +305,8 @@ func on_enemy_killed(e: Enemy, dir: Vector2, kill_hitstop: float, source: String
 	kills += 1
 	gain_xp(e.xp, source)
 	# Gore: the body tumbles away, blood sprays and pools.
-	fx.corpse(e, dir)
+	if not bool(e.cfg.get("no_corpse", false)):
+		fx.corpse(e, dir)
 	fx.blood_burst(e.pos, int(Config.BLOOD_PER_KILL * e.blood), 1.0)
 	fx.blood_spray(e.pos, dir, int(Config.BLOOD_PER_KILL * e.blood * 0.5), 1.4)
 	decals.blood_splat(e.pos, 34.0 * sqrt(e.blood), dir)

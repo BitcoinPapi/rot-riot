@@ -54,9 +54,14 @@ var tex_flash: Texture2D
 var tex_hurt: Texture2D
 var base_scale := 0.5
 
-# Boss only
+# Zombies with an attack of their own (the boss, shooters, the Gasbag, the Lunger)
+var ai := 0                     # Config.AI_*
+var cfg: Dictionary = {}        # its entry in Config.ENEMIES (for the numbers of its attack)
 var state := 0
 var state_t := 0.0
+var shoot_range := 0.0          # a shooter stops this far from the player
+var melee_t := 0.0              # a shooter's own timer for hitting a player who walks into it
+var warn := Color.WHITE         # the colour it flushes while winding up
 var charge_cd := 0.0
 var summon_cd := 0.0
 var charge_dir := Vector2.ZERO
