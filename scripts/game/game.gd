@@ -16,6 +16,7 @@ var player: Player
 var projectiles: Projectiles
 var fx: Fx
 var cam: GameCamera
+var director: WaveDirector
 
 var state: int = State.PLAYING
 var time_alive := 0.0
@@ -34,7 +35,7 @@ var _hitstop := 0.0
 var _hitstop_cooldown := 0.0
 var _time_scale := 1.0
 var _death_timer := 0.0
-var _debug_spawn_t := 1.0
+var _slowmo_timer := 0.0
 
 
 func _ready() -> void:
@@ -75,11 +76,20 @@ func _ready() -> void:
 	add_child(cam)
 	cam.snap_to(player.pos)
 
+	director = WaveDirector.new()
+	director.game = self
+
 	GameInput.rage_pressed.connect(try_activate_rage)
 
 
 func _process(delta: float) -> void:
 	var real_dt := minf(delta, 1.0 / 30.0)
+
+	# Short bursts of slow motion (boss kills).
+	if _slowmo_timer > 0.0:
+		_slowmo_timer -= real_dt
+		if _slowmo_timer <= 0.0 and state == State.PLAYING:
+			_time_scale = 1.0
 
 	# Hit stop: the world freezes for a few hundredths of a second.
 	var dt := real_dt * _time_scale
@@ -111,7 +121,7 @@ func _simulate(dt: float) -> void:
 		time_alive += dt
 		_tick_combo_and_rage(dt)
 	player.tick(dt)
-	_debug_spawner(dt)
+	director.tick(dt)
 	enemies.tick(dt)
 	projectiles.tick(dt)
 	pickups.tick(dt)
@@ -132,22 +142,8 @@ func _tick_combo_and_rage(dt: float) -> void:
 			Sfx.play("rage_end")
 
 
-## Temporary: a trickle of zombies until the wave director arrives.
-func _debug_spawner(dt: float) -> void:
-	_debug_spawn_t -= dt
-	if _debug_spawn_t <= 0.0 and enemies.alive_count < 80:
-		_debug_spawn_t = 0.35
-		var roll := randf()
-		var kind: int = Config.SHAMBLER
-		if roll > 0.93:
-			kind = Config.BRUTE
-		elif roll > 0.7:
-			kind = Config.RUNNER
-		enemies.spawn(kind, arena.random_spawn_point())
-
-
 func get_stats() -> Dictionary:
-	return {"score": score, "kills": kills, "coins": coins_run, "time": time_alive}
+	return {"score": score, "wave": director.wave, "kills": kills, "coins": coins_run, "time": time_alive}
 
 
 # ----------------------------------------------------------------------------
@@ -180,6 +176,26 @@ func on_enemy_killed(e: Enemy, dir: Vector2, kill_hitstop: float) -> void:
 				try_activate_rage()
 
 	pickups.drop_from_enemy(e)
+	director.on_enemy_killed(e)
+	if e.kind == Config.BOSS:
+		_boss_killed(e)
+
+
+func _boss_killed(e: Enemy) -> void:
+	# A boss death is an event: slow motion, a huge burst, and a reward crate.
+	for k in 5:
+		var at := e.pos + Vector2.from_angle(randf() * TAU) * randf_range(10.0, 60.0)
+		decals.blood_splat(at, randf_range(70.0, 120.0))
+		fx.blood_burst(at, 14, 1.8)
+	fx.ring(e.pos, 30.0, 420.0, 0.6, Color(1.0, 0.3, 0.2, 0.9))
+	fx.ring(e.pos, 20.0, 260.0, 0.45, Color(1.0, 0.9, 0.6, 0.9))
+	fx.light(e.pos, 700.0, 0.4, Color(1.0, 0.5, 0.3, 0.8))
+	fx.text(e.pos + Vector2(0, -70), "BOSS DOWN!", Color(1.0, 0.85, 0.3), 34, 1.8)
+	pickups.spawn_crate(e.pos)
+	shake(1.0)
+	hitstop(Config.BOSS_DEATH_HITSTOP, true)
+	slow_motion(0.3, 0.9)
+	Sfx.play("explosion")
 
 
 # ----------------------------------------------------------------------------
@@ -273,6 +289,14 @@ func _player_died() -> void:
 # ----------------------------------------------------------------------------
 func shake(amount: float) -> void:
 	cam.add_trauma(amount)
+
+
+## Run the world at `scale` speed for `duration` real seconds.
+func slow_motion(scale: float, duration: float) -> void:
+	if state != State.PLAYING:
+		return
+	_time_scale = scale
+	_slowmo_timer = duration
 
 
 ## Freeze the action for `duration` seconds. Small freezes are rate-limited so

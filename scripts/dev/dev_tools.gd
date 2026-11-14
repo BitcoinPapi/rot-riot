@@ -6,6 +6,8 @@ extends Node
 ##   --bot              a simple bot plays (through GameInput's virtual sticks)
 ##   --weapon=ID        the bot starts with this weapon (pistol, shotgun, ...)
 ##   --cycle            the bot is handed each weapon in turn every 6 seconds
+##   --wave=N           jump straight to wave N
+##   --god              the player cannot die
 ##   --frames=N         quit after N frames and print a summary
 ##   --shot=PATH        save a screenshot to PATH ...
 ##   --shot-frame=N     ... on frame N (default 30), then quit
@@ -25,8 +27,14 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	_frame += 1
 	var game: Game = main.get("game")
-	if _args.has("bot") and game != null and is_instance_valid(game):
-		_bot(game)
+	if game != null and is_instance_valid(game):
+		if _args.has("wave") and _frame == 2:
+			game.director.wave = int(_args["wave"]) - 1
+			game.director.intermission = 0.1
+		if _args.has("god"):
+			game.player.hp = game.player.max_hp
+		if _args.has("bot"):
+			_bot(game)
 	if _args.has("shot") and _frame == int(_args.get("shot-frame", "30")):
 		await RenderingServer.frame_post_draw
 		var img := get_viewport().get_texture().get_image()
@@ -35,9 +43,10 @@ func _process(_delta: float) -> void:
 		get_tree().quit()
 	if _args.has("frames") and _frame >= int(_args["frames"]):
 		if game != null and is_instance_valid(game):
-			print("SUMMARY frames=%d kills=%d score=%d coins=%d alive=%d hp=%.0f rage=%.0f weapon=%s state=%d" % [
-				_frame, game.kills, game.score, game.coins_run, game.enemies.alive_count,
-				game.player.hp, game.rage, game.player.weapon_id, game.state])
+			print("SUMMARY frames=%d wave=%d kills=%d score=%d coins=%d alive=%d left=%d hp=%.0f rage=%.0f weapon=%s boss=%s state=%d" % [
+				_frame, game.director.wave, game.kills, game.score, game.coins_run, game.enemies.alive_count,
+				game.director.remaining(), game.player.hp, game.rage, game.player.weapon_id,
+				str(game.director.boss_alive()), game.state])
 		get_tree().quit()
 
 
