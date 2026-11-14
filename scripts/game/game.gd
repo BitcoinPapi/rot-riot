@@ -17,6 +17,7 @@ var projectiles: Projectiles
 var fx: Fx
 var cam: GameCamera
 var director: WaveDirector
+var hud: Hud
 
 var state: int = State.PLAYING
 var time_alive := 0.0
@@ -78,6 +79,16 @@ func _ready() -> void:
 
 	director = WaveDirector.new()
 	director.game = self
+	director.wave_started.connect(_on_wave_started)
+	director.wave_cleared.connect(_on_wave_cleared)
+	director.boss_spawned.connect(_on_boss_spawned)
+
+	var hud_layer := CanvasLayer.new()
+	hud_layer.layer = 5
+	add_child(hud_layer)
+	hud = Hud.new()
+	hud.game = self
+	hud_layer.add_child(hud)
 
 	GameInput.rage_pressed.connect(try_activate_rage)
 
@@ -114,6 +125,7 @@ func _process(delta: float) -> void:
 	if player.alive:
 		lead = player.aim * Config.CAM_AIM_LEAD_MAX * GameInput.get_aim_distance_factor(player)
 	cam.tick(real_dt, player.pos, lead)
+	hud.tick(real_dt)
 
 
 func _simulate(dt: float) -> void:
@@ -149,6 +161,22 @@ func get_stats() -> Dictionary:
 # ----------------------------------------------------------------------------
 #  Events
 # ----------------------------------------------------------------------------
+func _on_wave_started(wave: int, is_boss: bool) -> void:
+	if is_boss:
+		hud.announce("BOSS WAVE", "wave %d - something big is coming" % wave, Color(1.0, 0.3, 0.2), 3.0)
+	else:
+		hud.announce("WAVE %d" % wave, "", Color(1.0, 0.95, 0.85))
+
+
+func _on_wave_cleared(wave: int, coin_bonus: int) -> void:
+	hud.announce("WAVE %d CLEARED" % wave, "+%d coins" % coin_bonus, Color(0.6, 1.0, 0.5))
+
+
+func _on_boss_spawned(_boss: Enemy) -> void:
+	var boss_name: String = Config.ENEMIES[Config.BOSS]["name"]
+	hud.announce(boss_name, "", Color(1.0, 0.25, 0.2), 2.6)
+
+
 func on_enemy_killed(e: Enemy, dir: Vector2, kill_hitstop: float) -> void:
 	kills += 1
 	# Gore: the body tumbles away, blood sprays and pools.
@@ -257,6 +285,7 @@ func damage_player(amount: float, from: Vector2) -> void:
 	player.hp -= amount
 	player.invuln = Config.PLAYER_HURT_INVULN
 	player.hurt_flash()
+	hud.hurt()
 	var away := (player.pos - from).normalized()
 	fx.blood_spray(player.pos, away, 8, 1.0)
 	combo = 0

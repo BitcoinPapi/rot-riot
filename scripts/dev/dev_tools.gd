@@ -3,7 +3,9 @@ extends Node
 ## Developer helpers, only active when the game is started with extra
 ## command-line arguments after "--". Players never see this.
 ##
-##   --bot              a simple bot plays (through GameInput's virtual sticks)
+##   --play             skip the menu and start a run
+##   --bot              start a run and let a simple bot play (through GameInput's virtual sticks)
+##   --screen=NAME      open a menu screen (shop, settings, pause, gameover) for screenshots
 ##   --weapon=ID        the bot starts with this weapon (pistol, shotgun, ...)
 ##   --cycle            the bot is handed each weapon in turn every 6 seconds
 ##   --wave=N           jump straight to wave N
@@ -26,7 +28,12 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	_frame += 1
-	var game: Game = main.get("game")
+	var app: Main = main
+	if _frame == 1 and (_args.has("bot") or _args.has("play")):
+		app.start_run()
+	if _args.has("screen") and _frame == int(_args.get("screen-frame", "10")):
+		_open_screen(app, String(_args["screen"]))
+	var game: Game = app.game
 	if game != null and is_instance_valid(game):
 		if _args.has("wave") and _frame == 2:
 			game.director.wave = int(_args["wave"]) - 1
@@ -56,7 +63,7 @@ func _bot(game: Game) -> void:
 		p.give_weapon(String(_args["weapon"]))
 	if _args.has("cycle") and _frame % 360 == 5:
 		var order: Array = Config.WEAPON_ORDER
-		p.give_weapon(String(order[(_frame / 360) % order.size()]))
+		p.give_weapon(String(order[int(_frame / 360.0) % order.size()]))
 	if game.rage_ready():
 		GameInput.press_rage()
 	var target := game.enemies.nearest(p.pos, 900.0)
@@ -71,3 +78,14 @@ func _bot(game: Game) -> void:
 		elif not game.pickups.crates.is_empty():
 			move = (game.pickups.crates[0].pos - p.pos).normalized()
 	GameInput.set_virtual_input(move, aim, fire)
+
+
+func _open_screen(app: Main, screen: String) -> void:
+	match screen:
+		"pause":
+			app.pause_game()
+		"gameover":
+			if app.game != null:
+				app.game.damage_player(99999.0, app.game.player.pos + Vector2.RIGHT)
+		_:
+			app.open_screen(screen)

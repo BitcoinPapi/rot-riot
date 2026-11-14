@@ -131,6 +131,7 @@ func _fire() -> void:
 	push_vel -= dir * float(w["recoil_push"])
 	game.shake(float(w["shake"]))
 	game.cam.kick(-dir, float(w["kick"]))
+	game.hud.fired(float(w["recoil_gun"]))
 	Sfx.play(String(w["sound"]))
 
 

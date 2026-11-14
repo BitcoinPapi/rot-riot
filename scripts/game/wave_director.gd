@@ -117,7 +117,7 @@ func _pick_kind() -> int:
 
 func _spawn_boss() -> void:
 	var cfg: Dictionary = Config.ENEMIES[Config.BOSS]
-	var boss_number := maxi(wave / Config.BOSS_EVERY, 1)
+	var boss_number := maxi(int(float(wave) / Config.BOSS_EVERY), 1)
 	var hp_mult := 1.0 + float(cfg["hp_growth_per_boss"]) * float(boss_number - 1)
 	boss = game.enemies.spawn(Config.BOSS, game.arena.random_spawn_point(), hp_mult, 1.0)
 	_boss_delay = -1.0
