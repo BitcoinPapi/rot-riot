@@ -24,6 +24,11 @@ var RECIPES := {
 	"shotgun": [_make_shotgun, 0.0, 0.05],
 	"machinegun": [_make_machinegun, -5.0, 0.03],
 	"launcher": [_make_launcher, -2.0, 0.05],
+	"smg": [_make_smg, -6.0, 0.03],
+	"rifle": [_make_rifle, 0.0, 0.05],
+	"flame": [_make_flame, -7.0, 0.1],
+	"chainsaw": [_make_chainsaw, -10.0, 0.12],
+	"chainsaw_hit": [_make_chainsaw_hit, -5.0, 0.09],
 	"explosion": [_make_explosion, 1.0, 0.07],
 	"sledge_swing": [_make_sledge_swing, -5.0, 0.05],
 	"sledge_hit": [_make_sledge_hit, 0.0, 0.05],
@@ -384,6 +389,57 @@ func _make_machinegun(s: Synth) -> void:
 	s.noise(0.035, 0.03, 0.8, 0.006, 5000.0, 3000.0, 0.0005, 1500.0)
 	s.noise(0.01, 0.25, 0.28, 0.09, 2500.0, 700.0, 0.008)
 	s.reverb(0.22, 0.2)
+
+
+func _make_smg(s: Synth) -> void:
+	# Lighter and snappier than the pistol: a quick pop with almost no tail.
+	s.length(0.22)
+	s.drive = 1.7
+	s.noise(0.0, 0.015, 2.0, 0.003, 11000.0, 7000.0, 0.0003, 3000.0)
+	s.noise(0.0, 0.08, 2.0, 0.016, 7000.0, 2200.0, 0.0005, 500.0)
+	s.tone(0.0, 0.05, 0.22, 190.0, 95.0, 0.018)
+	s.noise(0.008, 0.18, 0.2, 0.06, 3000.0, 900.0, 0.006)
+	s.reverb(0.18, 0.15)
+
+
+func _make_rifle(s: Synth) -> void:
+	# The biggest crack of all, a long rolling echo, then the bolt being worked.
+	s.length(1.1)
+	s.drive = 2.4
+	s.noise(0.0, 0.03, 2.4, 0.007, 10000.0, 5000.0, 0.0003, 1500.0)
+	s.noise(0.0, 0.4, 2.6, 0.06, 6000.0, 700.0, 0.0005)
+	s.tone(0.0, 0.2, 0.6, 120.0, 48.0, 0.06)
+	s.noise(0.015, 0.9, 0.9, 0.3, 2400.0, 400.0, 0.01)
+	s.reverb(0.5, 0.9)
+	s.noise(0.3, 0.04, 0.7, 0.01, 4500.0, 2500.0, 0.001, 1200.0)
+	s.noise(0.4, 0.05, 0.85, 0.012, 4000.0, 2000.0, 0.001, 900.0)
+
+
+func _make_flame(s: Synth) -> void:
+	# A chunk of roaring gas. Chunks overlap while the trigger is held.
+	s.length(0.42)
+	s.noise(0.0, 0.4, 1.0, 0.25, 900.0, 1600.0, 0.08, 150.0)
+	s.noise(0.0, 0.4, 0.5, 0.2, 3000.0, 5000.0, 0.1, 1500.0)
+
+
+func _make_chainsaw(s: Synth) -> void:
+	# A chunk of two-stroke engine buzz. Chunks overlap while it is running.
+	s.length(0.3)
+	s.drive = 2.2
+	s.tone(0.0, 0.3, 0.7, 98.0, 104.0, 0.6, Synth.SAW, 0.02, 34.0, 0.06)
+	s.tone(0.0, 0.3, 0.4, 196.0, 208.0, 0.6, Synth.SQUARE, 0.02, 34.0, 0.06)
+	s.noise(0.0, 0.3, 0.6, 0.5, 2500.0, 3200.0, 0.02, 600.0)
+	s.lowpass(3800.0)
+
+
+func _make_chainsaw_hit(s: Synth) -> void:
+	# The chain biting: a wet grind with three quick rips.
+	s.length(0.2)
+	s.drive = 1.6
+	s.noise(0.0, 0.18, 1.6, 0.06, 2200.0, 600.0, 0.002)
+	s.noise(0.0, 0.03, 0.8, 0.008, 8000.0, 4000.0, 0.0005, 2500.0)
+	s.noise(0.05, 0.03, 0.7, 0.008, 8000.0, 4000.0, 0.0005, 2500.0)
+	s.noise(0.1, 0.03, 0.6, 0.008, 8000.0, 4000.0, 0.0005, 2500.0)
 
 
 func _make_launcher(s: Synth) -> void:

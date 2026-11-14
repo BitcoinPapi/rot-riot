@@ -36,9 +36,11 @@ func _init() -> void:
 
 	# Left: the weapon list.
 	var list := VBoxContainer.new()
-	list.add_theme_constant_override("separation", 8)
+	list.add_theme_constant_override("separation", 5)
 	for id: String in Config.WEAPON_ORDER:
 		var b := UiKit.button("", func() -> void: _on_weapon_pressed(id), 330.0)
+		b.custom_minimum_size = Vector2(330, 42)
+		b.add_theme_font_size_override("font_size", 20)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.focus_entered.connect(func() -> void: _select(id))
 		list.add_child(b)
@@ -161,7 +163,7 @@ func _crate_share(id: String) -> float:
 	var total := 0.0
 	var mine := 0.0
 	for other: String in Config.CRATE_WEAPONS:
-		var weight: float = float(Config.WEAPONS[other]["crate_weight"]) * (1.0 + SaveData.weapon_value(other, "spawn"))
+		var weight: float = Config.crate_weight(other) * (1.0 + SaveData.weapon_value(other, "spawn"))
 		total += weight
 		if other == id:
 			mine = weight
@@ -186,10 +188,14 @@ func _refresh() -> void:
 			SaveData.weapon_level(_selected) + 1]
 	var points_now := SaveData.weapon_points(_selected)
 	_points.text = "WEAPON POINTS: %d" % points_now
-	if float(w["duration"]) > 0.0:
-		_crate.text = "In %d%% of crates" % int(round(_crate_share(_selected) * 100.0))
+	var rarity: Dictionary = Config.CRATE_RARITIES[String(w["rarity"])]
+	var dual_note := "   -   can be dual wielded" if bool(w["dual"]) else ""
+	if _selected == Config.STARTER_WEAPON:
+		_crate.text = "Always with you. A pistol crate (%d%% of crates) gives a second one." % int(round(_crate_share(_selected) * 100.0))
+		_crate.add_theme_color_override("font_color", UiKit.DIM)
 	else:
-		_crate.text = "Starting weapon - always with you"
+		_crate.text = "%s  -  in %d%% of crates%s" % [String(rarity["name"]), int(round(_crate_share(_selected) * 100.0)), dual_note]
+		_crate.add_theme_color_override("font_color", rarity["color"])
 
 	for track: String in _track_rows.keys():
 		var row: Dictionary = _track_rows[track]

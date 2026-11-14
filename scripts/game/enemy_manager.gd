@@ -93,6 +93,8 @@ func spawn(kind: int, at: Vector2, hp_mult: float = 1.0, speed_mult: float = 1.0
 	e.flash_t = 0.0
 	e.stagger_t = 0.0
 	e.spawn_t = Config.SUMMON_RISE_TIME if rising else 0.0
+	e.burn_t = 0.0
+	e.burn_dps = 0.0
 	e.phase = randf() * TAU
 	e.flank = Vector2.from_angle(randf() * TAU) * (randf() * Config.ENEMY_FLANK_SPREAD)
 	e.entered = game.arena.rect.grow(-e.radius).has_point(at)
@@ -198,6 +200,18 @@ func tick(dt: float) -> void:
 			else:
 				var fs := e.base_scale * (1.0 + squash * e.flash_t)
 				e.scale = Vector2(fs, fs)
+
+		# On fire: steady damage, a few flames, and a charred body if it dies.
+		if e.burn_t > 0.0:
+			e.hp -= e.burn_dps * dt
+			if randf() < dt * 7.0:
+				game.fx.ember(e.pos, e.radius)
+			if e.hp <= 0.0:
+				_kill(e, Vector2.from_angle(randf() * TAU), 0.0, e.burn_src)
+				continue
+			e.burn_t -= dt
+			if e.burn_t <= 0.0:
+				e.modulate = Color.WHITE
 
 		if e.is_big:
 			_tick_boss(e, dt)
@@ -340,7 +354,7 @@ func _tick_boss(e: Enemy, dt: float) -> void:
 	var dirp := to_p / maxf(dist, 0.001)
 	var reach := e.radius + player.radius + Config.ENEMY_ATTACK_REACH
 	var turn := minf(Config.ENEMY_TURN_SPEED * 0.6 * dt, 1.0)
-	e.modulate = Color.WHITE
+	e.modulate = Config.BURN_TINT if e.burn_t > 0.0 else Color.WHITE
 
 	match e.state:
 		B_CHASE:
@@ -465,6 +479,16 @@ func damage(e: Enemy, amount: float, dir: Vector2, knockback: float, stagger: fl
 		return true
 	Sfx.play("zombie_hit", -6.0)
 	return false
+
+
+## Set a zombie on fire (flamethrower). Refreshes the timer if it already burns.
+func ignite(e: Enemy, seconds: float, dps: float, source: String) -> void:
+	if not e.alive:
+		return
+	e.burn_t = maxf(e.burn_t, seconds)
+	e.burn_dps = maxf(e.burn_dps, dps)
+	e.burn_src = source
+	e.modulate = Config.BURN_TINT
 
 
 func _kill(e: Enemy, dir: Vector2, kill_hitstop: float, source: String) -> void:

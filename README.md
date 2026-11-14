@@ -34,12 +34,18 @@ works on 4.5 and later.
 - Zombies come out of the trees in waves that keep getting bigger. Every 5th
   wave brings a boss.
 - You start with a pistol. **Crates** drop into the arena with a better
-  weapon (shotgun, machine gun, launcher, sledgehammer) that lasts about 20
-  seconds. An arrow at the edge of the screen points to crates out of view.
+  weapon that lasts about 20 seconds: SMG, shotgun, machine gun, rifle,
+  sledgehammer, launcher, flamethrower or chainsaw. The colour of a crate's
+  glow shows how rare it is (white = common, green = uncommon, blue = rare).
+  An arrow at the edge of the screen points to crates out of view.
+- **Dual wielding:** pick up a crate of the weapon you are already holding
+  (it shows "x2") and you get one in each hand. Works with the pistol, SMG,
+  shotgun and machine gun. A pistol crate always gives you two pistols.
 - Kills fill the orange **rage** bar. When it is full, press Space: nearby
   zombies are blasted away and you are much stronger for 8 seconds.
 - Kills give **XP**. The blue bar along the bottom is your character level;
-  each level makes you a little stronger and gives a **skill point**. Spend
+  each level makes you a little stronger and gives a **skill point** (the
+  highest level is 100, and it is meant to take months to reach). Spend
   skill points on the **Character** screen (health, strength, speed, defense,
   evasion and more). Extra skill points can be bought with coins.
 - Every weapon also has its **own level**, earned by killing with it. Spend a

@@ -31,6 +31,7 @@ class Corpse:
 	var life := 0.0
 	var max_life := 0.0
 	var blood := 1.0
+	var charred := false         # burned to death: settles as a black husk
 	var tex: Texture2D
 	var size := Vector2.ZERO
 
@@ -139,6 +140,13 @@ func sparks(pos: Vector2, dir: Vector2, count: int) -> void:
 				randf_range(2.0, 4.0), 0.0, 6.0, Color(1.0, randf_range(0.7, 0.95), 0.4))
 
 
+## A lick of flame rising off something that is burning.
+func ember(pos: Vector2, radius: float) -> void:
+	var at := pos + Vector2.from_angle(randf() * TAU) * (randf() * radius)
+	_emit(P_FIRE, at, Vector2(randf_range(-20.0, 20.0), randf_range(-70.0, -20.0)), randf_range(0.2, 0.4),
+			randf_range(14.0, 24.0), -20.0, 1.0, Color(1.0, randf_range(0.45, 0.75), 0.15, 0.8))
+
+
 ## A critical hit: a burst of bright yellow sparks.
 func crit_spark(pos: Vector2, dir: Vector2) -> void:
 	_lights.append([pos, 70.0, 0.09, 0.09, Color(1.0, 0.9, 0.3, 0.6)])
@@ -201,6 +209,7 @@ func corpse(e: Enemy, dir: Vector2) -> void:
 	c.life = Config.CORPSE_SLIDE_TIME * randf_range(0.8, 1.2)
 	c.max_life = c.life
 	c.blood = e.blood
+	c.charred = e.burn_t > 0.0
 	c.tex = e.tex_normal
 	c.size = Vector2(e.tex_normal.get_size()) / Art.PX
 	_corpses.append(c)
@@ -298,11 +307,18 @@ func tick(dt: float) -> void:
 		b.vel *= maxf(1.0 - 7.0 * dt, 0.0)
 		b.rot += b.spin * dt
 		b.spin *= maxf(1.0 - 5.0 * dt, 0.0)
-		if randf() < 0.35:
+		if b.charred:
+			if randf() < 0.3:
+				smoke(b.pos, 1, 12.0)
+		elif randf() < 0.35:
 			decals.blood_dot(b.pos + Vector2(randf_range(-8, 8), randf_range(-8, 8)), randf_range(4.0, 9.0) * sqrt(b.blood))
 		if b.life <= 0.0:
-			decals.blood_splat(b.pos, randf_range(40.0, 58.0) * sqrt(b.blood))
-			decals.stamp(b.tex, b.pos, b.rot, b.size, Color(0.5, 0.42, 0.42, 1.0))
+			if b.charred:
+				decals.scorch(b.pos, 16.0 * sqrt(b.blood))
+				decals.stamp(b.tex, b.pos, b.rot, b.size, Color(Config.CHARRED_TINT, 1.0))
+			else:
+				decals.blood_splat(b.pos, randf_range(40.0, 58.0) * sqrt(b.blood))
+				decals.stamp(b.tex, b.pos, b.rot, b.size, Color(0.5, 0.42, 0.42, 1.0))
 			_corpses[i] = _corpses[_corpses.size() - 1]
 			_corpses.pop_back()
 		else:
@@ -340,7 +356,7 @@ func _paint(ci: CanvasItem) -> void:
 	# Corpses still tumbling (they darken as they settle so there is no pop).
 	for b: Corpse in _corpses:
 		var f := 1.0 - b.life / b.max_life
-		var tint := Color.WHITE.lerp(Color(0.5, 0.42, 0.42), f)
+		var tint := Color(Config.CHARRED_TINT, 1.0) if b.charred else Color.WHITE.lerp(Color(0.5, 0.42, 0.42), f)
 		ci.draw_set_transform(b.pos, b.rot, Vector2.ONE)
 		ci.draw_texture_rect(b.tex, Rect2(-b.size * 0.5, b.size), false, tint)
 

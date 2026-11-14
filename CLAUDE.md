@@ -47,7 +47,8 @@ godot --headless --export-release "macOS" build/mac/RotRiot.zip
 ```
 
 Other dev flags (all after `--`, see `scripts/dev/dev_tools.gd`): `--play`,
-`--god`, `--wave=N`, `--weapon=ID`, `--cycle`, `--screen=shop|settings|pause|gameover`,
+`--god`, `--wave=N`, `--weapon=ID`, `--dual`, `--keep-weapon`, `--no-crates`, `--no-rage`,
+`--cycle`, `--level=N`, `--coins=N`, `--screen=character|armory|settings|pause|gameover`,
 `--shot=PATH --shot-frame=N` (screenshot; needs a real display, e.g. `xvfb-run`),
 `--dump-sfx=DIR` (writes every generated sound as .wav).
 
@@ -101,13 +102,33 @@ walk in. Camera zoom 1.2, may look 110 px past the edge.
 **Player:** instant movement (no acceleration), 100 HP, 0.55 s of safety after
 a hit plus a shove that pushes the crowd back. Zombies body-block the player.
 
-**Weapons** (`Config.WEAPONS`): pistol (starter, unlimited), shotgun (9
-pellets, piercing, big recoil), machine gun (fast, wide spread, rattle),
-launcher (grenade, 135 px blast, biggest shake + hit stop), sledgehammer
-(melee arc, huge knockback, hit stop per swing that connects, faster
-movement). Crate weapons last 18-20 s then revert to the pistol. Crates drop
-on a timer (max 2 on the field) and show the weapon on the lid; off-screen
-crates get an arrow on the HUD. Bosses drop a crate.
+**Weapons** (`Config.WEAPONS`, nine of them). Crate weapons last about 20 s
+then revert to the pistol. Crates drop on a timer (max 2 on the field), show
+the weapon on the lid, and off-screen crates get an arrow on the HUD. Bosses
+drop a crate.
+- *Common:* pistol (starter, unlimited), SMG (very fast, weak, faster
+  movement), shotgun (9 pellets, piercing, big recoil).
+- *Uncommon:* machine gun (fast, wide spread, rattle), rifle (slow, 85 damage,
+  goes through 6 zombies), sledgehammer (melee arc, huge knockback, hit stop
+  per swing that connects).
+- *Rare:* launcher (grenade, 135 px blast, biggest shake + hit stop),
+  flamethrower (`kind: "flame"`: slowing, growing puffs that pass through
+  everything and set zombies burning; burning zombies take damage over time,
+  glow orange and leave charred bodies), chainsaw (melee held out in front,
+  bites 13 times a second, extra blood).
+- *Rarity* (`Config.CRATE_RARITIES`): weights common 1.0 / uncommon 0.5 / rare
+  0.22, times the weapon's own spawn-rate upgrade. The crate's glow shows its
+  tier. The launcher must stay rarer than the machine gun (owner's request).
+- *Dual wielding:* picking up a crate of the weapon already held gives one in
+  each hand if the weapon has `"dual": true` (pistol, SMG, shotgun, machine
+  gun): about 1.8x fire rate, more spread and recoil. A pistol crate always
+  gives dual pistols for 25 s. Crates that would dual show "x2".
+- Weapon strength is compared with
+  `--bench=150 --no-crates --no-rage --weapon=ID [--dual]` (kills in 15 s).
+  Last measured: pistol 35, SMG 69, shotgun 100, rifle 121, machine gun 136,
+  dual machine gun 264, chainsaw ~380, sledgehammer ~350, launcher ~510,
+  flamethrower ~600. Melee and flame numbers are flattered by the test (the
+  bot cannot die); real play punishes short range.
 
 **Enemies** (`Config.ENEMIES`): Shambler (basic), Runner (fast, zig-zags),
 Brute (tank, resists knockback and stagger), boss "The Gorger" every 5th wave
@@ -132,7 +153,11 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
 `player_stats.gd`):
 - *Character level*: XP from kills and cleared waves (shown as the bar along
   the bottom of the HUD). Each level: +3 max health, +1% damage, +1 skill
-  point. Levelling mid-run applies at once and heals 25%.
+  point. Levelling mid-run applies at once and heals 25%. **Hard cap: level
+  100** (`LEVEL_CAP`), which the owner wants to take months: XP needed per
+  level = 80 * level^1.8, about 11.2 million XP in total (a new character
+  earns roughly 1,500 XP in a 4-minute run; stronger characters earn several
+  times that). Re-check this pacing whenever XP sources change.
 - *Skill points* go into 8 passive stats on the Character screen: vitality,
   strength, dexterity (fire rate), agility (move speed), defense (less damage
   taken), evasion (dodge chance), critical (double-damage shots), luck (coin
@@ -145,8 +170,7 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   point for that weapon only, spent in the Armory on power, shooting speed,
   stability (spread + recoil), spawn rate (crate share) and duration. The
   pistol has no crate-only tracks.
-- *Crate rarity*: `crate_weight` per weapon (launcher 0.45, sledge 0.8,
-  shotgun and machine gun 1.0), multiplied by that weapon's spawn-rate track.
+- Weapon levels have no cap (only the character level is capped).
 - Save format version 2. Version 1 saves keep records and settings but coins
   and the old upgrades are wiped once (agreed with the owner).
 
@@ -216,9 +240,10 @@ effects were ~280 draw calls. Not yet measured on the owner's hardware.
 - Rage shook the screen too much -> `RAGE_SHAKE_MULT` (done).
 - Guns sounded like lasers -> rebuilt (done, awaiting feedback).
 - Far too easy (reached wave 15 on the first run and had to die on purpose)
-  and upgrades far too cheap -> first difficulty/economy pass done: bigger
-  and faster waves from several sides, tougher zombies, upgrade prices x3.
-  The test bot now dies on waves 5-7. Expect more tuning.
+  and upgrades far too cheap -> difficulty/economy pass: bigger and faster
+  waves from several sides, tougher zombies. The owner then reported "it is
+  harder, I reach about 5-6", which is about right for a new character.
+- Wants a hard character level cap of 100 that takes months (done).
 
 ## Roadmap (owner's requests, in the agreed build order)
 
@@ -227,9 +252,9 @@ Build one stage at a time; the owner plays each before the next starts.
 1. **Progression core. DONE (awaiting the owner's playtest).** See
    "Progression" above. Owner's decisions: coins are permanent; weapon
    upgrades are permanent and earned by using the weapon.
-2. **Weapons.** More weapons. Crate rarity tiers (basic weights already
-   exist; the launcher must stay rarer than the machine gun). Dual wielding
-   two of the same gun: picking up a crate of the weapon already held.
+2. **Weapons. DONE (awaiting the owner's playtest).** Four new weapons (SMG,
+   rifle, flamethrower, chainsaw), three crate rarity tiers, dual wielding.
+   See "Weapons" above. More weapons can be added the same way later.
 3. **Gear.** Character screen in the style of an action-RPG paper doll:
    helmet, chest, gloves, boots, pants, belt, two rings, amulet. Items drop
    rarely from zombies (never a flood); some pieces only from bosses. Merge

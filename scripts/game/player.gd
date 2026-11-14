@@ -3,6 +3,8 @@ extends Node2D
 ## The player character: movement, aiming, firing and its own drawing.
 ## Movement is instant (no acceleration) - that is deliberate, it feels sharp.
 
+const DUAL_HAND_OFFSET := 7.5   # how far each gun sits from the middle when dual wielding (drawing only)
+
 var game: Game
 var pos := Vector2.ZERO
 var radius: float = Config.PLAYER_RADIUS
@@ -16,6 +18,7 @@ var weapon_id: String = Config.STARTER_WEAPON
 var weapon: Dictionary = Config.WEAPONS[Config.STARTER_WEAPON]
 var weapon_time := 0.0          # seconds left on a crate weapon
 var weapon_time_max := 0.0      # what it started with (for the HUD bar)
+var dual := false               # holding one in each hand
 var fire_cd := 0.0
 var invuln := 0.0               # seconds of safety left after being hit
 var push_vel := Vector2.ZERO    # recoil shove
@@ -29,6 +32,7 @@ var _flash := 0.0
 var _gun_kick := 0.0
 var _swing := 0.0               # melee swing animation, 1 -> 0
 var _swing_side := 1.0
+var _dual_side := 1.0           # which hand fired last
 var _walk_phase := 0.0
 var _time := 0.0
 var _gun_tex: Texture2D
@@ -107,13 +111,21 @@ func _fire() -> void:
 	var dmg: float = float(w["damage"]) * stats.damage_mult * float(wmods["damage"])
 	var knock: float = w["knockback"]
 	var steady: float = wmods["steady"]      # 1 = normal spread/recoil, lower = tighter
+	var interval: float = w["interval"]
+	var spread_mult := steady
+	var recoil_mult := steady
+	if dual:
+		# One in each hand: nearly twice the rate of fire, but wilder.
+		interval *= Config.DUAL_INTERVAL_MULT
+		spread_mult *= Config.DUAL_SPREAD_MULT
+		recoil_mult *= Config.DUAL_RECOIL_MULT
 	if game.rage_active:
 		rate *= Config.RAGE_FIRE_RATE_MULT
 		dmg *= Config.RAGE_DAMAGE_MULT
 		knock *= Config.RAGE_KNOCKBACK_MULT
 	if fire_cd < -0.05:
 		fire_cd = 0.0
-	fire_cd += float(w["interval"]) / rate
+	fire_cd += interval / rate
 
 	# Mild aim assist: bend the shot toward a zombie that is nearly lined up.
 	var sticks := GameInput.using_sticks()
@@ -122,38 +134,53 @@ func _fire() -> void:
 			Config.AIM_ASSIST_STRENGTH_GAMEPAD if sticks else Config.AIM_ASSIST_STRENGTH_MOUSE,
 			Config.AIM_ASSIST_RANGE)
 
-	if String(w["kind"]) == "melee":
+	# Dual wielding alternates hands; each shot leaves from that hand's gun.
+	var hand := Vector2.ZERO
+	if dual:
+		_dual_side = -_dual_side
+		hand = Vector2(-dir.y, dir.x) * (DUAL_HAND_OFFSET * _dual_side)
+
+	var kind := String(w["kind"])
+	if kind == "melee":
 		_melee(w, dir, dmg, knock)
 	else:
 		var pellets: int = w["pellets"]
-		var spread := deg_to_rad(float(w["spread_deg"])) * steady
-		var from := pos + dir * (radius + 2.0)
+		var spread := deg_to_rad(float(w["spread_deg"])) * spread_mult
+		var from := pos + dir * (radius + 2.0) + hand
 		for k in pellets:
 			var crit := randf() < stats.crit_chance
 			game.projectiles.spawn(from, dir.rotated(randf_range(-0.5, 0.5) * spread), w, weapon_id,
 					dmg * (Config.CRIT_DAMAGE_MULT if crit else 1.0),
 					knock * (Config.CRIT_KNOCKBACK_MULT if crit else 1.0), crit)
-		var muzzle := pos + dir * float(w["muzzle_dist"])
-		game.fx.muzzle_flash(muzzle, dir, float(w["flash_size"]), w["tracer_color"])
+		var muzzle := pos + dir * float(w["muzzle_dist"]) + hand
+		if kind == "flame":
+			game.fx.light(muzzle, 110.0, 0.07, Color(1.0, 0.6, 0.2, 0.45))
+		else:
+			game.fx.muzzle_flash(muzzle, dir, float(w["flash_size"]), w["tracer_color"])
 		var casing_kind := String(w["casing"])
 		if casing_kind != "":
-			game.fx.casing(pos + dir * 12.0, dir, casing_kind)
+			game.fx.casing(pos + dir * 12.0 + hand, dir, casing_kind)
 
 	# Feel: recoil, camera jolt, shake, sound. All numbers come from Config.WEAPONS.
 	_gun_kick = float(w["recoil_gun"])
-	push_vel -= dir * (float(w["recoil_push"]) * steady)
+	push_vel -= dir * (float(w["recoil_push"]) * recoil_mult)
 	game.shake(float(w["shake"]))
-	game.cam.kick(-dir, float(w["kick"]) * steady)
+	game.cam.kick(-dir, float(w["kick"]) * recoil_mult)
 	game.hud.fired(float(w["recoil_gun"]))
 	Sfx.play(String(w["sound"]))
 
 
-## Melee swing: hits every zombie inside the arc in front of the player.
+## Melee: hits every zombie inside the arc in front of the player. The
+## sledgehammer swings (slow, huge); the chainsaw is held out and bites
+## many times a second.
 func _melee(w: Dictionary, dir: Vector2, dmg: float, knock: float) -> void:
-	_swing = 1.0
-	_swing_side = -_swing_side
+	var swings: bool = w["swing"]
+	if swings:
+		_swing = 1.0
+		_swing_side = -_swing_side
 	var reach: float = w["range"]
 	var cos_half := cos(deg_to_rad(float(w["arc_deg"])) * 0.5)
+	var extra_blood: int = w["hit_blood"]
 	var hits := 0
 	for e: Enemy in game.enemies.in_radius(pos, reach):
 		var to := e.pos - pos
@@ -161,25 +188,51 @@ func _melee(w: Dictionary, dir: Vector2, dmg: float, knock: float) -> void:
 		var n := to / maxf(d, 0.001)
 		if n.dot(dir) >= cos_half or d < radius + e.radius + 4.0:
 			var crit := randf() < stats.crit_chance
-			game.enemies.damage(e, dmg * (Config.CRIT_DAMAGE_MULT if crit else 1.0), (n * 0.7 + dir * 0.3).normalized(),
+			var push := (n * 0.7 + dir * 0.3).normalized()
+			if extra_blood > 0:
+				game.fx.blood_spray(e.pos, push, extra_blood, 1.3)
+			game.enemies.damage(e, dmg * (Config.CRIT_DAMAGE_MULT if crit else 1.0), push,
 					knock * (Config.CRIT_KNOCKBACK_MULT if crit else 1.0), float(w["stagger"]), 0.0, weapon_id, crit)
 			hits += 1
-	game.fx.swing_arc(pos, dir, float(w["arc_deg"]), reach, _swing_side)
+	if swings:
+		game.fx.swing_arc(pos, dir, float(w["arc_deg"]), reach, _swing_side)
 	if hits > 0:
 		game.shake(float(w["shake_hit"]))
 		game.hitstop(float(w["hitstop_hit"]), true)
-		Sfx.play("sledge_hit")
+		Sfx.play(String(w["hit_sound"]))
 
 
 # ----------------------------------------------------------------------------
 #  Weapons, health
 # ----------------------------------------------------------------------------
-## Equip a weapon from a crate. It lasts for the weapon's "duration".
+## Equip a weapon from a crate; it lasts for the weapon's "duration".
+## DUAL WIELDING: picking up the weapon you are already holding (or a pistol
+## crate, since you always carry a pistol) puts one in each hand - if that
+## weapon allows it ("dual" in Config.WEAPONS).
 func give_weapon(id: String) -> void:
+	var cfg: Dictionary = Config.WEAPONS[id]
+	var make_dual: bool = bool(cfg["dual"]) and (id == weapon_id or id == Config.STARTER_WEAPON)
 	_set_weapon(id)
-	weapon_time = float(weapon["duration"]) * float(wmods["duration"])
-	weapon_time_max = weapon_time
+	dual = make_dual
+	var duration: float = float(cfg["duration"]) * float(wmods["duration"])
+	if id == Config.STARTER_WEAPON:
+		duration = Config.DUAL_PISTOL_DURATION
+	weapon_time = duration
+	weapon_time_max = duration
 	fire_cd = minf(fire_cd, 0.1)
+
+
+## Would picking up this weapon right now give one in each hand?
+func would_dual(id: String) -> bool:
+	return bool(Config.WEAPONS[id]["dual"]) and (id == weapon_id or id == Config.STARTER_WEAPON)
+
+
+## The weapon's name as shown on the HUD ("DUAL SHOTGUN", "DUAL PISTOLS").
+func weapon_label() -> String:
+	var weapon_name := String(weapon["name"])
+	if not dual:
+		return weapon_name
+	return "DUAL PISTOLS" if weapon_id == Config.STARTER_WEAPON else "DUAL " + weapon_name
 
 
 func _set_weapon(id: String) -> void:
@@ -187,6 +240,7 @@ func _set_weapon(id: String) -> void:
 	weapon = Config.WEAPONS[id]
 	weapon_time = 0.0
 	weapon_time_max = 0.0
+	dual = false
 	wmods = PlayerStats.weapon_mods(id)
 	_gun_tex = Art.t("gun_" + id)
 	_gun_size = Art.size_of("gun_" + id)
@@ -231,14 +285,24 @@ func _draw() -> void:
 	Art.draw(self, body, Vector2.ZERO, 1.0, tint)
 
 	# Weapon in hand.
-	if String(weapon["kind"]) == "melee":
+	var gun_tint := Color(1, 1, 1, alpha)
+	var is_melee := String(weapon["kind"]) == "melee"
+	if is_melee and bool(weapon["swing"]):
 		# Rest on the shoulder, sweep across when swinging.
 		var rest := -0.9 * _swing_side
 		var sweep := lerpf(1.4, -1.4, 1.0 - _swing) * _swing_side
 		var angle := sweep if _swing > 0.0 else rest
 		draw_set_transform(Vector2.ZERO, angle, Vector2.ONE)
-		draw_texture_rect(_gun_tex, Rect2(Vector2(8.0, -_gun_size.y * 0.5), _gun_size), false, Color(1, 1, 1, alpha))
+		draw_texture_rect(_gun_tex, Rect2(Vector2(8.0, -_gun_size.y * 0.5), _gun_size), false, gun_tint)
+	elif dual:
+		# One in each hand; only the one that just fired kicks back.
+		for side: float in [-1.0, 1.0]:
+			var kick := _gun_kick if side == _dual_side else 0.0
+			draw_set_transform(Vector2(7.0 - kick, DUAL_HAND_OFFSET * side), 0.0, Vector2.ONE)
+			draw_texture_rect(_gun_tex, Rect2(Vector2(0.0, -_gun_size.y * 0.5), _gun_size), false, gun_tint)
 	else:
-		draw_set_transform(Vector2(7.0 - _gun_kick, 0.0), 0.0, Vector2.ONE)
-		draw_texture_rect(_gun_tex, Rect2(Vector2(0.0, -_gun_size.y * 0.5), _gun_size), false, Color(1, 1, 1, alpha))
+		# A running chainsaw shudders in the hands.
+		var shudder := Vector2(0.0, sin(_time * 95.0) * 0.9) if is_melee else Vector2.ZERO
+		draw_set_transform(Vector2(7.0 - _gun_kick, 0.0) + shudder, 0.0, Vector2.ONE)
+		draw_texture_rect(_gun_tex, Rect2(Vector2(0.0, -_gun_size.y * 0.5), _gun_size), false, gun_tint)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

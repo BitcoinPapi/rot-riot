@@ -8,6 +8,8 @@ extends Node
 ##   --screen=NAME      open a menu screen (character, armory, settings, pause, gameover) for screenshots
 ##   --level=N          start as a level N character with points to spend (for screenshots)
 ##   --weapon=ID        the bot starts with this weapon (pistol, shotgun, ...)
+##   --dual             ...one in each hand (if that weapon allows it)
+##   --keep-weapon      ...and it never runs out
 ##   --cycle            the bot is handed each weapon in turn every 6 seconds
 ##   --wave=N           jump straight to wave N
 ##   --god              the player cannot die
@@ -15,6 +17,9 @@ extends Node
 ##   --autotest         play through the whole game loop automatically and report PASS/FAIL
 ##   --inputtest        feed fake keyboard / mouse / gamepad events through GameInput and check them
 ##   --bench=N          keep N zombies alive around the player and report simulation time
+##                      (add --weapon=ID --no-crates --no-rage to compare weapons fairly)
+##   --no-crates        no weapon crates appear (works with --bot too)
+##   --no-rage          the bot never uses rage
 ##   --dump-sfx=DIR     write every generated sound to DIR as .wav files, then quit
 ##   --coins=N          start with N coins (dev runs use a throwaway save file,
 ##                      never the player's real one, unless --real-save is given)
@@ -118,11 +123,20 @@ func _quit(code: int) -> void:
 func _bot(game: Game) -> void:
 	var p := game.player
 	if _args.has("weapon") and _frame == 2:
-		p.give_weapon(String(_args["weapon"]))
+		var wanted := String(_args["weapon"])
+		if wanted != Config.STARTER_WEAPON:
+			p.give_weapon(wanted)
+		if _args.has("dual"):
+			p.give_weapon(wanted)
+	if _args.has("keep-weapon") and p.weapon_time_max > 0.0:
+		p.weapon_time = p.weapon_time_max
+	if _args.has("no-crates"):
+		game.pickups.crates.clear()
+		game.pickups.set("_crate_timer", 9999.0)
 	if _args.has("cycle") and _frame % 360 == 5:
 		var order: Array = Config.WEAPON_ORDER
 		p.give_weapon(String(order[int(_frame / 360.0) % order.size()]))
-	if game.rage_ready():
+	if game.rage_ready() and not _args.has("no-rage"):
 		GameInput.press_rage()
 	var target := game.enemies.nearest(p.pos, 900.0)
 	var aim := Vector2.RIGHT
@@ -165,9 +179,10 @@ func _bench(game: Game) -> void:
 	game.director.intermission = 99999.0
 	game.director.in_wave = false
 	game.player.hp = game.player.max_hp
-	if _frame == 3:
-		game.player.give_weapon(String(_args.get("weapon", "machinegun")))
-	game.player.weapon_time = 99.0
+	if _frame == 3 and not _args.has("weapon"):
+		game.player.give_weapon("machinegun")     # (--weapon is handled by the bot)
+	if game.player.weapon_time_max > 0.0:
+		game.player.weapon_time = 99.0
 	var p := game.player.pos
 	while game.enemies.alive_count < target:
 		var roll := randf()
@@ -192,6 +207,8 @@ func _bench(game: Game) -> void:
 			target, sorted.size(), total / float(sorted.size()) / 1000.0,
 			sorted[int(sorted.size() * 0.95)] / 1000.0, sorted[sorted.size() - 1] / 1000.0,
 			game.kills, Engine.get_frames_per_second()])
+		print("BENCH weapon=%s dual=%s shots=%d time_alive=%.1fs" % [game.player.weapon_id, str(game.player.dual),
+			game.projectiles.spawned_total, game.time_alive])
 		print("BENCH draw_calls=%d objects=%d primitives=%d" % [
 			int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
 			int(Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME)),
@@ -309,6 +326,36 @@ func _run_autotest() -> void:
 		await _frames(200)
 		print("  ...  - used weapon '%s' (kills so far: %d)" % [id, game.kills])
 	_check(game.kills > 0, "zombies were killed (%d)" % game.kills)
+
+	# --- dual wielding ---
+	var pl := game.player
+	pl.give_weapon("shotgun")
+	_check(pl.weapon_id == "shotgun" and not pl.dual, "the first shotgun is held alone")
+	pl.give_weapon("shotgun")
+	_check(pl.dual and pl.weapon_label() == "DUAL SHOTGUN", "a second shotgun gives dual shotguns")
+	pl.give_weapon("rifle")
+	pl.give_weapon("rifle")
+	_check(pl.weapon_id == "rifle" and not pl.dual, "two-handed weapons cannot be dual wielded")
+	pl.give_weapon("pistol")
+	_check(pl.weapon_id == "pistol" and pl.dual and pl.weapon_time > 0.0, "a pistol crate gives dual pistols for a while")
+	pl.hp = pl.max_hp
+	await _frames(60)
+	pl.weapon_time = 0.02
+	await _frames(5)
+	_check(pl.weapon_id == "pistol" and not pl.dual and pl.weapon_time <= 0.0, "dual pistols run out back to one pistol")
+
+	# --- crate rarity ---
+	_check(Config.crate_weight("launcher") < Config.crate_weight("machinegun")
+			and Config.crate_weight("machinegun") < Config.crate_weight("shotgun"), "rarer weapons are less likely to be in a crate")
+
+	# --- burning ---
+	var torch := game.enemies.spawn(Config.BRUTE, game.arena.clamp_inside(pl.pos + Vector2(400, 0), 40.0))
+	var torch_hp := torch.hp
+	game.enemies.ignite(torch, 2.0, 30.0, "flamethrower")
+	for i in 30:
+		pl.hp = pl.max_hp
+		await _frames(1)
+	_check(not torch.alive or torch.hp < torch_hp - 5.0, "a burning zombie keeps losing health")
 	_check(game.score > 0, "score went up (%d)" % game.score)
 
 	# --- pause / resume ---
@@ -400,6 +447,19 @@ func _run_autotest() -> void:
 	# --- XP earned in play ---
 	_check(SaveData.weapon_xp("pistol") > 0 or SaveData.weapon_level("pistol") > 1, "kills give the weapon that made them XP")
 	_check(SaveData.level > 2 or SaveData.xp > 0, "kills give the character XP")
+
+	# --- level cap ---
+	var real_level := SaveData.level
+	var real_xp := SaveData.xp
+	var real_points := SaveData.skill_points
+	SaveData.level = Config.LEVEL_CAP - 1
+	SaveData.xp = 0
+	_check(SaveData.add_xp(999999999) == 1 and SaveData.level == Config.LEVEL_CAP and SaveData.xp == 0,
+			"the character stops at level %d" % Config.LEVEL_CAP)
+	_check(SaveData.add_xp(5000) == 0 and SaveData.level == Config.LEVEL_CAP, "no XP is gained at the level cap")
+	SaveData.level = real_level
+	SaveData.xp = real_xp
+	SaveData.skill_points = real_points
 
 	# --- respec ---
 	SaveData.add_coins(100000)

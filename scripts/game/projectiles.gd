@@ -16,11 +16,17 @@ class Shot:
 	var w: Dictionary            # weapon config (for feel values)
 	var wid := ""                # weapon id (gets the XP for kills)
 	var crit := false
+	var keep := 0.7              # damage kept after passing through a zombie
+	var flame := false           # a puff of fire: slows down, grows, burns everything it touches
+	var radius := 3.0
+	var range0 := 1.0            # the range it started with (for fading)
+	var burn_dps := 0.0
 	var grenade := false
 	var hit: Array = []          # zombies already hit (piercing shots)
 
 var game: Game
 var shots: Array[Shot] = []
+var spawned_total := 0           # how many shots were ever fired (for the benchmark)
 var _glow: Texture2D
 var _grenade_tex: Texture2D
 var _time := 0.0
@@ -35,6 +41,7 @@ func _ready() -> void:
 
 
 func spawn(from: Vector2, dir: Vector2, w: Dictionary, weapon_id: String, damage: float, knockback: float, crit: bool = false) -> void:
+	spawned_total += 1
 	var s := Shot.new()
 	var speed_var: float = w["speed_var"]
 	s.pos = from
@@ -49,6 +56,15 @@ func spawn(from: Vector2, dir: Vector2, w: Dictionary, weapon_id: String, damage
 	s.wid = weapon_id
 	s.crit = crit
 	s.grenade = String(w["kind"]) == "grenade"
+	s.keep = float(w.get("pierce_keep", Config.PIERCE_DAMAGE_KEEP))
+	s.range0 = s.dist_left
+	if s.grenade:
+		s.radius = 6.0
+	if String(w["kind"]) == "flame":
+		s.flame = true
+		s.radius = w["flame_size"]
+		# Burn damage scales with everything that scales the weapon's damage.
+		s.burn_dps = float(w["burn_dps"]) * damage / float(w["damage"])
 	shots.append(s)
 
 
@@ -59,14 +75,29 @@ func tick(dt: float) -> void:
 	var i := 0
 	while i < shots.size():
 		var s := shots[i]
+		if s.flame:
+			s.speed *= maxf(1.0 - float(s.w["flame_drag"]) * dt, 0.0)
+			s.radius += float(s.w["flame_grow"]) * dt
 		var step := minf(s.speed * dt, s.dist_left)
 		var from := s.pos
 		var to := from + s.dir * step
 		var done := false
 
 		var wall_t := arena.segment_hit(from, to)
-		var e := enemies.segment_hit(from, to, 6.0 if s.grenade else 3.0, s.hit)
-		if e != null and enemies.hit_t <= wall_t:
+		var e := enemies.segment_hit(from, to, s.radius, s.hit)
+		if s.flame:
+			# Fire washes over everything in its path; each puff burns a zombie once.
+			var guard := 0
+			while e != null and enemies.hit_t <= wall_t and guard < 8:
+				guard += 1
+				s.hit.append(e)
+				enemies.damage(e, s.damage, s.dir, s.knockback, s.stagger, 0.0, s.wid, s.crit)
+				enemies.ignite(e, float(s.w["burn_time"]), s.burn_dps, s.wid)
+				e = enemies.segment_hit(from, to, s.radius, s.hit)
+			if wall_t <= 1.0:
+				to = from.lerp(to, wall_t)
+				done = true
+		elif e != null and enemies.hit_t <= wall_t:
 			var at := from.lerp(to, enemies.hit_t)
 			if s.grenade:
 				explode(at, s)
@@ -75,7 +106,7 @@ func tick(dt: float) -> void:
 				enemies.damage(e, s.damage, s.dir, s.knockback, s.stagger, float(s.w["hitstop_kill"]), s.wid, s.crit)
 				if s.pierce > 0:
 					s.pierce -= 1
-					s.damage *= Config.PIERCE_DAMAGE_KEEP
+					s.damage *= s.keep
 					s.hit.append(e)
 				else:
 					to = at
@@ -93,7 +124,7 @@ func tick(dt: float) -> void:
 		s.pos = to
 		s.travelled += step
 		s.dist_left -= step
-		if not done and s.dist_left <= 0.0:
+		if not done and (s.dist_left <= 0.0 or (s.flame and s.speed < 60.0)):
 			if s.grenade:
 				explode(s.pos, s)
 			done = true
@@ -101,6 +132,8 @@ func tick(dt: float) -> void:
 			game.fx.smoke(s.pos, 1, 8.0)
 
 		if done:
+			if s.flame and randf() < 0.25:
+				game.fx.smoke(s.pos, 1, 14.0)
 			shots[i] = shots[shots.size() - 1]
 			shots.pop_back()
 		else:
@@ -132,7 +165,14 @@ func explode(at: Vector2, s: Shot) -> void:
 
 func _draw() -> void:
 	for s: Shot in shots:
-		if s.grenade:
+		if s.flame:
+			# White-hot at the nozzle, orange, then dull red as it thins out.
+			var f := clampf(1.0 - s.dist_left / s.range0, 0.0, 1.0)
+			var size := s.radius * 3.2
+			var color := Color(1.0, 0.95, 0.6, 0.55).lerp(Color(1.0, 0.45, 0.1, 0.5), minf(f * 2.0, 1.0))
+			color = color.lerp(Color(0.6, 0.12, 0.05, 0.0), maxf(f * 2.0 - 1.0, 0.0))
+			draw_texture_rect(_glow, Rect2(s.pos - Vector2(size, size) * 0.5, Vector2(size, size)), false, color)
+		elif s.grenade:
 			# Drawn additively: a bright core with a pulsing glow.
 			var pulse := 26.0 + sin(_time * 40.0) * 6.0
 			draw_texture_rect(_glow, Rect2(s.pos - Vector2(pulse, pulse) * 0.5, Vector2(pulse, pulse)), false, Color(1.0, 0.5, 0.15, 0.9))

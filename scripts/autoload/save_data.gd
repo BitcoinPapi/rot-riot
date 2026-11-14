@@ -117,7 +117,7 @@ func load_game() -> void:
 		return
 
 	coins = maxi(int(data.get("coins", 0)), 0)
-	level = maxi(int(data.get("level", 1)), 1)
+	level = clampi(int(data.get("level", 1)), 1, Config.LEVEL_CAP)
 	xp = maxi(int(data.get("xp", 0)), 0)
 	skill_points = maxi(int(data.get("skill_points", 0)), 0)
 	points_bought = maxi(int(data.get("points_bought", 0)), 0)
@@ -182,15 +182,25 @@ func xp_needed() -> int:
 	return Config.level_xp_needed(level)
 
 
+func at_level_cap() -> bool:
+	return level >= Config.LEVEL_CAP
+
+
 ## Give the character XP. Returns how many levels were gained.
+## At the level cap nothing more is gained.
 func add_xp(amount: int) -> int:
+	if at_level_cap():
+		xp = 0
+		return 0
 	xp += amount
 	var gained := 0
-	while xp >= xp_needed():
+	while not at_level_cap() and xp >= xp_needed():
 		xp -= xp_needed()
 		level += 1
 		skill_points += Config.SKILL_POINTS_PER_LEVEL
 		gained += 1
+	if at_level_cap():
+		xp = 0
 	if gained > 0:
 		progress_changed.emit()
 	return gained

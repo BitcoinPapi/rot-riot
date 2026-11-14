@@ -158,8 +158,13 @@ func _focus_fallback() -> void:
 
 func _refresh() -> void:
 	_level.text = "LEVEL %d" % SaveData.level
-	_xp_bar.set_fraction(float(SaveData.xp) / float(SaveData.xp_needed()))
-	_xp_text.text = "%d / %d XP to level %d" % [SaveData.xp, SaveData.xp_needed(), SaveData.level + 1]
+	if SaveData.at_level_cap():
+		_xp_bar.set_fraction(1.0)
+		_xp_text.text = "Maximum level reached"
+	else:
+		_xp_bar.set_fraction(float(SaveData.xp) / float(SaveData.xp_needed()))
+		_xp_text.text = "%d / %d XP to level %d   (the highest level is %d)" % [
+				SaveData.xp, SaveData.xp_needed(), SaveData.level + 1, Config.LEVEL_CAP]
 	_coins.text = "%d" % SaveData.coins
 	var levels := SaveData.level - 1
 	_base.text = "Every level gives +%d max health, +%d%% damage and a skill point.   From levels so far: +%d health, +%d%% damage" % [

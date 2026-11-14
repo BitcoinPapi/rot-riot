@@ -35,9 +35,13 @@ var _coin_tex: Texture2D
 var _crate_tex: Texture2D
 var _medkit_tex: Texture2D
 var _glow: Texture2D
+var _ring_tex: Texture2D
+var _font: Font
 
 
 func _ready() -> void:
+	_ring_tex = Art.t("ring")
+	_font = ThemeDB.fallback_font
 	_coin_tex = Art.t("coin")
 	_crate_tex = Art.t("crate")
 	_medkit_tex = Art.t("medkit")
@@ -91,10 +95,11 @@ func spawn_medkit(at: Vector2) -> void:
 
 
 func _pick_crate_weapon() -> String:
-	# Avoid the weapon the player already holds and ones already on the field.
+	# Any crate weapon that is not already lying on the field. The weapon the
+	# player holds is allowed: a second one means dual wielding.
 	var options: Array = []
 	for id: String in Config.CRATE_WEAPONS:
-		var taken := id == game.player.weapon_id
+		var taken := false
 		for c: Crate in crates:
 			if c.weapon == id:
 				taken = true
@@ -102,12 +107,12 @@ func _pick_crate_weapon() -> String:
 			options.append(id)
 	if options.is_empty():
 		options = Config.CRATE_WEAPONS.duplicate()
-	# Weighted pick: rarer weapons have a lower "crate_weight" in Config, and
-	# each weapon's own SPAWN RATE upgrade raises its share.
+	# Weighted pick: each weapon's rarity tier sets its weight (Config.CRATE_RARITIES)
+	# and its own SPAWN RATE upgrade raises its share.
 	var weights: Array = []
 	var total := 0.0
 	for id: String in options:
-		var weight: float = float(Config.WEAPONS[id]["crate_weight"]) * (1.0 + SaveData.weapon_value(id, "spawn"))
+		var weight: float = Config.crate_weight(id) * (1.0 + SaveData.weapon_value(id, "spawn"))
 		weights.append(weight)
 		total += weight
 	var roll := randf() * total
@@ -246,12 +251,20 @@ func _draw() -> void:
 		if c.life < 5.0 and not blink_on:
 			continue
 		var w: Dictionary = Config.WEAPONS[c.weapon]
-		var color: Color = w["color"]
+		# The glow shows the crate's rarity; rarer crates glow bigger and brighter.
+		var rarity := String(w["rarity"])
+		var tier: int = Config.CRATE_RARITY_ORDER.find(rarity)
+		var color: Color = Config.CRATE_RARITIES[rarity]["color"]
 		# Drops in with a bounce, then bobs gently.
 		var drop := 1.0 + maxf(0.3 - c.age, 0.0) * 2.5
 		var s := 38.0 * drop * (1.0 + 0.05 * sin(_time * 4.0))
-		var halo := 110.0 + 14.0 * sin(_time * 5.0)
-		draw_texture_rect(_glow, Rect2(c.pos - Vector2(halo, halo) * 0.5, Vector2(halo, halo)), false, Color(color.r, color.g, color.b, 0.4))
+		var halo := 104.0 + 34.0 * tier + (12.0 + 6.0 * tier) * sin(_time * (4.0 + tier))
+		draw_texture_rect(_glow, Rect2(c.pos - Vector2(halo, halo) * 0.5, Vector2(halo, halo)), false,
+				Color(color.r, color.g, color.b, 0.32 + 0.12 * tier))
+		if tier > 0:
+			var ring := 62.0 + 10.0 * tier + 4.0 * sin(_time * 6.0)
+			draw_texture_rect(_ring_tex, Rect2(c.pos - Vector2(ring, ring) * 0.5, Vector2(ring, ring)), false,
+					Color(color.r, color.g, color.b, 0.55))
 		draw_texture_rect(_crate_tex, Rect2(c.pos - Vector2(s, s) * 0.5, Vector2(s, s)), false)
 		# The weapon inside is shown on the lid.
 		var gun: Texture2D = Art.t("gun_" + c.weapon)
@@ -259,3 +272,8 @@ func _draw() -> void:
 		draw_set_transform(c.pos, -0.6, Vector2.ONE)
 		draw_texture_rect(gun, Rect2(-gsize * 0.5, gsize), false)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		# "x2": picking this one up would put one in each hand.
+		if game.player.alive and game.player.would_dual(c.weapon):
+			var at := c.pos + Vector2(9.0, -15.0)
+			draw_string_outline(_font, at, "x2", HORIZONTAL_ALIGNMENT_LEFT, -1, 17, 6, Color(0, 0, 0, 0.9))
+			draw_string(_font, at, "x2", HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color(1.0, 0.9, 0.35))

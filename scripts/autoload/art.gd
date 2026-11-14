@@ -96,6 +96,10 @@ func _build() -> void:
 	_svg("gun_machinegun", 46, 18, SVG_GUN_MACHINEGUN, false)
 	_svg("gun_launcher", 44, 20, SVG_GUN_LAUNCHER, false)
 	_svg("gun_sledge", 54, 28, SVG_GUN_SLEDGE, false)
+	_svg("gun_smg", 36, 16, SVG_GUN_SMG, false)
+	_svg("gun_rifle", 58, 14, SVG_GUN_RIFLE, false)
+	_svg("gun_flamethrower", 48, 22, SVG_GUN_FLAMETHROWER, false)
+	_svg("gun_chainsaw", 54, 22, SVG_GUN_CHAINSAW, false)
 	_svg("grenade", 16, 16, SVG_GRENADE)
 
 	# --- pickups ---
@@ -318,6 +322,46 @@ const SVG_GUN_SLEDGE := """
 <rect x="36" y="-12.5" width="15" height="25" rx="3" fill="#16181c"/>
 <rect x="37.6" y="-11" width="11.8" height="22" rx="2" fill="#a9b2bd"/>
 <rect x="37.6" y="-11" width="11.8" height="5.5" rx="2" fill="#d5dbe2"/>
+"""
+
+const SVG_GUN_SMG := """
+<rect x="0" y="-2.6" width="9" height="5.2" rx="1.4" fill="#16181c"/>
+<rect x="7" y="-4.4" width="19" height="8.8" rx="1.8" fill="#16181c"/>
+<rect x="9" y="-3" width="15" height="2.6" rx="1" fill="#4f6b73"/>
+<rect x="25" y="-2.2" width="10" height="4.4" rx="1.2" fill="#16181c"/>
+<rect x="27" y="-1.1" width="7" height="1.8" rx="0.8" fill="#99a2ad"/>
+<rect x="13" y="3" width="6" height="5" rx="1.2" fill="#3c434b" stroke="#16181c" stroke-width="1"/>
+"""
+
+const SVG_GUN_RIFLE := """
+<rect x="0" y="-3.4" width="16" height="6.8" rx="2" fill="#16181c"/>
+<rect x="1" y="-2.4" width="14" height="4.8" rx="1.5" fill="#7a5230"/>
+<rect x="14" y="-3.2" width="20" height="6.4" rx="1.4" fill="#16181c"/>
+<rect x="16" y="-2" width="16" height="2.2" rx="1" fill="#5d6670"/>
+<rect x="32" y="-1.9" width="25" height="3.8" rx="1.2" fill="#16181c"/>
+<rect x="34" y="-0.9" width="22" height="1.6" rx="0.8" fill="#aab2bc"/>
+<rect x="18" y="-6.2" width="12" height="3.4" rx="1.4" fill="#2a2f36" stroke="#16181c" stroke-width="0.8"/>
+"""
+
+const SVG_GUN_FLAMETHROWER := """
+<rect x="0" y="-8.5" width="14" height="17" rx="5" fill="#16181c"/>
+<rect x="1.4" y="-7" width="11.2" height="14" rx="4" fill="#b23a2a"/>
+<rect x="3" y="-5.5" width="3" height="11" rx="1.5" fill="#d9644f"/>
+<rect x="12" y="-3.6" width="24" height="7.2" rx="2" fill="#16181c"/>
+<rect x="14" y="-2.4" width="20" height="2.4" rx="1" fill="#6d747d"/>
+<rect x="34" y="-2.6" width="12" height="5.2" rx="1.4" fill="#16181c"/>
+<rect x="36" y="-1.4" width="9" height="2.8" rx="1" fill="#e9a23a"/>
+<circle cx="46" cy="0" r="1.8" fill="#ffd36b"/>
+"""
+
+const SVG_GUN_CHAINSAW := """
+<rect x="4" y="-10" width="10" height="4.4" rx="2" fill="#16181c"/>
+<rect x="0" y="-7" width="18" height="14" rx="3" fill="#16181c"/>
+<rect x="1.4" y="-5.6" width="15.2" height="11.2" rx="2.2" fill="#e8731f"/>
+<rect x="4" y="-3" width="6" height="6" rx="1.5" fill="#b3540f"/>
+<rect x="16" y="-4.6" width="37" height="9.2" rx="4.6" fill="#16181c"/>
+<rect x="18" y="-2.8" width="33" height="5.6" rx="2.8" fill="#aab2bc"/>
+<path d="M20,-4.6 L22,-6.2 L24,-4.6 M27,-4.6 L29,-6.2 L31,-4.6 M34,-4.6 L36,-6.2 L38,-4.6 M41,-4.6 L43,-6.2 L45,-4.6 M20,4.6 L22,6.2 L24,4.6 M27,4.6 L29,6.2 L31,4.6 M34,4.6 L36,6.2 L38,4.6 M41,4.6 L43,6.2 L45,4.6" stroke="#16181c" stroke-width="1.6" fill="none"/>
 """
 
 const SVG_GRENADE := """

@@ -55,8 +55,10 @@ const AIM_ASSIST_RANGE := 620.0
 
 # ----------------------------------------------------------------------------
 #  WEAPONS
+#  kind          "bullet", "grenade", "flame" or "melee"
+#  rarity        which crate tier it comes in (see CRATE_RARITIES below)
+#  dual          true = picking up a second one while holding it gives one in each hand
 #  duration      seconds a crate weapon lasts (0 = forever)
-#  crate_weight  how often its crate appears compared with the others (rarity)
 #  interval      seconds between shots (lower = faster)
 #  spread_deg    full width of the random cone
 #  knockback     shove speed given to a zombie that is hit
@@ -67,12 +69,29 @@ const AIM_ASSIST_RANGE := 620.0
 #  hitstop_kill  freeze-frame on a kill      flash_size   muzzle flash size
 # ----------------------------------------------------------------------------
 const STARTER_WEAPON := "pistol"
-const WEAPON_ORDER := ["pistol", "shotgun", "machinegun", "launcher", "sledge"]
-const CRATE_WEAPONS := ["shotgun", "machinegun", "launcher", "sledge"]
+# Order on the Armory screen.
+const WEAPON_ORDER := ["pistol", "smg", "shotgun", "machinegun", "rifle", "sledge", "launcher", "flamethrower", "chainsaw"]
+# What crates can contain. A "pistol" crate hands you a second pistol (dual pistols).
+const CRATE_WEAPONS := ["pistol", "smg", "shotgun", "machinegun", "rifle", "sledge", "launcher", "flamethrower", "chainsaw"]
+
+# Crate tiers. "weight" is how often a weapon of that tier is picked compared
+# with the others; each weapon's own SPAWN RATE upgrade multiplies its weight.
+const CRATE_RARITY_ORDER := ["common", "uncommon", "rare"]
+const CRATE_RARITIES := {
+	"common": {"name": "COMMON", "weight": 1.0, "color": Color(0.86, 0.86, 0.82)},
+	"uncommon": {"name": "UNCOMMON", "weight": 0.5, "color": Color(0.35, 0.9, 0.4)},
+	"rare": {"name": "RARE", "weight": 0.22, "color": Color(0.35, 0.62, 1.0)},
+}
+
+# Dual wielding (one gun in each hand).
+const DUAL_INTERVAL_MULT := 0.55        # time between shots (0.55 = fires about 1.8x as fast)
+const DUAL_SPREAD_MULT := 1.3           # ...but less accurate
+const DUAL_RECOIL_MULT := 1.15          # ...and it kicks more
+const DUAL_PISTOL_DURATION := 25.0      # seconds a second pistol lasts
 
 const WEAPONS := {
 	"pistol": {
-		"name": "PISTOL", "kind": "bullet", "duration": 0.0, "crate_weight": 0.0,
+		"name": "PISTOL", "kind": "bullet", "rarity": "common", "dual": true, "duration": 0.0,
 		"damage": 14.0, "interval": 0.24, "pellets": 1, "spread_deg": 2.5,
 		"bullet_speed": 1500.0, "speed_var": 0.0, "range": 720.0, "pierce": 0,
 		"knockback": 170.0, "stagger": 0.11, "move_mult": 1.0,
@@ -81,8 +100,19 @@ const WEAPONS := {
 		"tracer_len": 26.0, "tracer_width": 3.0, "tracer_color": Color(1.0, 0.92, 0.55),
 		"muzzle_dist": 30.0, "sound": "pistol", "color": Color(0.80, 0.82, 0.86),
 	},
+	"smg": {
+		# Light and very fast: a hose of weak bullets, and you move quicker with it.
+		"name": "SMG", "kind": "bullet", "rarity": "common", "dual": true, "duration": 20.0,
+		"damage": 7.0, "interval": 0.05, "pellets": 1, "spread_deg": 11.0,
+		"bullet_speed": 1500.0, "speed_var": 0.06, "range": 520.0, "pierce": 0,
+		"knockback": 55.0, "stagger": 0.05, "move_mult": 1.1,
+		"shake": 0.07, "kick": 2.5, "recoil_gun": 3.0, "recoil_push": 8.0,
+		"hitstop_kill": 0.012, "flash_size": 26.0, "casing": "brass",
+		"tracer_len": 24.0, "tracer_width": 2.0, "tracer_color": Color(1.0, 0.95, 0.7),
+		"muzzle_dist": 34.0, "sound": "smg", "color": Color(0.55, 0.85, 0.9),
+	},
 	"shotgun": {
-		"name": "SHOTGUN", "kind": "bullet", "duration": 20.0, "crate_weight": 1.0,
+		"name": "SHOTGUN", "kind": "bullet", "rarity": "common", "dual": true, "duration": 20.0,
 		"damage": 10.0, "interval": 0.72, "pellets": 9, "spread_deg": 26.0,
 		"bullet_speed": 1350.0, "speed_var": 0.18, "range": 400.0, "pierce": 1,
 		"knockback": 300.0, "stagger": 0.22, "move_mult": 1.0,
@@ -92,17 +122,43 @@ const WEAPONS := {
 		"muzzle_dist": 38.0, "sound": "shotgun", "color": Color(0.95, 0.55, 0.20),
 	},
 	"machinegun": {
-		"name": "MACHINE GUN", "kind": "bullet", "duration": 20.0, "crate_weight": 1.0,
-		"damage": 9.0, "interval": 0.062, "pellets": 1, "spread_deg": 8.0,
-		"bullet_speed": 1650.0, "speed_var": 0.05, "range": 760.0, "pierce": 0,
+		"name": "MACHINE GUN", "kind": "bullet", "rarity": "uncommon", "dual": true, "duration": 20.0,
+		"damage": 10.0, "interval": 0.062, "pellets": 1, "spread_deg": 8.0,
+		"bullet_speed": 1650.0, "speed_var": 0.05, "range": 760.0, "pierce": 1,
 		"knockback": 85.0, "stagger": 0.07, "move_mult": 1.0,
 		"shake": 0.11, "kick": 3.5, "recoil_gun": 4.0, "recoil_push": 16.0,
 		"hitstop_kill": 0.014, "flash_size": 34.0, "casing": "brass",
 		"tracer_len": 34.0, "tracer_width": 2.5, "tracer_color": Color(1.0, 0.95, 0.60),
 		"muzzle_dist": 40.0, "sound": "machinegun", "color": Color(0.95, 0.85, 0.25),
 	},
+	"rifle": {
+		# Slow, loud, and each bullet goes straight through a whole line of zombies.
+		"name": "RIFLE", "kind": "bullet", "rarity": "uncommon", "dual": false, "duration": 22.0,
+		"damage": 85.0, "interval": 0.52, "pellets": 1, "spread_deg": 0.6,
+		"bullet_speed": 1900.0, "speed_var": 0.0, "range": 1100.0, "pierce": 6,
+		"pierce_keep": 0.85,          # damage kept after each zombie it passes through
+		"knockback": 420.0, "stagger": 0.3, "move_mult": 0.95,
+		"shake": 0.5, "kick": 18.0, "recoil_gun": 14.0, "recoil_push": 150.0,
+		"hitstop_kill": 0.06, "flash_size": 56.0, "casing": "brass",
+		"tracer_len": 90.0, "tracer_width": 4.0, "tracer_color": Color(1.0, 0.97, 0.8),
+		"muzzle_dist": 46.0, "sound": "rifle", "color": Color(0.75, 0.6, 0.4),
+	},
+	"sledge": {
+		"name": "SLEDGEHAMMER", "kind": "melee", "rarity": "uncommon", "dual": false, "duration": 20.0,
+		"damage": 62.0, "interval": 0.34, "pellets": 1, "spread_deg": 0.0,
+		"bullet_speed": 0.0, "speed_var": 0.0, "range": 108.0, "pierce": 0,
+		"arc_deg": 160.0,             # width of the swing
+		"swing": true,                # drawn swinging in an arc (false = held out in front)
+		"hit_sound": "sledge_hit", "hit_blood": 0,
+		"knockback": 660.0, "stagger": 0.5, "move_mult": 1.18,
+		"shake": 0.06, "kick": 0.0, "recoil_gun": 0.0, "recoil_push": -70.0,   # negative = lunge forward
+		"shake_hit": 0.42, "hitstop_hit": 0.055,
+		"hitstop_kill": 0.0, "flash_size": 0.0, "casing": "",
+		"tracer_len": 0.0, "tracer_width": 0.0, "tracer_color": Color(1, 1, 1),
+		"muzzle_dist": 30.0, "sound": "sledge_swing", "color": Color(0.60, 0.75, 0.95),
+	},
 	"launcher": {
-		"name": "LAUNCHER", "kind": "grenade", "duration": 18.0, "crate_weight": 0.45,
+		"name": "LAUNCHER", "kind": "grenade", "rarity": "rare", "dual": false, "duration": 18.0,
 		"damage": 95.0, "interval": 0.80, "pellets": 1, "spread_deg": 2.0,
 		"bullet_speed": 760.0, "speed_var": 0.0, "range": 620.0, "pierce": 0,
 		"knockback": 0.0, "stagger": 0.0, "move_mult": 1.0,
@@ -115,17 +171,37 @@ const WEAPONS := {
 		"tracer_len": 0.0, "tracer_width": 0.0, "tracer_color": Color(1.0, 0.55, 0.20),
 		"muzzle_dist": 40.0, "sound": "launcher", "color": Color(0.45, 0.80, 0.35),
 	},
-	"sledge": {
-		"name": "SLEDGEHAMMER", "kind": "melee", "duration": 20.0, "crate_weight": 0.8,
-		"damage": 62.0, "interval": 0.34, "pellets": 1, "spread_deg": 0.0,
-		"bullet_speed": 0.0, "speed_var": 0.0, "range": 108.0, "pierce": 0,
-		"arc_deg": 160.0,             # width of the swing
-		"knockback": 660.0, "stagger": 0.5, "move_mult": 1.18,
-		"shake": 0.06, "kick": 0.0, "recoil_gun": 0.0, "recoil_push": -70.0,   # negative = lunge forward
-		"shake_hit": 0.42, "hitstop_hit": 0.055,
+	"flamethrower": {
+		# A short cone of fire. Each puff does little, but it passes through
+		# everything and sets zombies burning (see burn_* below).
+		"name": "FLAMETHROWER", "kind": "flame", "rarity": "rare", "dual": false, "duration": 18.0,
+		"damage": 2.5, "interval": 0.04, "pellets": 2, "spread_deg": 24.0,
+		"bullet_speed": 560.0, "speed_var": 0.2, "range": 225.0, "pierce": 99,
+		"pierce_keep": 1.0,
+		"flame_drag": 2.4,            # how quickly each puff slows down
+		"flame_size": 9.0, "flame_grow": 46.0,   # puff radius at the nozzle, and growth per second
+		"burn_time": 2.5,             # seconds a zombie keeps burning after being touched
+		"burn_dps": 7.0,              # damage per second while burning
+		"knockback": 14.0, "stagger": 0.04, "move_mult": 1.0,
+		"shake": 0.025, "kick": 0.6, "recoil_gun": 1.5, "recoil_push": 0.0,
+		"hitstop_kill": 0.0, "flash_size": 0.0, "casing": "",
+		"tracer_len": 0.0, "tracer_width": 0.0, "tracer_color": Color(1.0, 0.6, 0.15),
+		"muzzle_dist": 40.0, "sound": "flame", "color": Color(1.0, 0.5, 0.15),
+	},
+	"chainsaw": {
+		# Held out in front: grinds anything in a narrow cone, many times a second.
+		"name": "CHAINSAW", "kind": "melee", "rarity": "rare", "dual": false, "duration": 18.0,
+		"damage": 22.0, "interval": 0.075, "pellets": 1, "spread_deg": 0.0,
+		"bullet_speed": 0.0, "speed_var": 0.0, "range": 84.0, "pierce": 0,
+		"arc_deg": 95.0,
+		"swing": false,
+		"hit_sound": "chainsaw_hit", "hit_blood": 5,   # extra blood drops per zombie per bite
+		"knockback": 30.0, "stagger": 0.14, "move_mult": 1.12,
+		"shake": 0.03, "kick": 0.0, "recoil_gun": 2.0, "recoil_push": 0.0,
+		"shake_hit": 0.09, "hitstop_hit": 0.0,
 		"hitstop_kill": 0.0, "flash_size": 0.0, "casing": "",
 		"tracer_len": 0.0, "tracer_width": 0.0, "tracer_color": Color(1, 1, 1),
-		"muzzle_dist": 30.0, "sound": "sledge_swing", "color": Color(0.60, 0.75, 0.95),
+		"muzzle_dist": 40.0, "sound": "chainsaw", "color": Color(1.0, 0.45, 0.2),
 	},
 }
 
@@ -288,15 +364,19 @@ const MEDKIT_PICKUP_RADIUS := 26.0
 #  Three ways the character gets stronger, all feeding the same stats
 #  (see scripts/game/player_stats.gd):
 #    1. CHARACTER LEVEL  XP from kills. Each level raises base health and
-#                        damage a little and gives a skill point.
+#                        damage a little and gives a skill point. Capped at
+#                        LEVEL_CAP; reaching it is meant to take months.
 #    2. SKILL POINTS     Spent on the passive stats below. Extra points can be
 #                        bought with coins, at a price that keeps rising.
 #    3. WEAPON LEVELS    Each weapon earns its own XP from kills made with it.
 #                        Each weapon level gives a point for that weapon only.
 #  Nothing has a hard ceiling: you can always get a bit stronger.
 # ----------------------------------------------------------------------------
+const LEVEL_CAP := 100                  # the character cannot go past this level
 const LEVEL_XP_BASE := 80.0             # XP needed to go from level 1 to 2...
-const LEVEL_XP_EXPONENT := 1.5          # ...and how steeply that grows (needed = base * level ^ exponent)
+const LEVEL_XP_EXPONENT := 1.8          # ...and how steeply that grows (needed = base * level ^ exponent).
+                                        # With 80 and 1.8, level 100 takes about 11.2 million XP in total:
+                                        # the early levels come quickly, the last ones take many hours each.
 const LEVEL_HP_PER_LEVEL := 3.0         # automatic max health per character level
 const LEVEL_DAMAGE_PER_LEVEL := 0.01    # automatic damage per character level (0.01 = +1%)
 const LEVEL_UP_HEAL := 0.25             # levelling up mid-run heals this fraction of max health
@@ -393,6 +473,8 @@ const BLOOD_COLOR_DARK := Color(0.36, 0.02, 0.03)
 const BLOOD_PER_HIT := 4                # droplets per bullet hit
 const BLOOD_PER_KILL := 12              # droplets per kill (multiplied by zombie "blood")
 const MAX_PARTICLES := 900
+const BURN_TINT := Color(1.0, 0.6, 0.36)   # colour of a zombie that is on fire
+const CHARRED_TINT := Color(0.2, 0.17, 0.15)   # colour of a body that burned to death
 const CORPSE_SLIDE_TIME := 0.38         # how long a dead body tumbles before it settles
 const CASING_LIFETIME := 0.55
 const MUZZLE_FLASH_TIME := 0.05
@@ -472,7 +554,12 @@ func stat_value(def: Dictionary, rank: int) -> float:
 	return float(def["per_rank"]) * float(rank)
 
 
-## Which upgrade tracks a weapon has (the pistol never comes from a crate).
+## How likely a weapon is to be the one in a crate, before its SPAWN RATE upgrade.
+func crate_weight(weapon_id: String) -> float:
+	return float(CRATE_RARITIES[String(WEAPONS[weapon_id]["rarity"])]["weight"])
+
+
+## Which upgrade tracks a weapon has (the single pistol is not a crate weapon).
 func weapon_tracks(weapon_id: String) -> Array:
 	var out: Array = []
 	var from_crate: bool = float(WEAPONS[weapon_id]["duration"]) > 0.0

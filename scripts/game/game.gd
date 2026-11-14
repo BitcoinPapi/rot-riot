@@ -295,8 +295,11 @@ func collect_coin(at: Vector2, with_feedback: bool) -> void:
 func collect_crate(crate: Pickups.Crate) -> void:
 	player.give_weapon(crate.weapon)
 	var w: Dictionary = Config.WEAPONS[crate.weapon]
-	var color: Color = w["color"]
-	fx.text(player.pos + Vector2(0, -42), String(w["name"]), color, 26, 1.3)
+	var rarity: Dictionary = Config.CRATE_RARITIES[String(w["rarity"])]
+	var color: Color = rarity["color"]
+	fx.text(player.pos + Vector2(0, -42), player.weapon_label(), w["color"], 26, 1.4)
+	if String(w["rarity"]) != "common":
+		fx.text(player.pos + Vector2(0, -68), String(rarity["name"]), color, 17, 1.4)
 	fx.ring(crate.pos, 16.0, 120.0, 0.35, Color(color.r, color.g, color.b, 0.9))
 	fx.light(crate.pos, 220.0, 0.25, Color(color.r, color.g, color.b, 0.6))
 	shake(Config.CRATE_PICKUP_SHAKE)
