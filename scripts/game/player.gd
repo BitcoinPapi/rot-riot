@@ -227,9 +227,9 @@ func start_reload() -> void:
 			game.fx.mag_drop(pos + aim * 12.0, aim, debris)
 
 
-## Fire-rate bonuses (dexterity, the weapon's SHOOTING SPEED) also speed up reloads.
+## Reloads get faster with the DEXTERITY passive and the weapon's own RELOAD SPEED upgrade.
 func _reload_speed() -> float:
-	var speed: float = stats.fire_rate_mult * float(wmods["fire_rate"])
+	var speed: float = stats.fire_rate_mult * float(wmods["reload"])
 	if game.rage_active:
 		speed *= Config.RELOAD_RAGE_MULT
 	return speed

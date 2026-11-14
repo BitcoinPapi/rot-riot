@@ -52,7 +52,7 @@ func _init() -> void:
 	detail_panel.add_theme_stylebox_override("panel", UiKit.small_panel_style())
 	detail_panel.custom_minimum_size = Vector2(600, 430)
 	var detail := VBoxContainer.new()
-	detail.add_theme_constant_override("separation", 8)
+	detail.add_theme_constant_override("separation", 6)
 	detail_panel.add_child(detail)
 	body.add_child(detail_panel)
 
@@ -91,7 +91,7 @@ func _init() -> void:
 	detail.add_child(info)
 
 	_track_box = VBoxContainer.new()
-	_track_box.add_theme_constant_override("separation", 6)
+	_track_box.add_theme_constant_override("separation", 3)
 	detail.add_child(_track_box)
 
 	_back = UiKit.button("BACK", func() -> void: main.close_screen())
@@ -139,7 +139,7 @@ func _build_tracks() -> void:
 		text.add_child(effect)
 		row.add_child(text)
 		var plus := UiKit.button("+1", func() -> void: _on_raise(track), 112.0)
-		plus.custom_minimum_size = Vector2(112, 46)
+		plus.custom_minimum_size = Vector2(112, 40)
 		plus.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		row.add_child(plus)
 		_track_box.add_child(row)

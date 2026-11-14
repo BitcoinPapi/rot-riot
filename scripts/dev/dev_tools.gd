@@ -7,6 +7,7 @@ extends Node
 ##   --bot              start a run and let a simple bot play (through GameInput's virtual sticks)
 ##   --screen=NAME      open a menu screen (character, armory, settings, pause, gameover) for screenshots
 ##   --level=N          start as a level N character with points to spend (for screenshots)
+##   --armory-weapon=ID with --screen=armory: show this weapon
 ##   --weapon=ID        the bot starts with this weapon (pistol, shotgun, ...)
 ##   --dual             ...one in each hand (if that weapon allows it)
 ##   --keep-weapon      ...and it never runs out
@@ -175,6 +176,9 @@ func _open_screen(app: Main, screen: String) -> void:
 				app.game.damage_player(99999.0, app.game.player.pos + Vector2.RIGHT)
 		_:
 			app.open_screen(screen)
+			if screen == "armory" and _args.has("armory-weapon"):
+				var screens: Dictionary = app.get("_screens")
+				(screens["armory"] as ArmoryScreen).call("_select", String(_args["armory-weapon"]))
 
 
 ## Performance test: hold a fixed horde around the player while the bot shoots.
@@ -226,6 +230,19 @@ func _bench(game: Game) -> void:
 # ----------------------------------------------------------------------------
 func _frames(count: int) -> void:
 	for i in count:
+		await get_tree().process_frame
+
+
+## Wait until `condition` is true (or `max_frames` pass), keeping the player
+## alive meanwhile. Game updates can be held up for a few frames by hit stop,
+## so checks on game state wait for it instead of counting frames.
+func _until(condition: Callable, max_frames: int = 90) -> void:
+	var app: Main = main
+	for i in max_frames:
+		if condition.call():
+			return
+		if app.game != null and is_instance_valid(app.game) and app.game.player.alive:
+			app.game.player.hp = maxf(app.game.player.hp, app.game.player.max_hp * 0.5)
 		await get_tree().process_frame
 
 
@@ -282,8 +299,11 @@ func _run_autotest() -> void:
 	_check(SaveData.raise_weapon_track("shotgun", "power") and float(PlayerStats.weapon_mods("shotgun")["damage"]) > 1.0,
 			"a weapon point raises that weapon's power")
 	_check(is_equal_approx(float(PlayerStats.weapon_mods("pistol")["damage"]), 1.0), "other weapons are not affected")
-	_check(Config.weapon_tracks("pistol").size() == 3 and Config.weapon_tracks("shotgun").size() == 5,
-			"the pistol has no crate-only upgrades")
+	_check(Config.weapon_tracks("pistol") == ["power", "speed", "stability", "reload"], "the pistol has no crate-only upgrades")
+	_check(Config.weapon_tracks("shotgun").size() == 6, "crate guns have all six upgrades")
+	_check(Config.weapon_tracks("sledge") == ["power", "speed", "spawn", "duration"], "melee weapons have no stability or reload upgrade")
+	_check(Config.weapon_tracks("launcher") == ["power", "stability", "reload", "spawn", "duration"],
+			"the launcher's rate of fire is its reload upgrade")
 	app.close_screen()
 	await _frames(2)
 
@@ -345,7 +365,7 @@ func _run_autotest() -> void:
 	pl.hp = pl.max_hp
 	await _frames(60)
 	pl.weapon_time = 0.02
-	await _frames(5)
+	await _until(func() -> bool: return not pl.dual)
 	_check(pl.weapon_id == "pistol" and not pl.dual and pl.weapon_time <= 0.0, "dual pistols run out back to one pistol")
 
 	# --- reloading ---
@@ -394,7 +414,7 @@ func _run_autotest() -> void:
 	_check(pl.reloading and pl.ammo == 2, "the shotgun loads one shell at a time")
 	GameInput.set_virtual_input(Vector2.ZERO, Vector2.RIGHT, true)
 	pl.fire_cd = 0.0
-	await _frames(3)
+	await _until(func() -> bool: return not pl.reloading or pl.ammo < 2)
 	_check(not pl.reloading or pl.ammo < 2, "firing cuts a shell-by-shell reload short")
 	GameInput.set_virtual_input(Vector2.ZERO, Vector2.RIGHT, false)
 	pl.give_weapon("sledge")
@@ -403,6 +423,22 @@ func _run_autotest() -> void:
 	pl.give_weapon("pistol")
 	var pistol_mag: int = Config.WEAPONS["pistol"]["mag"]
 	_check(pl.mag_size == pistol_mag * Config.DUAL_MAG_MULT, "dual wielding has two magazines")
+	# The RELOAD SPEED upgrade shortens that weapon's reload (and only that weapon's).
+	pl.give_weapon("smg")
+	pl.ammo = 1
+	pl.start_reload()
+	var slow_reload: float = pl.get("_reload_total")
+	SaveData.add_weapon_xp("smg", 100000)
+	for i in 5:
+		SaveData.raise_weapon_track("smg", "reload")
+	pl.give_weapon("smg")
+	pl.ammo = 1
+	pl.start_reload()
+	var fast_reload: float = pl.get("_reload_total")
+	_check(SaveData.weapon_rank("smg", "reload") == 5 and fast_reload < slow_reload * 0.9,
+			"the RELOAD SPEED upgrade shortens the reload (%.2fs -> %.2fs)" % [slow_reload, fast_reload])
+	_check(is_equal_approx(float(PlayerStats.weapon_mods("rifle")["reload"]), 1.0), "other weapons keep their own reload speed")
+	pl.refill_ammo()
 	_auto_bot = true
 
 	# --- wounded looks ---
@@ -412,11 +448,16 @@ func _run_autotest() -> void:
 	_check(hurt.alive and hurt.wounded and hurt.tex_normal == hurt.tex_hurt, "a zombie under 30% health shows its wounds")
 	pl.hp = pl.max_hp * 0.2
 	pl.invuln = 5.0
-	await _frames(2)
+	for i in 60:
+		if pl.wounded:
+			break
+		pl.hp = pl.max_hp * 0.2
+		pl.invuln = 5.0
+		await _frames(1)
 	_check(pl.wounded, "the player looks battle-worn under 30% health")
 	pl.hp = pl.max_hp
 	pl.invuln = 0.0
-	await _frames(2)
+	await _until(func() -> bool: return not pl.wounded)
 	_check(not pl.wounded, "and recovers the normal look when healed")
 
 	# --- crate rarity ---
@@ -450,6 +491,7 @@ func _run_autotest() -> void:
 
 	# --- rage ---
 	game.player.hp = game.player.max_hp
+	game.rage_active = false          # (the bot may have triggered rage itself a moment ago)
 	game.rage = Config.RAGE_MAX
 	game.player.give_weapon("smg")
 	game.player.ammo = 1
@@ -562,6 +604,15 @@ func _run_autotest() -> void:
 			"save file restores coins, level, XP and skill points")
 	_check(SaveData.passive_rank("evasion") == 1 and SaveData.weapon_rank("shotgun", "power") == shotgun_power
 			and SaveData.weapon_level("pistol") == pistol_level, "save file restores passive ranks and weapon levels")
+
+	# --- points in an upgrade a weapon no longer has are given back ---
+	var sledge_entry: Dictionary = SaveData.weapons["sledge"]
+	var sledge_points := int(sledge_entry["points"])
+	(sledge_entry["ranks"] as Dictionary)["stability"] = 3
+	SaveData.save_game()
+	SaveData.load_game()
+	_check(SaveData.weapon_rank("sledge", "stability") == 0 and SaveData.weapon_points("sledge") == sledge_points + 3,
+			"points spent on an upgrade a weapon no longer has are refunded")
 
 	# --- an old (version 1) save: coins and upgrades are wiped once, records kept ---
 	var old_file := FileAccess.open(SaveData.save_path, FileAccess.WRITE)

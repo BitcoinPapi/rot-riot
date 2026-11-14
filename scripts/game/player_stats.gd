@@ -36,13 +36,14 @@ static func current() -> PlayerStats:
 
 
 ## Bonuses a weapon has earned from its own level points.
-##   damage, fire_rate, duration, spawn: multipliers (1.0 = no bonus)
+##   damage, fire_rate, reload, duration, spawn: multipliers (1.0 = no bonus)
 ##   steady: multiplier for spread and recoil (1.0 = unchanged, 0.5 = half)
 static func weapon_mods(weapon_id: String) -> Dictionary:
 	return {
 		"damage": 1.0 + SaveData.weapon_value(weapon_id, "power"),
 		"fire_rate": 1.0 + SaveData.weapon_value(weapon_id, "speed"),
 		"steady": 1.0 - SaveData.weapon_value(weapon_id, "stability"),
+		"reload": 1.0 + SaveData.weapon_value(weapon_id, "reload"),
 		"duration": 1.0 + SaveData.weapon_value(weapon_id, "duration"),
 		"spawn": 1.0 + SaveData.weapon_value(weapon_id, "spawn"),
 	}
@@ -79,6 +80,8 @@ static func describe_track(track: String, value: float) -> String:
 			return "+%d%% fire rate" % int(round(value * 100.0))
 		"stability":
 			return "-%d%% spread and recoil" % int(round(value * 100.0))
+		"reload":
+			return "+%d%% reload speed" % int(round(value * 100.0))
 		"spawn":
 			return "+%d%% crate chance" % int(round(value * 100.0))
 		"duration":

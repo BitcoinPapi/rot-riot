@@ -189,6 +189,13 @@ func _draw_weapon(p: Player, h: float) -> void:
 		_text(Vector2(tx, py + 56.0), ammo_text, 26, ammo_color)
 		var aw := _font.get_string_size(ammo_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 26).x
 		_text(Vector2(tx + aw + 6.0, py + 56.0), "/ %d" % p.mag_size, 16, Color(1, 1, 1, 0.55))
+		# A reminder that you can reload early (it pulses when the magazine is low).
+		if p.ammo < p.mag_size:
+			var key := "X" if GameInput.using_gamepad() else "R"
+			var aw2 := _font.get_string_size("/ %d" % p.mag_size, HORIZONTAL_ALIGNMENT_LEFT, -1, 16).x
+			var hint_alpha := (0.6 + 0.4 * sin(_time * 10.0)) if low else 0.45
+			_text(Vector2(tx + aw + aw2 + 18.0, py + 56.0), "%s = reload" % key, 14,
+					Color(1.0, 0.85, 0.35, hint_alpha))
 
 	# How long a crate weapon has left.
 	var duration: float = p.weapon_time_max
@@ -308,7 +315,8 @@ func _draw_crosshair(p: Player) -> void:
 			draw_arc(at, radius, -PI * 0.5, -PI * 0.5 + TAU * p.reload_progress, 40, Color(1.0, 0.85, 0.35), 3.0)
 		else:
 			var low := float(p.ammo) <= float(p.mag_size) * Config.LOW_AMMO_FRACTION
-			_text(at + Vector2(0.0, 36.0), "%d" % p.ammo, 16 if low else 13,
+			var key := "X" if GameInput.using_gamepad() else "R"
+			_text(at + Vector2(0.0, 36.0), ("%d   [%s]" % [p.ammo, key]) if low else "%d" % p.ammo, 16 if low else 13,
 					Color(1.0, 0.3, 0.25, 0.95) if low else Color(1, 1, 1, 0.6), 1, 4)
 
 

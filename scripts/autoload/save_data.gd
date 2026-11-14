@@ -142,6 +142,26 @@ func load_game() -> void:
 					ranks[track] = maxi(int((saved_ranks as Dictionary).get(track, 0)), 0)
 
 
+	_refund_unusable_tracks()
+
+
+## If a weapon has ranks in an upgrade it cannot use (the list of upgrades per
+## weapon changed between versions), give those weapon points back.
+func _refund_unusable_tracks() -> void:
+	for id: String in Config.WEAPON_ORDER:
+		var allowed: Array = Config.weapon_tracks(id)
+		var w: Dictionary = _weapon(id)
+		var ranks: Dictionary = w["ranks"]
+		for track: String in Config.WEAPON_TRACK_ORDER:
+			var rank := int(ranks.get(track, 0))
+			if rank > 0 and not allowed.has(track):
+				var refund := 0
+				for r in rank:
+					refund += Config.rank_cost(r, Config.WEAPON_RANK_COST_STEP)
+				w["points"] = int(w["points"]) + refund
+				ranks[track] = 0
+
+
 func save_game() -> void:
 	var data := {
 		"version": SAVE_VERSION,

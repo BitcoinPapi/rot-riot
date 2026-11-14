@@ -54,7 +54,7 @@ works on 4.5 and later.
   evasion and more). Extra skill points can be bought with coins.
 - Every weapon also has its **own level**, earned by killing with it. Spend a
   weapon's points in the **Armory** on its power, shooting speed, stability,
-  how often its crate appears and how long it lasts.
+  reload speed, how often its crate appears and how long it lasts.
 - Zombies drop **coins**. Everything you earn is saved.
 
 ## Getting the newest version (Mac)

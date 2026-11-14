@@ -95,8 +95,8 @@ const DUAL_RECOIL_MULT := 1.15          # ...and it kicks more
 const DUAL_PISTOL_DURATION := 25.0      # seconds a second pistol lasts
 const DUAL_MAG_MULT := 2                # two guns = two magazines
 
-# Reloading. Reload speed also rises with fire-rate bonuses (dexterity, the
-# weapon's SHOOTING SPEED upgrade).
+# Reloading. Reload speed rises with the DEXTERITY passive and with the
+# weapon's own RELOAD SPEED upgrade.
 const RELOAD_RAGE_MULT := 1.6           # reload this much faster while rage is active
 const RAGE_REFILLS_AMMO := true         # activating rage tops the magazine up instantly
 const LOW_AMMO_FRACTION := 0.25         # the ammo counter turns red below this
@@ -447,14 +447,21 @@ const WEAPON_XP_BASE := 60.0            # weapon XP needed for its level 2 (need
 const WEAPON_XP_EXPONENT := 1.4
 const WEAPON_POINTS_PER_LEVEL := 1
 const WEAPON_RANK_COST_STEP := 10       # every N ranks, the next ranks cost one more weapon point
-# What a weapon's points can be spent on. "crate_only" tracks do not apply to the pistol.
-const WEAPON_TRACK_ORDER := ["power", "speed", "stability", "spawn", "duration"]
+# What a weapon's points can be spent on. "needs" says which weapons have the track:
+#   ""        every weapon
+#   "ranged"  not melee weapons (they have no spread or recoil)
+#   "burst"   weapons that fire more than one shot per magazine (not the launcher,
+#             whose rate of fire is its reload)
+#   "mag"     weapons that reload
+#   "crate"   weapons that come from crates (not the single pistol)
+const WEAPON_TRACK_ORDER := ["power", "speed", "stability", "reload", "spawn", "duration"]
 const WEAPON_TRACKS := {
-	"power": {"name": "POWER", "desc": "More damage", "kind": "linear", "per_rank": 0.05, "crate_only": false},
-	"speed": {"name": "SHOOTING SPEED", "desc": "Faster fire and reload", "kind": "curve", "max": 1.0, "half": 30.0, "crate_only": false},
-	"stability": {"name": "STABILITY", "desc": "Tighter spread, less recoil", "kind": "curve", "max": 0.75, "half": 15.0, "crate_only": false},
-	"spawn": {"name": "SPAWN RATE", "desc": "Its crate appears more often", "kind": "linear", "per_rank": 0.12, "crate_only": true},
-	"duration": {"name": "DURATION", "desc": "Lasts longer when picked up", "kind": "curve", "max": 1.5, "half": 30.0, "crate_only": true},
+	"power": {"name": "POWER", "desc": "More damage", "kind": "linear", "per_rank": 0.05, "needs": ""},
+	"speed": {"name": "SHOOTING SPEED", "desc": "Faster rate of fire", "kind": "curve", "max": 1.0, "half": 30.0, "needs": "burst"},
+	"stability": {"name": "STABILITY", "desc": "Tighter spread, less recoil", "kind": "curve", "max": 0.75, "half": 15.0, "needs": "ranged"},
+	"reload": {"name": "RELOAD SPEED", "desc": "Shorter reload", "kind": "curve", "max": 1.2, "half": 20.0, "needs": "mag"},
+	"spawn": {"name": "SPAWN RATE", "desc": "Its crate appears more often", "kind": "linear", "per_rank": 0.12, "needs": "crate"},
+	"duration": {"name": "DURATION", "desc": "Lasts longer when picked up", "kind": "curve", "max": 1.5, "half": 30.0, "needs": "crate"},
 }
 
 # ----------------------------------------------------------------------------
@@ -592,11 +599,22 @@ func crate_weight(weapon_id: String) -> float:
 	return float(CRATE_RARITIES[String(WEAPONS[weapon_id]["rarity"])]["weight"])
 
 
-## Which upgrade tracks a weapon has (the single pistol is not a crate weapon).
+## Which upgrade tracks a weapon has (see "needs" in WEAPON_TRACKS).
 func weapon_tracks(weapon_id: String) -> Array:
+	var w: Dictionary = WEAPONS[weapon_id]
+	var mag: int = w["mag"]
 	var out: Array = []
-	var from_crate: bool = float(WEAPONS[weapon_id]["duration"]) > 0.0
 	for track: String in WEAPON_TRACK_ORDER:
-		if from_crate or not bool(WEAPON_TRACKS[track]["crate_only"]):
+		var ok := true
+		match String(WEAPON_TRACKS[track]["needs"]):
+			"ranged":
+				ok = String(w["kind"]) != "melee"
+			"burst":
+				ok = mag != 1
+			"mag":
+				ok = mag > 0
+			"crate":
+				ok = float(w["duration"]) > 0.0
+		if ok:
 			out.append(track)
 	return out

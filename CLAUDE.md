@@ -55,7 +55,11 @@ Other dev flags (all after `--`, see `scripts/dev/dev_tools.gd`): `--play`,
 `--gallery=icon_` or `--gallery=boss_0,player`; combine with `--shot` to review art).
 
 Definition of done for any change: `--autotest` and `--inputtest` pass, and
-the `-d` run prints zero `WARNING` / `SCRIPT ERROR` lines.
+the `-d` run prints zero `WARNING` / `SCRIPT ERROR` lines. Run the autotest a
+few times: it plays a real fight, so a check that counts frames or relies on
+what the bot happens to do will fail now and then. In test code, wait with
+`_until(condition)` (hit stop can delay game updates by several frames) and
+set up the state a check needs directly instead of hoping the bot creates it.
 
 ## File map
 
@@ -132,8 +136,10 @@ drop a crate.
   whole magazine and blocks firing; `"shell"` (shotgun) loads one round at a
   time and firing interrupts it. The launcher holds one round, so every shot
   is followed by a reload. Melee weapons have `mag: 0`. Reload speed scales
-  with fire-rate bonuses (dexterity, the weapon's shooting-speed track) and
-  rage; activating rage refills the magazine. Each reload plays three shared
+  with the dexterity passive, the weapon's own RELOAD SPEED track and rage;
+  activating rage refills the magazine. The HUD shows "R = reload" beside the
+  ammo count whenever the magazine is not full (the owner asked for a way to
+  reload early when it is quiet). Each reload plays three shared
   clicks (`mag_out`, `mag_in`, `rack`; shotgun `shell_in`; flamethrower
   `hiss`) at the weapon's `reload_pitch`, tips the gun in the player's hands,
   and drops an empty magazine / box / clip / shell case / fuel can that stays
@@ -192,9 +198,13 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   spent points.
 - *Weapon levels*: each weapon earns XP from kills made with it (kills carry a
   `source` weapon id through `EnemyManager.damage`). Each weapon level gives a
-  point for that weapon only, spent in the Armory on power, shooting speed,
-  stability (spread + recoil), spawn rate (crate share) and duration. The
-  pistol has no crate-only tracks.
+  point for that weapon only, spent in the Armory on up to six tracks: power,
+  shooting speed, stability (spread + recoil), reload speed, spawn rate (crate
+  share) and duration. Which tracks a weapon has is decided by `"needs"` in
+  `Config.WEAPON_TRACKS` (`Config.weapon_tracks(id)`): the pistol has no
+  crate tracks, melee weapons have no stability or reload, the launcher has
+  no shooting speed (its rate of fire is its reload). If a track is removed
+  from a weapon, `SaveData` refunds the points on load.
 - Weapon levels have no cap (only the character level is capped).
 - Save format version 2. Version 1 saves keep records and settings but coins
   and the old upgrades are wiped once (agreed with the owner).
