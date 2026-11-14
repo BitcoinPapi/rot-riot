@@ -20,11 +20,11 @@ const VOICES := 20                    # how many sounds can overlap
 ## name -> [function that builds it, volume in dB, minimum seconds between plays]
 ## The gap stops 30 zombies hit in one frame from playing 30 sounds at once.
 var RECIPES := {
-	"pistol": [_make_pistol, -3.0, 0.03],
+	"pistol": [_make_pistol, -3.5, 0.03],
 	"shotgun": [_make_shotgun, 0.0, 0.05],
-	"machinegun": [_make_machinegun, -5.0, 0.03],
+	"machinegun": [_make_machinegun, -6.5, 0.03],
 	"launcher": [_make_launcher, -2.0, 0.05],
-	"smg": [_make_smg, -6.0, 0.03],
+	"smg": [_make_smg, -7.0, 0.03],
 	"rifle": [_make_rifle, 0.0, 0.05],
 	"flame": [_make_flame, -7.0, 0.1],
 	"chainsaw": [_make_chainsaw, -10.0, 0.12],
@@ -245,6 +245,48 @@ class Synth:
 				gain *= float(n - k) / release_n
 			buf[i0 + k] += s * gain * amp
 
+	## A burst of noise squeezed around one pitch (`centre` Hz) - like air
+	## ringing in a barrel or a tube. It gives a sound a "voice" of its own
+	## without any gliding tone. `q` is how narrow the ring is (1 = wide and
+	## breathy, 10 = almost a note); `tau` is how quickly it dies away.
+	func band(start: float, dur: float, amp: float, tau: float, centre: float, q: float, attack: float = 0.001) -> void:
+		var i0 := int(start * SR)
+		var n := mini(int(dur * SR), buf.size() - i0)
+		if n <= 0:
+			return
+		var w0 := TAU * centre / SR
+		var alpha := sin(w0) / (2.0 * q)
+		var a0 := 1.0 + alpha
+		var b0 := alpha / a0
+		var a1 := -2.0 * cos(w0) / a0
+		var a2 := (1.0 - alpha) / a0
+		var x1 := 0.0
+		var x2 := 0.0
+		var y1 := 0.0
+		var y2 := 0.0
+		var attack_n := maxf(attack * SR, 1.0)
+		var decay := exp(-1.0 / maxf(tau * SR, 1.0))
+		var env := 1.0
+		var release_n := minf(0.005 * SR, float(n) * 0.25)
+		# A narrow filter lets little through, so make up for it.
+		var makeup := amp * sqrt(q) * 2.0
+		for k in n:
+			var x := rng.randf() * 2.0 - 1.0
+			var y := b0 * (x - x2) - a1 * y1 - a2 * y2
+			x2 = x1
+			x1 = x
+			y2 = y1
+			y1 = y
+			var gain: float
+			if k < attack_n:
+				gain = float(k) / attack_n
+			else:
+				env *= decay
+				gain = env
+			if k > n - release_n:
+				gain *= float(n - k) / release_n
+			buf[i0 + k] += y * gain * makeup
+
 	## A tone whose pitch glides from `f_from` to `f_to` (Hz).
 	func tone(start: float, dur: float, amp: float, f_from: float, f_to: float, tau: float,
 			wave: int = SINE, attack: float = 0.003, vib_rate: float = 0.0, vib_depth: float = 0.0) -> void:
@@ -355,69 +397,94 @@ class Synth:
 
 
 # ----------------------------------------------------------------------------
-#  The recipes. Each weapon is built to sound different:
-#  pistol = sharp crack, shotgun = wide boom + pump, machine gun = tight rattle,
-#  launcher = hollow "thoomp" + explosion, sledgehammer = whoosh + heavy thud.
+#  The recipes. Each weapon is built to sound different - every gun has its
+#  own pitch range (its "voice", made with Synth.band), its own length of
+#  echo and its own mechanical click:
+#    SMG         highest and shortest: a snappy "tack"
+#    pistol      a dry mid bark, then the slide
+#    rifle       a whip-crack with the longest, rolling echo, then the bolt
+#    machine gun a low chugging thud with a clanking bolt
+#    shotgun     the deepest boom with a long tail, then the pump
+#    launcher    a hollow "thoomp" in a tube, then the explosion
+#    sledgehammer = whoosh + heavy thud.
 # ----------------------------------------------------------------------------
 func _make_pistol(s: Synth) -> void:
-	# crack (the sharp snap) + body (the bang) + thump (chest punch) + echo.
-	# No gliding high tones: those are what make a gun sound like a laser.
+	# A dry bark in the middle of the range with a short slap of echo, then
+	# the slide snapping home. (crack + bark + thump + tail; no gliding high
+	# tones - those are what make a gun sound like a laser.)
 	s.length(0.5)
 	s.drive = 2.0
-	s.noise(0.0, 0.03, 2.2, 0.006, 9000.0, 5000.0, 0.0003, 1800.0)
-	s.noise(0.0, 0.25, 2.4, 0.034, 5000.0, 900.0, 0.0005)
+	s.noise(0.0, 0.03, 1.8, 0.006, 9000.0, 5000.0, 0.0003, 1800.0)
+	s.band(0.0, 0.16, 2.2, 0.03, 1500.0, 2.2)
+	s.noise(0.0, 0.2, 1.2, 0.03, 4000.0, 900.0, 0.0005)
 	s.tone(0.0, 0.12, 0.4, 150.0, 65.0, 0.035)
-	s.noise(0.012, 0.45, 0.45, 0.16, 2200.0, 500.0, 0.01)
-	s.reverb(0.35, 0.35)
+	s.noise(0.012, 0.45, 0.35, 0.15, 2000.0, 500.0, 0.01)
+	s.reverb(0.32, 0.32)
+	s.noise(0.058, 0.012, 0.42, 0.003, 9000.0, 6000.0, 0.0003, 3500.0)
+	s.noise(0.074, 0.014, 0.34, 0.004, 7000.0, 4500.0, 0.0003, 2500.0)
 
 
 func _make_shotgun(s: Synth) -> void:
-	# Wider, longer and much lower than the pistol, then the pump being racked.
-	s.length(0.95)
-	s.drive = 2.6
-	s.noise(0.0, 0.03, 1.8, 0.007, 8000.0, 4000.0, 0.0003, 1500.0)
-	s.noise(0.0, 0.5, 2.6, 0.085, 4200.0, 500.0, 0.0005)
-	s.tone(0.0, 0.35, 0.7, 100.0, 42.0, 0.1)
-	s.noise(0.015, 0.6, 0.8, 0.24, 1500.0, 350.0, 0.01)
-	s.reverb(0.4, 0.5)
-	s.noise(0.36, 0.04, 0.9, 0.01, 4000.0, 2200.0, 0.001, 900.0)
-	s.noise(0.47, 0.05, 1.1, 0.012, 3500.0, 1800.0, 0.001, 700.0)
+	# The deepest and widest: a boom you feel, a long tail, then the pump
+	# being racked back and forward.
+	s.length(1.0)
+	s.drive = 2.8
+	s.noise(0.0, 0.03, 1.4, 0.007, 7000.0, 3500.0, 0.0003, 1500.0)
+	s.band(0.0, 0.4, 2.6, 0.09, 330.0, 1.6)
+	s.noise(0.0, 0.5, 1.8, 0.09, 2600.0, 380.0, 0.0005)
+	s.tone(0.0, 0.42, 1.0, 92.0, 36.0, 0.13)
+	s.noise(0.015, 0.65, 0.8, 0.26, 1100.0, 300.0, 0.01)
+	s.reverb(0.42, 0.55, 2000.0)
+	s.noise(0.37, 0.04, 0.8, 0.01, 4000.0, 2200.0, 0.001, 900.0)
+	s.band(0.37, 0.05, 0.5, 0.012, 1250.0, 5.0)
+	s.noise(0.48, 0.05, 1.0, 0.012, 3500.0, 1800.0, 0.001, 700.0)
+	s.band(0.48, 0.06, 0.6, 0.014, 980.0, 5.0)
 
 
 func _make_machinegun(s: Synth) -> void:
-	# Short and dry so rapid fire becomes a rattle, with a metallic bolt clack.
+	# A heavy, chugging thud lower than the other automatics, with the bolt
+	# clanking after every round. Dry, so rapid fire becomes a rattle.
 	s.length(0.3)
-	s.drive = 1.8
-	s.noise(0.0, 0.02, 2.2, 0.004, 10000.0, 6000.0, 0.0003, 2500.0)
-	s.noise(0.0, 0.12, 2.2, 0.022, 6000.0, 1500.0, 0.0005, 200.0)
-	s.tone(0.0, 0.08, 0.32, 160.0, 75.0, 0.025)
-	s.noise(0.035, 0.03, 0.8, 0.006, 5000.0, 3000.0, 0.0005, 1500.0)
-	s.noise(0.01, 0.25, 0.28, 0.09, 2500.0, 700.0, 0.008)
-	s.reverb(0.22, 0.2)
+	s.drive = 2.1
+	s.noise(0.0, 0.018, 1.5, 0.004, 9000.0, 5000.0, 0.0003, 2500.0)
+	s.band(0.0, 0.11, 2.6, 0.024, 720.0, 2.8)
+	s.noise(0.0, 0.1, 1.2, 0.02, 3000.0, 900.0, 0.0005, 150.0)
+	s.tone(0.0, 0.1, 0.6, 135.0, 60.0, 0.03)
+	s.noise(0.01, 0.25, 0.25, 0.08, 1800.0, 600.0, 0.008)
+	s.reverb(0.2, 0.2)
+	s.band(0.036, 0.03, 0.55, 0.007, 3300.0, 9.0)
+	s.noise(0.036, 0.02, 0.4, 0.005, 6000.0, 3500.0, 0.0005, 2000.0)
 
 
 func _make_smg(s: Synth) -> void:
-	# Lighter and snappier than the pistol: a quick pop with almost no tail.
-	s.length(0.22)
-	s.drive = 1.7
-	s.noise(0.0, 0.015, 2.0, 0.003, 11000.0, 7000.0, 0.0003, 3000.0)
-	s.noise(0.0, 0.08, 2.0, 0.016, 7000.0, 2200.0, 0.0005, 500.0)
-	s.tone(0.0, 0.05, 0.22, 190.0, 95.0, 0.018)
-	s.noise(0.008, 0.18, 0.2, 0.06, 3000.0, 900.0, 0.006)
-	s.reverb(0.18, 0.15)
+	# The lightest and highest: a quick, snappy "tack" with almost no body
+	# and no tail, so a long burst purrs instead of roaring.
+	s.length(0.2)
+	s.drive = 1.6
+	s.noise(0.0, 0.012, 1.8, 0.0025, 12000.0, 8000.0, 0.0003, 4000.0)
+	s.band(0.0, 0.06, 2.4, 0.012, 3100.0, 2.6)
+	s.noise(0.0, 0.05, 0.9, 0.01, 7000.0, 3000.0, 0.0005, 1200.0)
+	s.tone(0.0, 0.035, 0.12, 190.0, 120.0, 0.012)
+	s.noise(0.006, 0.14, 0.14, 0.045, 3500.0, 1400.0, 0.006, 500.0)
+	s.reverb(0.12, 0.1)
 
 
 func _make_rifle(s: Synth) -> void:
-	# The biggest crack of all, a long rolling echo, then the bolt being worked.
-	s.length(1.1)
-	s.drive = 2.4
-	s.noise(0.0, 0.03, 2.4, 0.007, 10000.0, 5000.0, 0.0003, 1500.0)
-	s.noise(0.0, 0.4, 2.6, 0.06, 6000.0, 700.0, 0.0005)
-	s.tone(0.0, 0.2, 0.6, 120.0, 48.0, 0.06)
-	s.noise(0.015, 0.9, 0.9, 0.3, 2400.0, 400.0, 0.01)
-	s.reverb(0.5, 0.9)
-	s.noise(0.3, 0.04, 0.7, 0.01, 4500.0, 2500.0, 0.001, 1200.0)
-	s.noise(0.4, 0.05, 0.85, 0.012, 4000.0, 2000.0, 0.001, 900.0)
+	# A whip-crack on top of a hard mid punch, a long echo that rolls away
+	# and comes back off the tree line, then the bolt being worked.
+	s.length(1.2)
+	s.drive = 2.5
+	s.noise(0.0, 0.035, 2.8, 0.008, 12000.0, 7000.0, 0.0002, 2500.0)
+	s.band(0.0, 0.22, 2.0, 0.045, 1050.0, 1.4)
+	s.noise(0.0, 0.35, 1.6, 0.05, 6500.0, 1200.0, 0.0005, 200.0)
+	s.tone(0.0, 0.2, 0.5, 125.0, 50.0, 0.06)
+	s.noise(0.015, 1.0, 0.8, 0.34, 3200.0, 700.0, 0.01, 250.0)
+	s.noise(0.19, 0.5, 0.5, 0.14, 2400.0, 600.0, 0.02, 300.0)
+	s.reverb(0.55, 1.0, 3200.0)
+	s.noise(0.32, 0.04, 0.6, 0.01, 4500.0, 2500.0, 0.001, 1200.0)
+	s.band(0.32, 0.05, 0.4, 0.012, 2100.0, 6.0)
+	s.noise(0.42, 0.05, 0.75, 0.012, 4000.0, 2000.0, 0.001, 900.0)
+	s.band(0.42, 0.06, 0.45, 0.014, 1700.0, 6.0)
 
 
 func _make_flame(s: Synth) -> void:
@@ -448,14 +515,17 @@ func _make_chainsaw_hit(s: Synth) -> void:
 
 
 func _make_launcher(s: Synth) -> void:
-	# A grenade launcher really is a hollow, low "thoomp" and a puff of air.
+	# A grenade launcher really is a hollow, low "thoomp": air ringing in a
+	# wide tube, a puff, and the clunk of the breech.
 	s.length(0.5)
 	s.drive = 1.5
-	s.tone(0.0, 0.3, 0.7, 210.0, 90.0, 0.08)
-	s.noise(0.0, 0.2, 2.0, 0.04, 1800.0, 450.0, 0.001)
-	s.noise(0.0, 0.08, 1.2, 0.02, 3500.0, 900.0, 0.0005, 300.0)
-	s.noise(0.01, 0.3, 0.5, 0.1, 2600.0, 800.0, 0.01, 500.0)
+	s.tone(0.0, 0.3, 0.7, 200.0, 88.0, 0.08)
+	s.band(0.0, 0.3, 1.6, 0.07, 260.0, 4.5)
+	s.noise(0.0, 0.2, 1.4, 0.04, 1600.0, 420.0, 0.001)
+	s.noise(0.0, 0.08, 1.0, 0.02, 3200.0, 900.0, 0.0005, 300.0)
+	s.noise(0.01, 0.3, 0.4, 0.1, 2400.0, 800.0, 0.01, 500.0)
 	s.reverb(0.25, 0.3)
+	s.band(0.1, 0.04, 0.35, 0.01, 1400.0, 6.0)
 
 
 func _make_explosion(s: Synth) -> void:

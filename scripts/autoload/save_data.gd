@@ -160,10 +160,14 @@ func load_game() -> void:
 			_load_weapon_tree(id, entry)
 
 	maps_unlocked = clampi(int(data.get("maps_unlocked", 1)), 1, Config.MAPS.size())
-	var saved_best: Variant = data.get("map_best", [])
+	var saved_best: Variant = data.get("map_best")
 	if typeof(saved_best) == TYPE_ARRAY:
 		for i in mini((saved_best as Array).size(), map_best.size()):
 			map_best[i] = clampi(int((saved_best as Array)[i]), 0, Config.WAVES_PER_MAP)
+	elif best_wave > 1:
+		# A save from before maps existed: the waves already beaten count for
+		# the first map (so its checkpoints are not lost).
+		map_best[0] = clampi(best_wave - 1, 0, Config.WAVES_PER_MAP - 1)
 	selected_map = clampi(int(data.get("selected_map", 0)), 0, maps_unlocked - 1)
 	selected_start = int(data.get("selected_start", 1))
 	if not map_checkpoints(selected_map).has(selected_start):

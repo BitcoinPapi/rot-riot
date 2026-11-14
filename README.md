@@ -29,11 +29,17 @@ works on 4.5 and later.
 | Pause      | Esc or P                | Start                |
 | Fullscreen | F11                     | (Settings menu)      |
 | Menus      | Mouse, or arrows + Enter| D-pad / stick, A, B  |
+| Upgrade trees | Drag to move, scroll to zoom, click a node | Stick, A, Y for the side buttons |
 
 ## How it plays
 
+- **PLAY** opens the map screen. There are five maps and each has **100
+  waves**. Clear wave 100 and the next map opens - with much tougher zombies
+  and bigger rewards.
 - Zombies come out of the trees in waves that keep getting bigger. Every 5th
-  wave brings a boss.
+  wave brings a boss. **Every boss you beat is a checkpoint**: next time you
+  can start that map from the wave after it (choose it on the map screen),
+  with a weapon crate waiting beside you.
 - You start with a pistol. **Crates** drop into the arena with a better
   weapon that lasts about 20 seconds: SMG, shotgun, machine gun, rifle,
   sledgehammer, launcher, flamethrower or chainsaw. The colour of a crate's
@@ -49,12 +55,20 @@ works on 4.5 and later.
   zombies are blasted away and you are much stronger for 8 seconds.
 - Kills give **XP**. The blue bar along the bottom is your character level;
   each level makes you a little stronger and gives a **skill point** (the
-  highest level is 100, and it is meant to take months to reach). Spend
-  skill points on the **Character** screen (health, strength, speed, defense,
-  evasion and more). Extra skill points can be bought with coins.
-- Every weapon also has its **own level**, earned by killing with it. Spend a
-  weapon's points in the **Armory** on its power, shooting speed, stability,
-  reload speed, how often its crate appears and how long it lasts.
+  highest level is 100, and it is meant to take months to reach).
+- Spend skill points in the **skill tree** on the **Character** screen: a big
+  web with a branch for each stat (health, strength, fire rate, speed,
+  defense, evasion, critical hits, luck). Start in the middle and work
+  outwards: a node can be learned when it touches one you already have.
+  Rings further out need a higher level. Hexagons with a padlock are
+  **sealed** until you do a deed (the node tells you which). At the tip of
+  every branch waits a **keystone** - a special power - and an endless node
+  you can keep buying. Extra skill points can be bought with coins.
+- Every weapon also has its **own level**, earned by killing with it, and its
+  **own tree** in the **Armory**: power, shooting speed, stability, reload
+  speed, how often its crate appears and how long it lasts - plus three gold
+  **perks** per weapon that change how it works (bigger magazine, bullets
+  that go through more zombies, a wider swing, a bigger blast...).
 - Zombies drop **coins**. Everything you earn is saved.
 
 ## Getting the newest version (Mac)
@@ -62,15 +76,20 @@ works on 4.5 and later.
 Close Godot, then double-click **Update Rot Riot.command** inside the project
 folder. A Terminal window opens, downloads the latest version and replaces the
 folder. Your coins, level and upgrades are stored elsewhere and are kept.
-Then open the project in Godot again.
+Then open the project in Godot again. The version number is shown in the
+bottom right corner of the main menu (now v0.2.0).
+
+After an update that changes the upgrade screens, points you had already
+spent are handed back so you can place them again in the new trees.
 
 ## Tuning the game
 
 Open `scripts/config.gd` in Godot (double-click it in the FileSystem panel).
 Every number that matters is there with a comment: player speed, weapon
-damage and fire rates, zombie health, wave sizes, XP and skill point costs,
-and all the "feel" values - screen shake, hit stop, knockback, recoil. Change a number,
-press F5, try it.
+damage and fire rates, zombie health, wave sizes, how much harder each map
+is, XP and skill point costs, the size and prices of the upgrade trees, the
+perks, and all the "feel" values - screen shake, hit stop, knockback, recoil.
+Change a number, press F5, try it.
 
 ## Replacing placeholder art and sounds
 
@@ -119,6 +138,6 @@ godot --headless -d --fixed-fps 60 -- --inputtest
 godot --headless --fixed-fps 60 -- --bench=250
 ```
 
-The first plays through the whole game automatically (menus, every weapon,
-rage, boss, death, levels, save file), the second checks every control, the
-third measures speed with 250 zombies. See `CLAUDE.md` for the design notes.
+The first plays through the whole game automatically (menus, maps, both
+upgrade trees, every weapon, rage, boss, death, levels, save file), the
+second checks every control, the third measures speed with 250 zombies. See `CLAUDE.md` for the design notes.

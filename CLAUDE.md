@@ -48,7 +48,9 @@ godot --headless --export-release "macOS" build/mac/RotRiot.zip
 
 Other dev flags (all after `--`, see `scripts/dev/dev_tools.gd`): `--play`,
 `--god`, `--wave=N`, `--weapon=ID`, `--dual`, `--keep-weapon`, `--no-crates`, `--no-rage`,
-`--cycle`, `--level=N`, `--coins=N`, `--screen=character|armory|settings|pause|gameover`,
+`--cycle`, `--level=N`, `--coins=N`, `--map=N` (with `--best=W` best wave cleared there and
+`--start=W` starting wave), `--screen=maps|character|armory|settings|pause|gameover|victory`,
+`--armory-weapon=ID`, `--tree-node=ID --tree-zoom=N` (skill tree: highlight a node, zoom; 0 = whole tree),
 `--shot=PATH --shot-frame=N` (screenshot; needs a real display, e.g. `xvfb-run`),
 `--dump-sfx=DIR` (writes every generated sound as .wav),
 `--gallery=PREFIX[,PREFIX] --gallery-scale=N` (shows generated sprites enlarged, e.g.
@@ -71,16 +73,20 @@ scripts/config.gd        ALL balance + feel numbers, plus the wave/shop formulas
 scripts/main.gd          app state machine: MENU / PLAYING / PAUSED / GAME_OVER, screen stack
 scripts/autoload/
   game_input.gd          all input, key bindings, device detection, virtual sticks (touch/bot)
-  save_data.gd           coins, character level + skill points, weapon levels, bests, settings -> user://save.json
+  save_data.gd           coins, character level + skill points + learned tree nodes, weapon levels + weapon
+                         trees, map progress, bests, settings -> user://save.json
   art.gd                 placeholder sprites generated from SVG shapes at startup
   sfx.gd                 sounds synthesised at startup (worker thread) + pooled playback
 scripts/game/
   game.gd                one run: owns the world, runs the simulation loop, hit stop, slow-mo, rage, score
   player.gd              movement, aim, firing (bullets / grenade / melee), drawing
-  player_stats.gd        THE stat pipeline: level + passives (+ gear later) -> the numbers the game uses
+  player_stats.gd        THE stat pipeline: level + skill tree + keystones + weapon trees/perks (+ gear later)
+                         -> the numbers the game uses
+  skill_tree.gd          builds the character's skill tree (257 nodes) from Config; describes nodes only
+  weapon_tree.gd         builds each weapon's upgrade tree (63-93 nodes) from Config
   enemy.gd               one zombie = data + Sprite2D (no logic)
   enemy_manager.gd       ALL zombie logic in one loop: spatial grid, separation, attacks, boss AI, damage, queries
-  wave_director.gd       waves, packs, enemy mix, boss waves
+  wave_director.gd       waves, packs, enemy mix, boss waves, map multipliers, end of the map
   projectiles.gd         bullets + grenades (plain data, swept hits, explosions)
   pickups.gd             coins, weapon crates, medkits
   fx.gd                  particles, casings, corpses, muzzle flash, rings, floating text
@@ -89,8 +95,10 @@ scripts/game/
   game_camera.gd         follow, aim lead, trauma shake, recoil kick
   hud.gd                 in-game overlay drawn in _draw
   draw_layer.gd          blank canvas whose _draw is forwarded to a manager
-scripts/ui/              ui_kit.gd (theme + helpers), menu_background, main_menu, character_screen,
-                         armory_screen, settings_screen, pause_menu, game_over_screen
+scripts/ui/              ui_kit.gd (theme + helpers), menu_background, main_menu, map_screen (Play),
+                         tree_view (pannable/zoomable node web used by both trees),
+                         character_screen (skill tree), armory_screen (weapon trees),
+                         settings_screen, pause_menu, game_over_screen (also the victory screen)
 scripts/dev/dev_tools.gd bot, autotest, input test, benchmark, screenshots (only with CLI args)
 assets/sprites/, assets/sfx/   empty; drop-in overrides for generated art and sounds
 Update Rot Riot.command  double-click updater for the owner's Mac (downloads main from GitHub,
@@ -99,9 +107,21 @@ Update Rot Riot.command  double-click updater for the owner's Mac (downloads mai
 
 ## Design
 
-**Loop:** main menu -> run -> death -> game over (coins banked) -> spend
-points on the Character and Armory screens -> next run. Quitting a run from
-pause also banks its coins.
+**Loop:** main menu -> PLAY opens the map screen (choose map + starting wave)
+-> run -> death or map cleared -> results (coins banked) -> spend points in
+the skill tree (Character) and the weapon trees (Armory) -> next run.
+Quitting a run from pause also banks its coins.
+
+**Maps** (`Config.MAPS`, five of them): every map has 100 waves
+(`WAVES_PER_MAP`). Clearing wave 100 ends the run as a victory, pays a bonus
+and unlocks the next map, where zombies have much more health and damage
+(health x1 / 4 / 12 / 35 / 100) and XP and coins are worth more. Every boss
+beaten (every 5th wave, `CHECKPOINT_EVERY`) unlocks the next starting wave
+on that map, so a map is finished over several sessions; a checkpoint run
+starts with a weapon crate beside the player. All five maps use the same
+clearing for now, with a colour wash per map (`ground` / `trees`); the real
+themed scenery is roadmap step 5. The owner calls maps "levels"; the UI
+says MAP so it is not confused with the character LEVEL.
 
 **Arena:** a 2400x1500 clearing ringed by trees, with 9 random rocks/stumps.
 Zombies spawn outside the clearing under the tree canopy (never in view) and
@@ -166,11 +186,16 @@ little slower and leaves a trail of blood drops; its corpse keeps the wounds.
 The player gets a bloodied, bandaged sprite and drips blood below 30% too.
 Every new enemy or character needs a `_hurt` variant.
 
-**Waves** (`Config.wave_*` helpers): count = 22 + 13(w-1) + 1.5(w-1)^2, capped
-at 500 per wave and 240 alive. Zombies arrive in packs from the tree line so
-they form hordes; pack size and rate grow with the wave, and every 3 waves the
-packs come from one more direction at once (up to 4) so hordes surround the
-player; +8% HP and +2% speed per wave. Clearing a wave pays a coin bonus.
+**Waves** (`Config.wave_*` helpers), same curve on every map and stretched
+over 100 waves: count = 22 + 9(w-1), capped at 500 per wave and 240 alive.
+Zombies arrive in packs from the tree line so they form hordes; pack size and
+rate grow with the wave, and every 5 waves the packs come from one more
+direction at once (up to 4) so hordes surround the player; per wave +6% HP,
++1% damage, +0.5% speed, +1% XP per kill, all multiplied by the map. Boss HP
+= 1700 x wave growth x map x (+25% per earlier boss). Clearing a wave pays
+a coin and XP bonus. The slope is deliberately gentle so that every bit of
+character growth buys another wave or two (owner: "incremental feel"). The
+bot reaches wave 6-9 as a new character and ~11 at level 15-30.
 
 **Score / combo:** each kill within 2.5 s of the last raises the combo, which
 multiplies score (up to x3). Taking damage resets it.
@@ -186,28 +211,53 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   the bottom of the HUD). Each level: +3 max health, +1% damage, +1 skill
   point. Levelling mid-run applies at once and heals 25%. **Hard cap: level
   100** (`LEVEL_CAP`), which the owner wants to take months: XP needed per
-  level = 80 * level^1.8, about 11.2 million XP in total (a new character
-  earns roughly 1,500 XP in a 4-minute run; stronger characters earn several
-  times that). Re-check this pacing whenever XP sources change.
-- *Skill points* go into 8 passive stats on the Character screen: vitality,
-  strength, dexterity (fire rate), agility (move speed), defense (less damage
-  taken), evasion (dodge chance), critical (double-damage shots), luck (coin
-  drops). "linear" stats grow forever; "curve" stats approach a maximum. Every
-  10 ranks of a stat the next ranks cost one more point. More skill points
-  can be bought with coins (price x1.15 each time); a paid reset returns all
-  spent points.
-- *Weapon levels*: each weapon earns XP from kills made with it (kills carry a
-  `source` weapon id through `EnemyManager.damage`). Each weapon level gives a
-  point for that weapon only, spent in the Armory on up to six tracks: power,
-  shooting speed, stability (spread + recoil), reload speed, spawn rate (crate
-  share) and duration. Which tracks a weapon has is decided by `"needs"` in
-  `Config.WEAPON_TRACKS` (`Config.weapon_tracks(id)`): the pistol has no
-  crate tracks, melee weapons have no stability or reload, the launcher has
-  no shooting speed (its rate of fire is its reload). If a track is removed
-  from a weapon, `SaveData` refunds the points on load.
+  level = 80 * level^2, about 26 million XP in total (a new character earns
+  roughly 2-4 thousand XP per run; later waves and later maps pay several
+  times that - which is why the exponent went from 1.8 to 2.0 when maps
+  were added). Re-check this pacing whenever XP sources change.
+- *Skill tree* (Character screen; built by `skill_tree.gd` from the SKILL
+  TREE section of config.gd): a web of 257 nodes around the survivor. Eight
+  branches, one per passive stat (vitality, strength, dexterity = fire rate,
+  agility = move speed, defense, evasion, critical, luck = coin drops). Per
+  branch: four rings of small nodes (+1 rank) ending in a big node (+3), a
+  side twig per ring ending in a **sealed** node (opens after a deed such as
+  "clear wave 12" or "kill 3000 zombies", `TREE_SEAL_DEEDS`), arcs of nodes
+  that link neighbouring branches, and at the tip a **keystone** (a special
+  power, `Config.KEYSTONES`: second wind, executioner, adrenaline, breakaway,
+  thick skin, ghost, deadeye, scavenger) and an **endless** node (repeatable,
+  rising price - this keeps progression endless). A node can be learned when
+  it touches a learned node, the character level is high enough for its ring
+  (1 / 5 / 12 / 22) and its deed is done. Rings cost 1 / 2 / 3 / 4 points per
+  small node. "linear" stats grow forever; "curve" stats approach a maximum.
+  More skill points can be bought with coins (price x1.15 each time); a paid
+  reset returns all spent points. Stat ranks = the sum of learned nodes
+  (`SaveData.passive_rank`), plus `SaveData.bonus_ranks` (hook for gear).
+- *Weapon levels and weapon trees* (Armory; built by `weapon_tree.gd` from
+  the WEAPON TREES section): each weapon earns XP from kills made with it
+  (kills carry a `source` weapon id through `EnemyManager.damage`). Each
+  weapon level gives a point for that weapon only, spent in that weapon's
+  own tree: one branch per upgrade track (power, shooting speed, stability =
+  spread + recoil, reload speed, spawn rate = crate share, duration), three
+  tiers per branch that need weapon level 1 / 6 / 14, arcs between the
+  branches, an endless node at each tip (weapon level 20) and **three perks
+  per weapon** (`Config.WEAPON_PERKS`) that change the weapon's own numbers
+  (bigger magazine, piercing, more pellets, wider swing, bigger blast...).
+  Perks are applied by `PlayerStats.weapon_def(id)`, which the player uses
+  instead of `Config.WEAPONS[id]`. Which tracks a weapon has is decided by
+  `"needs"` in `Config.WEAPON_TRACKS` (`Config.weapon_tracks(id)`): the
+  pistol has no crate tracks, melee weapons have no stability or reload, the
+  launcher has no shooting speed (its rate of fire is its reload). A weapon's
+  tree can be reset for coins.
+- Both trees are shown by `scripts/ui/tree_view.gd` (drag / scroll / pinch,
+  arrow keys or stick to walk the nodes, Enter / A to learn, gamepad Y or Tab
+  to reach the buttons beside the tree). Node ids are stored in the save:
+  never rename them. If a saved tree no longer fits the layout (unknown or
+  disconnected nodes) all its points are handed back on load, as were the
+  points spent in the old flat stat list and old weapon ranks.
 - Weapon levels have no cap (only the character level is capped).
-- Save format version 2. Version 1 saves keep records and settings but coins
-  and the old upgrades are wiped once (agreed with the owner).
+- Save format version 2 (new fields are simply added with defaults). Version 1
+  saves keep records and settings but coins and the old upgrades are wiped
+  once (agreed with the owner).
 
 **Settings:** master volume, SFX volume, screen shake strength, fullscreen
 (also F11). The game auto-pauses when the window loses focus.
@@ -259,13 +309,21 @@ effects were ~280 draw calls. Not yet measured on the owner's hardware.
 ## Not verified yet (needs a human)
 
 - How it actually feels to play - all feel values are first guesses.
+- The balance of the 100-wave maps, the tree prices, the keystones and the
+  perks: all first guesses, only checked with the bot and the tests.
+- The tree screens with a real mouse / trackpad / gamepad (only simulated
+  input was tested).
 - How the synthesised sounds sound; Claude can only check them numerically
   (length, loudness, brightness, how tonal they are), never listen. Owner
   feedback on v1: guns "sounded like lasers" (cause: fast high-to-low pitch
   sweeps). v2 guns are noise crack + body + low thump + echo tail with no
   sweeps above ~200 Hz, and the owner says they sound much better. Never add
-  gliding tones above ~200 Hz to a gun sound. The newer sounds (SMG, rifle,
-  flamethrower, chainsaw, reload clicks) have not been heard yet.
+  gliding tones above ~200 Hz to a gun sound. v3 (owner: "each weapon sound
+  should be different and satisfying") gives every gun its own pitch range
+  with `Synth.band` (noise ringing around a fixed pitch): SMG ~3 kHz, pistol
+  ~1.5 kHz, rifle ~1 kHz with the longest echo, machine gun ~700 Hz with a
+  bolt clank, shotgun ~330 Hz, launcher ~260 Hz. Measured, not heard. The
+  owner may buy sound assets later: drop them in `assets/sfx/`.
 - A physical gamepad (only simulated gamepad events were tested).
 - The exported Windows .exe and macOS .app on real Windows / macOS machines
   (exports succeed and the exported game data passes the autotest on Linux).
@@ -284,6 +342,16 @@ effects were ~280 draw calls. Not yet measured on the owner's hardware.
   gun, detailed gun art (done, awaiting feedback); keep raising this bar.
 - Wants enemies and characters to look damaged under 30% health, with the
   player still looking tough (done, awaiting feedback).
+- "I always die around level 5" (= wave 5, the first boss) and "each level
+  should have 100 waves to complete and unlock the next level, much more
+  difficult to complete and farm" -> maps with 100 waves, checkpoints, a
+  gentler wave slope (done, awaiting feedback).
+- "The upgrade screens need to look like an intimidating tree with lots of
+  upgrades and upgrades that need to be unlocked" -> skill tree and weapon
+  trees (done, awaiting feedback). The gear screen (roadmap 3) must follow
+  the same style.
+- "Each weapon sound should be different and satisfying" -> v3 gun sounds
+  (done, awaiting feedback).
 - The owner's Mac: browser downloads do not work there, so updates go through
   Terminal (curl) or the double-click updater. Always give the full update
   command and say plainly that Return must be pressed.
@@ -298,6 +366,8 @@ Build one stage at a time; the owner plays each before the next starts.
 2. **Weapons. DONE (awaiting the owner's playtest).** Four new weapons (SMG,
    rifle, flamethrower, chainsaw), three crate rarity tiers, dual wielding.
    See "Weapons" above. More weapons can be added the same way later.
+2b. **100-wave maps, skill tree, weapon trees. DONE (awaiting the owner's
+   playtest).** See "Maps" and "Progression" above.
 3. **Gear.** Character screen in the style of an action-RPG paper doll:
    helmet, chest, gloves, boots, pants, belt, two rings, amulet. Items drop
    rarely from zombies (never a flood); some pieces only from bosses. Merge
@@ -314,7 +384,8 @@ Build one stage at a time; the owner plays each before the next starts.
    viewport cannot cover a huge map).
 5. **Five themed maps**, each telling a story through its scenery: forest
    campsite, abandoned farm, graveyard, crashed-convoy highway, quarantine
-   lab. Map select + unlock order.
+   lab. (Map select, unlock order and difficulty already exist; this step
+   is the scenery.)
 6. **Many more enemy types** (ongoing).
 
 Design rule from the owner: progression must feel incremental and endless.
