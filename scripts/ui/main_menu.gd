@@ -1,7 +1,7 @@
 class_name MainMenu
 extends Control
 ## Title screen: Play (opens the map screen), then Character (the hero and his
-## gear), Skills (the skill tree), Armory, Pets, Settings and Quit in two
+## gear), Skills (the stat upgrades), Armory, Pets, Settings and Quit in two
 ## columns, with the hero standing beside them.
 
 var main: Main
@@ -113,7 +113,7 @@ func opened() -> void:
 	if SaveData.was_reset_by_update:
 		_notice.text = "New progression system: your old coins and upgrades were reset."
 	elif SaveData.points_returned > 0 and SaveData.skill_points > 0:
-		_notice.text = "The skill tree is new: your %d skill points are waiting on the SKILLS screen." % SaveData.skill_points
+		_notice.text = "The SKILLS page is new and simpler: your %d skill points are waiting there." % SaveData.skill_points
 	else:
 		_notice.text = ""
 	_notice.visible = _notice.text != ""

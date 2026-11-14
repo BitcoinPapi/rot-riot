@@ -83,9 +83,9 @@ func _ready() -> void:
 			for i in int(_args["level"]) - 1:
 				SaveData.add_xp(SaveData.xp_needed())
 			SaveData.add_xp(int(SaveData.xp_needed() * 0.4))
-			for id: String in ["grit.root", "grit.root", "grit.root", "vitality.1", "vitality.1", "vitality.1", "vitality.1",
-					"fury.root", "strength.1", "strength.1", "strength.1", "strength.2", "instinct.root", "bond.1"]:
-				SaveData.learn_node(id)
+			for id: String in ["vitality", "vitality", "vitality", "vitality", "vitality", "vitality", "defense", "defense",
+					"strength", "strength", "strength", "strength", "critical", "agility", "agility", "bond", "bond"]:
+				SaveData.raise_skill(id)
 			SaveData.add_weapon_xp("pistol", 2500)
 			SaveData.add_weapon_xp("shotgun", 900)
 			SaveData.add_weapon_xp("launcher", 200)
@@ -530,8 +530,6 @@ func _open_screen(app: Main, screen: String) -> void:
 				_finish_wave(app.game, Config.WAVES_PER_MAP)
 		_:
 			app.open_screen(screen)
-			if screen == "skills":
-				_aim_tree(((app.get("_screens") as Dictionary)["skills"] as SkillScreen).get("_tree"))
 			if screen == "character" and _args.has("forge"):
 				var sheet: CharacterScreen = (app.get("_screens") as Dictionary)["character"]
 				sheet.call("_open_forge")
@@ -542,23 +540,6 @@ func _open_screen(app: Main, screen: String) -> void:
 			if screen == "armory" and _args.has("armory-weapon"):
 				var screens: Dictionary = app.get("_screens")
 				(screens["armory"] as ArmoryScreen).call("_select", String(_args["armory-weapon"]))
-
-
-## For screenshots of a tree: --tree-node=ID highlights a node and looks at
-## it, --tree-zoom=N sets the zoom (0 = show everything).
-func _aim_tree(tree: TreeView) -> void:
-	await _frames(2)     # (the screen has to be laid out first)
-	if _args.has("tree-node"):
-		var id := String(_args["tree-node"])
-		tree.select(id)
-		var nodes: Dictionary = tree.get("_nodes")
-		if nodes.has(id):
-			tree.look_at_point(nodes[id]["pos"], tree.zoom)
-	if _args.has("tree-zoom"):
-		if float(_args["tree-zoom"]) <= 0.0:
-			tree.fit()
-		else:
-			tree.look_at_point(tree.get("_cam"), float(_args["tree-zoom"]))
 
 
 ## Pretend the player just killed the last zombie of `wave`.
@@ -668,97 +649,63 @@ func _run_autotest() -> void:
 	await _frames(2)
 	_check(is_equal_approx(float(SaveData.get_setting("master_volume")), 0.5), "settings change is stored")
 
-	# --- skills screen: skill points and the skill tree ---
+	# --- skills screen: skill points and the plain list of stats ---
 	app.open_screen("skills")
 	await _frames(3)
 	var skills: SkillScreen = (app.get("_screens") as Dictionary)["skills"]
-	_check(not SaveData.learn_node("fury.root"), "cannot learn a node with 0 skill points")
+	_check(not SaveData.raise_skill("strength"), "cannot buy a rank with 0 skill points")
 	_check(not SaveData.buy_skill_point(), "cannot buy a skill point with 0 coins")
 	SaveData.add_coins(1000)
 	var before := SaveData.coins
 	var price := SaveData.skill_point_price()
 	_check(SaveData.buy_skill_point() and SaveData.skill_points == 1, "coins buy a skill point")
 	_check(SaveData.coins == before - price and SaveData.skill_point_price() > price, "the price is paid and the next point costs more")
-	_check(not SaveData.learn_node("vitality.1"), "a branch cannot be started before its family")
-	skills.call("_on_node_activated", "grit.root")
-	_check(SaveData.node_count("grit.root") == 1 and SaveData.passive_rank("vitality") == 1 and SaveData.passive_rank("defense") == 1
-			and SaveData.passive_rank("evasion") == 1 and SaveData.skill_points == 0, "a family's first node raises all three of its stats")
+	skills.call("_on_raise", "vitality")
+	_check(SaveData.skill_rank("vitality") == 1 and SaveData.passive_rank("vitality") == 1 and SaveData.passive_rank("defense") == 0
+			and SaveData.skill_points == 0, "the +1 button on a row buys a rank of that stat (and only that one)")
 	SaveData.buy_skill_point()
-	SaveData.learn_node("fury.root")
-	_check(SaveData.spent_points() == 2 and SaveData.family_points("grit") == 1 and SaveData.family_points("fury") == 1
-			and SaveData.family_points("instinct") == 0, "points are counted per family")
+	SaveData.raise_skill("strength")
+	_check(SaveData.spent_points() == 2, "spent points are counted")
 	await _frames(3)
 
-	# The tree itself: three equal families, everything grows from the middle, nothing overlaps.
-	var tree_nodes := SkillTree.nodes()
-	var tree_ids := SkillTree.order()
-	var per_family := {}
-	var grows := true
-	for id: String in tree_ids:
-		var tn: Dictionary = tree_nodes[id]
-		if id != "start":
-			per_family[String(tn["family"])] = int(per_family.get(String(tn["family"]), 0)) + 1
-			for parent: String in tn["requires"]:
-				if not tree_nodes.has(parent) or tree_ids.find(parent) > tree_ids.find(id):
-					grows = false
-			if (tn["requires"] as Array).is_empty():
-				grows = false
-	_check(grows and per_family.size() == 3 and int(per_family["grit"]) == int(per_family["fury"]) and int(per_family["fury"]) == int(per_family["instinct"]),
-			"the skill tree has three families of %d nodes each, all growing out of the middle" % int(per_family.get("grit", 0)))
-	var closest := INF
-	for i in tree_ids.size():
-		for j in range(i + 1, tree_ids.size()):
-			closest = minf(closest, (tree_nodes[tree_ids[i]]["pos"] as Vector2).distance_to(tree_nodes[tree_ids[j]]["pos"]))
-	_check(closest >= 50.0, "no two nodes of the tree overlap (closest pair %.0f px apart)" % closest)
+	# The page itself: every stat has a row, in one of the three groups, and a special power.
+	var listed: Array = []
+	for group: Dictionary in Config.SKILL_GROUPS:
+		listed.append_array(group["stats"])
+	var rows: Dictionary = skills.get("_rows")
+	var all_listed := listed.size() == Config.PASSIVE_ORDER.size() and Config.SKILL_GROUPS.size() == 3
+	for stat: String in Config.PASSIVE_ORDER:
+		if not listed.has(stat) or not rows.has(stat) or not Config.KEYSTONES.has(stat):
+			all_listed = false
+	_check(all_listed, "the skills page is a plain list: %d stats in three groups, one row each" % Config.PASSIVE_ORDER.size())
 
-	# Levels, gates, sealed nodes, keystones and the endless emblem (on a borrowed, richer character).
-	var keep_tree := SaveData.tree.duplicate()
+	# Prices, the level gate, special powers and pet tricks (on a borrowed, richer character).
+	var keep_skills := SaveData.skills.duplicate()
 	var keep_points := SaveData.skill_points
 	SaveData.skill_points = 500
-	SaveData.learn_node("grit.root")
-	SaveData.learn_node("grit.root")
-	_check(SaveData.node_count("grit.root") == Config.TREE_ROOT_LEVELS and SaveData.node_status("grit.root") == SkillTree.OWNED
-			and not SaveData.learn_node("grit.root"), "a node has several levels and stops at its last one")
-	SaveData.learn_node("vitality.1")
-	SaveData.learn_node("vitality.1")
-	_check(SaveData.passive_rank("vitality") == Config.TREE_ROOT_LEVELS + 2 and SaveData.node_status("vitality.2") == SkillTree.FAR,
-			"each level of a branch node is a rank; the next node is still closed")
-	SaveData.learn_node("vitality.1")
-	_check(SaveData.node_status("vitality.2") == SkillTree.LEVEL and not SaveData.learn_node("vitality.2"),
-			"%d levels open the next node, which also needs a higher character level" % Config.TREE_NEED_LEVELS)
-	SaveData.learn_node("instinct.root")
-	_check(SaveData.node_status("bond.1") == SkillTree.LEVEL, "the pet's branch needs level %d" % Config.PET_UNLOCK_LEVEL)
+	for i in Config.SKILL_RANK_COST_STEP - 1:
+		SaveData.raise_skill("vitality")
+	_check(SaveData.skill_rank("vitality") == Config.SKILL_RANK_COST_STEP and SaveData.skill_cost("vitality") == 2
+			and SaveData.spent_points() == Config.SKILL_RANK_COST_STEP + 1,
+			"a rank costs 1 point, and one more for every %d ranks of that stat already bought" % Config.SKILL_RANK_COST_STEP)
+	_check(SaveData.skill_status("bond") == "level" and not SaveData.raise_skill("bond"), "the pet's stat needs level %d" % Config.PET_UNLOCK_LEVEL)
 	SaveData.level = 30
-	_check(SaveData.learn_node("vitality.2"), "...and opens at that level")
-	_check(SaveData.node_status("vitality.seal") == SkillTree.SEALED and not SaveData.learn_node("vitality.seal"),
-			"a sealed node stays locked until its deed is done")
-	SaveData.map_best[0] = int(Config.TREE_SEAL_DEEDS["vitality"]["value"])
-	var sealed_before := SaveData.passive_rank("vitality")
-	_check(SaveData.learn_node("vitality.seal") and SaveData.passive_rank("vitality") == sealed_before + Config.TREE_SEALED_RANKS, "...and opens once it is")
-	SaveData.map_best[0] = 0
-	for k in range(1, 4):
-		for i in Config.TREE_NODE_LEVELS - (1 if k == 3 else 0):
-			SaveData.learn_node("strength.%d" % k)
-	_check(SaveData.node_status("strength.key") == SkillTree.FAR, "a keystone needs the last node of its branch at full level")
-	SaveData.learn_node("strength.3")
-	_check(SaveData.node_count("strength.3") == Config.TREE_NODE_LEVELS and SaveData.node_status("strength.key") == SkillTree.SEALED, "keystones are sealed too")
-	_check(SaveData.node_status("fury.cap") == SkillTree.FAR, "the family emblem needs a keystone")
-	SaveData.total_kills = 999999
-	_check(SaveData.learn_node("strength.key") and SaveData.has_keystone("strength") and PlayerStats.current().wounded_damage > 0.0,
-			"a keystone gives its special power")
-	SaveData.total_kills = 0
-	var endless_before := SaveData.passive_rank("critical")
-	for i in Config.TREE_CAP_COST_STEP + 1:
-		SaveData.learn_node("fury.cap")
-	_check(SaveData.node_count("fury.cap") == Config.TREE_CAP_COST_STEP + 1
-			and SaveData.passive_rank("critical") == endless_before + Config.TREE_CAP_COST_STEP + 1
-			and SaveData.node_cost("fury.cap") > Config.TREE_CAP_COST, "the family emblem is endless: every level raises all three stats, at a rising price")
-	_check(SaveData.spent_points() == 500 - SaveData.skill_points + 2
-			and SaveData.family_points("grit") + SaveData.family_points("fury") + SaveData.family_points("instinct") == SaveData.spent_points(),
-			"every point spent in the tree is accounted for")
+	_check(SaveData.raise_skill("bond") and SaveData.has_pet_trick(0) and not SaveData.has_pet_trick(1),
+			"...and opens at that level; its first rank teaches the pet its first trick")
+	_check(not SaveData.has_keystone("strength") and is_zero_approx(PlayerStats.current().wounded_damage), "a stat's special power is not there from the start")
+	while SaveData.skill_rank("strength") < Config.KEYSTONE_RANK - 1:
+		SaveData.raise_skill("strength")
+	_check(not SaveData.has_keystone("strength"), "...nor one rank short of rank %d" % Config.KEYSTONE_RANK)
+	SaveData.raise_skill("strength")
+	_check(SaveData.has_keystone("strength") and PlayerStats.current().wounded_damage > 0.0,
+			"rank %d of a stat gives its special power" % Config.KEYSTONE_RANK)
+	while SaveData.skill_rank("critical") < Config.KEYSTONE_RANK + 12:
+		if not SaveData.raise_skill("critical"):
+			break
+	_check(SaveData.skill_rank("critical") == Config.KEYSTONE_RANK + 12, "ranks have no upper limit")
+	_check(SaveData.spent_points() == 500 - SaveData.skill_points + 2, "every point spent is accounted for")
 	await _frames(3)
-	SaveData.tree = keep_tree
-	SaveData.call("_recount_tree")
+	SaveData.skills = keep_skills
 	SaveData.skill_points = keep_points
 	SaveData.level = 1
 	app.close_screen()
@@ -842,7 +789,7 @@ func _run_autotest() -> void:
 	_check(is_equal_approx(Config.pet_damage_bonus("cinder", Config.PET_BOND_FULL), 0.15) and is_equal_approx(Config.pet_damage_bonus("cinder", 999), 0.15)
 			and Config.pet_damage_bonus("cinder", 0) < 0.15 and Config.pet_damage_bonus("scraps", 999) < Config.pet_damage_bonus("soot", 999),
 			"BOND raises a pet's bonus up to its rarity's cap and no further")
-	var pet_keep_tree := SaveData.tree.duplicate()
+	var pet_keep_skills := SaveData.skills.duplicate()
 	var pet_keep_points := SaveData.skill_points
 	var pet_keep_coins := SaveData.coins
 	SaveData.level = Config.PET_UNLOCK_LEVEL - 1
@@ -868,13 +815,12 @@ func _run_autotest() -> void:
 			and SaveData.pets_owned.size() == 2, "buying a pet takes the coins and brings it along")
 	_check(PlayerStats.current().pet_damage > with_pet.pet_damage, "a rarer pet adds more damage")
 	SaveData.skill_points = 50
-	SaveData.learn_node("instinct.root")
-	SaveData.learn_node("bond.1")
+	SaveData.raise_skill("bond")
+	SaveData.raise_skill("bond")
 	_check(SaveData.has_pet_trick(0) and PlayerStats.current().pet_fetch and not PlayerStats.current().pet_maul
-			and SaveData.passive_rank("bond") == 2, "BOND in the skill tree raises the pet's bonus and teaches it tricks")
+			and SaveData.passive_rank("bond") == 2, "PET BOND on the skills page raises the pet's bonus and teaches it tricks")
 	await _frames(3)
-	SaveData.tree = pet_keep_tree
-	SaveData.call("_recount_tree")
+	SaveData.skills = pet_keep_skills
 	SaveData.skill_points = pet_keep_points
 	SaveData.coins = pet_keep_coins
 	SaveData.level = 1
@@ -1689,8 +1635,8 @@ func _run_autotest() -> void:
 	var spent := SaveData.spent_points()
 	var unspent := SaveData.skill_points
 	_check(spent > 0 and SaveData.respec() and SaveData.skill_points == unspent + spent and SaveData.passive_rank("vitality") == 0
-			and SaveData.tree.is_empty(), "resetting gives every spent skill point back")
-	SaveData.learn_node("grit.root")
+			and SaveData.skills.is_empty(), "resetting gives every spent skill point back")
+	SaveData.raise_skill("evasion")
 
 	# --- save file round trip ---
 	var coins_now := SaveData.coins
@@ -1712,9 +1658,9 @@ func _run_autotest() -> void:
 	_check(SaveData.pets_owned == ["scraps", "soot"] and SaveData.pet_active == "soot", "save file restores the pets")
 	_check(SaveData.coins == coins_now and SaveData.level == level_now and SaveData.xp == xp_now and SaveData.skill_points == points_now,
 			"save file restores coins, level, XP and skill points")
-	_check(SaveData.tree_rank("evasion") == 1 and SaveData.node_count("grit.root") == 1
+	_check(SaveData.skill_rank("evasion") == 1 and SaveData.passive_rank("evasion") == 7
 			and SaveData.weapon_rank("shotgun", "power") == shotgun_power
-			and SaveData.weapon_level("pistol") == pistol_level, "save file restores the skill tree and weapon levels")
+			and SaveData.weapon_level("pistol") == pistol_level, "save file restores the bought ranks and weapon levels")
 	_check(SaveData.maps_unlocked == 2 and SaveData.map_cleared(0) and SaveData.selected_map == 1,
 			"save file restores map progress")
 
@@ -1736,32 +1682,32 @@ func _run_autotest() -> void:
 			and SaveData.weapon_points("sledge") == 3 and SaveData.weapon_spent("sledge") == 2 + int(Config.WEAPON_PERK_COST[1]),
 			"an upgrade a weapon no longer has is dropped and its points refunded")
 
-	# --- a save from before the skill tree: the points spent on the old stat list come back ---
+	# --- saves from before the plain skills page: whatever was spent on the older skill screens comes back ---
 	var flat_file := FileAccess.open(SaveData.save_path, FileAccess.WRITE)
 	flat_file.store_string(JSON.stringify({"version": 2, "coins": 55, "level": 9, "skill_points": 3,
 			"passives": {"vitality": 12, "strength": 4}}))
 	flat_file.close()
 	SaveData.call("_reset_to_defaults")
 	SaveData.load_game()
-	_check(SaveData.points_returned == 10 + 2 * 2 + 4 and SaveData.skill_points == 3 + SaveData.points_returned and SaveData.tree.is_empty(),
-			"a save from before the skill tree gets its spent points back (%d)" % SaveData.points_returned)
-	# ...and so are the points in a skill tree of an older version (its nodes no longer exist),
-	SaveData.tree = {"vitality.0": 1, "strength.t0.0": 1, "vitality-strength.a0.0": 1}
-	SaveData.tree_spent = 7
-	SaveData.skill_points = 0
+	_check(SaveData.points_returned == 10 + 2 * 2 + 4 and SaveData.skill_points == 3 + SaveData.points_returned and SaveData.skills.is_empty(),
+			"a save from the very first stat list gets its spent points back (%d)" % SaveData.points_returned)
+	# ...and so does one from the time of the skill tree (which the owner had removed).
+	var tree_file := FileAccess.open(SaveData.save_path, FileAccess.WRITE)
+	tree_file.store_string(JSON.stringify({"version": 2, "coins": 55, "level": 9, "skill_points": 2,
+			"tree": {"grit.root": 3, "vitality.1": 5, "vitality.2": 2, "fury.root": 1}, "tree_spent": 13}))
+	tree_file.close()
+	SaveData.call("_reset_to_defaults")
+	SaveData.load_game()
+	_check(SaveData.skills.is_empty() and SaveData.points_returned == 13 and SaveData.skill_points == 2 + 13 and SaveData.passive_rank("vitality") == 0,
+			"points spent in the old skill tree are handed back (%d)" % SaveData.points_returned)
+	# Once spent on the new page and saved, they stay spent.
+	SaveData.raise_skill("vitality")
+	SaveData.raise_skill("vitality")
 	SaveData.save_game()
 	SaveData.call("_reset_to_defaults")
 	SaveData.load_game()
-	_check(SaveData.tree.is_empty() and SaveData.skill_points == 7 and SaveData.points_returned == 7,
-			"points spent in an older skill tree are handed back")
-	# ...or in a tree that does not hold together (a node without the levels before it).
-	SaveData.tree = {"vitality.2": 2}
-	SaveData.tree_spent = SaveData.spent_points()
-	SaveData.skill_points = 0
-	SaveData.save_game()
-	SaveData.call("_reset_to_defaults")
-	SaveData.load_game()
-	_check(SaveData.tree.is_empty() and SaveData.skill_points == 2 * int(Config.TREE_BRANCH[1]["cost"]), "a broken tree is refunded instead of kept")
+	_check(SaveData.skill_rank("vitality") == 2 and SaveData.skill_points == 13 and SaveData.points_returned == 0,
+			"...and are not handed back a second time")
 
 	# --- an old (version 1) save: coins and upgrades are wiped once, records kept ---
 	var old_file := FileAccess.open(SaveData.save_path, FileAccess.WRITE)
@@ -1960,64 +1906,58 @@ func _run_inputtest() -> void:
 	await _frames(3)
 	_check(GameInput.device == GameInput.Device.KEYBOARD_MOUSE, "moving the mouse switches back to keyboard+mouse")
 
-	# --- the skill tree: keys, gamepad and mouse ---
+	# --- the skills page: keys, gamepad and mouse ---
 	app.pause_game()
 	await _frames(2)
 	app.quit_to_menu()
 	await _frames(3)
+	SaveData.skills = {}
 	SaveData.skill_points = 3
 	app.open_screen("skills")
 	await _frames(6)
-	var tree: TreeView = ((app.get("_screens") as Dictionary)["skills"] as SkillScreen).get("_tree")
-	_check(tree.has_focus() and tree.selected == "start", "the skill tree opens on the middle node")
-	_key(KEY_RIGHT, true)
-	await _frames(2)
-	_key(KEY_RIGHT, false)
-	await _frames(2)
-	_check(tree.selected == "fury.root", "the arrow keys walk from node to node (now on '%s')" % tree.selected)
+	var skill_page: SkillScreen = (app.get("_screens") as Dictionary)["skills"]
+	var page_rows: Dictionary = skill_page.get("_rows")
+	_check((page_rows["vitality"]["plus"] as Button).has_focus(), "the skills page opens with the first +1 button highlighted")
 	_key(KEY_ENTER, true)
 	await _frames(2)
 	_key(KEY_ENTER, false)
 	await _frames(2)
-	_check(SaveData.node_count("fury.root") == 1 and SaveData.skill_points == 2, "Enter buys a level of the highlighted node")
-	_pad_button(JOY_BUTTON_DPAD_RIGHT, true)
+	_check(SaveData.skill_rank("vitality") == 1 and SaveData.skill_points == 2, "Enter buys a rank of the highlighted stat")
+	_key(KEY_DOWN, true)
 	await _frames(2)
-	_pad_button(JOY_BUTTON_DPAD_RIGHT, false)
+	_key(KEY_DOWN, false)
 	await _frames(2)
-	var walked_to := tree.selected
+	_check((page_rows["defense"]["plus"] as Button).has_focus(), "the arrow keys walk down the list")
+	_pad_button(JOY_BUTTON_DPAD_DOWN, true)
+	await _frames(2)
+	_pad_button(JOY_BUTTON_DPAD_DOWN, false)
+	await _frames(2)
 	_pad_button(JOY_BUTTON_A, true)
 	await _frames(2)
 	_pad_button(JOY_BUTTON_A, false)
 	await _frames(2)
-	_check(walked_to != "fury.root" and String(SkillTree.nodes()[walked_to]["family"]) == "fury" and SaveData.node_count(walked_to) == 1,
-			"the gamepad walks the tree and A buys a level (of '%s')" % walked_to)
-	await _frames(20)      # (let the view finish gliding to the node)
+	_check(SaveData.skill_rank("evasion") == 1 and SaveData.skill_rank("defense") == 0 and SaveData.skill_points == 1,
+			"the gamepad walks the list and A buys a rank")
 	# (Fake mouse events are given in window pixels; without a real display
 	# the window is not the size of the game's canvas, so convert. The window
 	# also has to be told that the mouse is over it.)
-	var cam: Vector2 = tree.get("_cam")
+	var damage_plus: Button = page_rows["strength"]["plus"]
 	var to_window := get_viewport().get_final_transform()
-	var on_screen: Vector2 = to_window * (tree.global_position + tree.size * 0.5
-			+ ((SkillTree.nodes()["grit.root"]["pos"] as Vector2) - cam) * tree.zoom)
+	var on_screen: Vector2 = to_window * (damage_plus.global_position + damage_plus.size * 0.5)
 	get_viewport().notification(NOTIFICATION_VP_MOUSE_ENTER)
 	_mouse_move(on_screen)
 	await _frames(2)
-	_check(tree.selected == "grit.root", "pointing at a node highlights it")
+	_check(damage_plus.has_focus(), "pointing at a +1 button highlights it")
 	_mouse_button(MOUSE_BUTTON_LEFT, true, on_screen)
 	await _frames(2)
 	_mouse_button(MOUSE_BUTTON_LEFT, false, on_screen)
 	await _frames(2)
-	_check(SaveData.node_count("grit.root") == 1 and SaveData.skill_points == 0, "clicking a node buys a level")
-	var zoom_before := tree.zoom
-	_mouse_button(MOUSE_BUTTON_WHEEL_UP, true, on_screen)
-	await _frames(2)
-	_mouse_button(MOUSE_BUTTON_WHEEL_UP, false, on_screen)
-	_check(tree.zoom > zoom_before, "the mouse wheel zooms the tree")
+	_check(SaveData.skill_rank("strength") == 1 and SaveData.skill_points == 0, "clicking +1 buys a rank")
 	_key(KEY_ESCAPE, true)
 	await _frames(2)
 	_key(KEY_ESCAPE, false)
 	await _frames(3)
-	_check(app.state == Main.State.MENU and tree.is_visible_in_tree() == false, "Esc leaves the skill tree")
+	_check(app.state == Main.State.MENU and skill_page.is_visible_in_tree() == false, "Esc leaves the skills page")
 
 	# --- the character screen: click a piece to wear it, click its slot to take it off ---
 	SaveData.add_gear("work_gloves:1")

@@ -9,7 +9,7 @@ the owner plays the result and gives feedback. Explain things in plain words.
 
 The hero is called **Cliff** (`Config.HERO_NAME`). The owner sends reference
 pictures from other games and artists for the LAYOUT or the GENERAL LOOK he
-wants (a skill tree in three families, an equipment screen with the character
+wants (an upgrade page, an equipment screen with the character
 in the middle, a tactical-looking hero). Follow the structure and the mood;
 never copy the art, names, icons or exact look (rule 1).
 
@@ -58,7 +58,6 @@ Other dev flags (all after `--`, see `scripts/dev/dev_tools.gd`): `--play`,
 `--cycle`, `--level=N`, `--coins=N`, `--map=N` (with `--best=W` best wave cleared there and
 `--start=W` starting wave), `--screen=maps|character|skills|armory|pets|settings|pause|gameover|victory`,
 `--forge` (with `--screen=character`: open the forge), `--armory-weapon=ID`,
-`--tree-node=ID --tree-zoom=N` (skill tree: highlight a node, zoom; 0 = whole tree),
 `--gear=N` (start with N random pieces, some worn), `--drop-gear` (drop a piece of every tier in a run),
 `--drop-crates` (drop four weapon crates, two of them damaged), `--pets=N` (own the first N pets;
 needs `--level=18` or more),
@@ -105,9 +104,8 @@ scripts/autoload/
 scripts/game/
   game.gd                one run: owns the world, runs the simulation loop, hit stop, slow-mo, score
   player.gd              movement, aim, firing (bullets / grenade / melee), drawing
-  player_stats.gd        THE stat pipeline: level + skill tree + gear + pet + keystones + weapon trees/perks
+  player_stats.gd        THE stat pipeline: level + bought skill ranks + gear + pet + special powers + weapon upgrades/perks
                          -> the numbers the game uses
-  skill_tree.gd          builds the skill tree (three families, 52 nodes) from Config; describes nodes only
   pet.gd                 the companion in a run: heel, bite, fetch, guard (numbers arrive via PlayerStats)
   enemy.gd               one zombie = data + Sprite2D (no logic)
   enemy_manager.gd       ALL zombie logic in one loop: spatial grid, separation, attacks, boss AI, the
@@ -133,8 +131,7 @@ scripts/game/
 scripts/ui/              ui_kit.gd (theme + helpers), menu_background, main_menu, map_screen (Play),
                          coop_screen (PLAY WITH FRIENDS: host a game / join with a code),
                          character_screen (the hero, his gear, inventory and forge),
-                         skill_screen + skill_tree_view (the skill tree; tree_view.gd is the
-                         pan / zoom / click base class it extends),
+                         skill_screen (the plain list of stat upgrades),
                          armory_screen (plain weapon upgrade pages), pet_screen,
                          settings_screen, pause_menu, game_over_screen (also the victory screen)
 scripts/dev/dev_tools.gd bot, autotest, input test, benchmark, screenshots (only with CLI args)
@@ -148,7 +145,7 @@ Update Rot Riot.command  double-click updater for the owner's Mac (downloads mai
 
 **Loop:** main menu -> PLAY opens the map screen (choose map + starting wave)
 -> run -> death or map cleared -> results (coins banked) -> spend points in
-the skill tree (Skills) and on weapon upgrades (Armory), wear and forge gear
+the Skills page and on weapon upgrades (Armory), wear and forge gear
 (Character), choose a pet (Pets) -> next run. The main menu is PLAY on top,
 then two columns: CHARACTER, SKILLS, ARMORY, PETS, SETTINGS, QUIT, with
 Cliff standing beside them in whatever he is wearing.
@@ -366,34 +363,33 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   roughly 2-4 thousand XP per run; later waves and later maps pay several
   times that - which is why the exponent went from 1.8 to 2.0 when maps
   were added). Re-check this pacing whenever XP sources change.
-- *Skill tree* (Skills screen; built by `skill_tree.gd` from the SKILL TREE
-  section of config.gd; drawn by `skill_tree_view.gd`). The owner asked for
-  a tree with **three distinct families, where it is clear what you invest
-  in, and several levels per node** - and found the first version (a 289-node
-  web) "super messy and complex". So: three families grow out of Cliff in
-  the middle, each in its own colour: **VITALITY** (health, defense,
-  evasion), **STRENGTH** (damage, dexterity = fire rate, critical) and
-  **INSTINCT** (agility = move speed, luck, BOND = the pet). The owner chose
-  these names; in code and save files the first two families are still
-  `grit` and `fury`, and the stats shown as HEALTH and DAMAGE are still
-  `vitality` and `strength` - never rename ids. A family starts with a root
-  node (3 levels, each +1 rank of all three stats). From it three branches
-  fan out, one per stat: three nodes of 5 levels each (+1 rank per level;
-  costs 1 / 2 / 3 points per level; character level 1 / 8 / 18), a **sealed**
-  node beside the second one (+3 ranks, opens after a deed, `TREE_SEAL_DEEDS`)
-  and a **keystone** at the end (special power, `Config.KEYSTONES`, needs the
-  third node full and a deed). At the far end sits the family emblem: an
-  **endless** node (+1 rank of all three stats per level, rising price; needs
-  one keystone of the family) - this keeps progression endless. A node opens
-  when the one before it has `TREE_NEED_LEVELS` (3) levels. 52 nodes in all.
-  Levels show as dots under each node, invested lines are lit, and each
-  family's name carries "N points invested". Keep it this simple: do not add
-  nodes or links without the owner asking.
+- *Skills* (Skills screen, `skill_screen.gd`; SKILLS section of config.gd).
+  **A plain list, no tree.** History: the owner first asked for an
+  "intimidating tree", found the 289-node web "super messy and complex", got
+  a three-family tree, and then had it removed altogether: "remove the skill
+  tree completely and add a simple interface for essential upgrades like
+  life, defense, movement speed, critical etc... similar to the new weapon
+  upgrade interface". So the page looks like an Armory page: one row per
+  stat - icon, name, ten pips, "rank N", what it gives now and next - with a
+  **"+1" button** that spends skill points. Nine stats in three labelled
+  groups (`Config.SKILL_GROUPS`): **VITALITY** (HEALTH, DEFENSE, EVASION),
+  **STRENGTH** (DAMAGE, ATTACK SPEED, CRITICAL), **INSTINCT** (MOVE SPEED,
+  LUCK, PET BOND). Those are display names; the ids in code and save files
+  are still `vitality`, `defense`, `evasion`, `strength`, `dexterity`,
+  `critical`, `agility`, `luck`, `bond` - never rename ids.
+  A rank costs 1 point, plus 1 for every 5 ranks of that stat already bought
+  (`SKILL_RANK_COST_STEP`); ranks have no upper limit (endless progression).
+  PET BOND needs character level 18. **Special powers** (`Config.KEYSTONES`,
+  one per stat: SECOND WIND, EXECUTIONER...) are not bought: a stat's power
+  is yours once 15 ranks of it are bought (`KEYSTONE_RANK`); each row names
+  its power and a strip at the bottom explains the row under the pointer.
+  There are no nodes, no deeds, no sealed things. Do not make this page more
+  complicated without the owner asking.
   More skill points can be bought with coins (price x1.15 each time); a paid
-  reset returns all spent points. Stat ranks = levels bought in the tree +
-  gear (`SaveData.passive_rank`); `SaveData.bonus_ranks` is a hook for tests.
-  Node ids are stored in the save: never rename them. If a saved tree does
-  not fit the current one, all its points are handed back on load.
+  reset returns all spent points. Stat ranks = ranks bought here + gear
+  (`SaveData.passive_rank`; `SaveData.skill_rank` is the bought part);
+  `SaveData.bonus_ranks` is a hook for tests. Points spent in the old skill
+  tree (saves of v0.2 - v0.8) are handed back on load, once.
 - *Weapon levels and upgrades* (Armory): each weapon earns XP from kills
   made with it (kills carry a `source` weapon id through
   `EnemyManager.damage`). Each weapon level gives a point for that weapon
@@ -460,13 +456,13 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   time (`SaveData.pet_active`). **Owner's rules:** a pet adds to the
   character's damage, at most its rarity's cap - 3 / 6 / 9 / 12 / **15%**
   for legendary (`PET_RARITIES`, "lower rarity = less damage") - and pet
-  damage and perks have **their own skill tree branch**: BOND, one of the
-  three branches of the INSTINCT family (needs level 18). With no BOND a pet
-  gives 30% of its cap, at 30 BOND ranks all of it
-  (`Config.pet_damage_bonus`); never more. BOND also makes the pet's own
-  bite stronger without limit. The first level of BOND's three nodes teaches
-  the tricks fetch, maul and guardian, BOND's sealed node teaches frenzy
-  (`PET_TRICKS`, `SkillTree.trick_node`); the keystone is FERAL. In a run the
+  damage and perks have **their own upgrade**: PET BOND (id `bond`), a row
+  of the Skills page (needs level 18; it was a branch of the skill tree
+  while there was one). With no BOND a pet gives 30% of its cap, at 30 BOND
+  ranks all of it (`Config.pet_damage_bonus`); never more. BOND also makes
+  the pet's own bite stronger without limit. Ranks 1 / 5 / 10 / 13 of it
+  teach the tricks fetch, maul, guardian and frenzy (`PET_TRICKS`,
+  `PET_TRICK_RANKS`); its special power at rank 15 is FERAL. In a run the
   pet (`scripts/game/pet.gd`) walks at heel, bites zombies that come within
   `PET_GUARD_RANGE` of the player (bite = `PET_BITE_DAMAGE` x rarity x BOND x
   the character's damage bonuses) and cannot be hurt (zombies ignore it), so
@@ -577,7 +573,7 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
 ## Not verified yet (needs a human)
 
 - How it actually feels to play - all feel values are first guesses.
-- The balance of the 100-wave maps, the tree prices, the keystones, the
+- The balance of the 100-wave maps, the skill prices, the special powers, the
   perks, gear drop rates and gear stats, pet prices and pet strength: all
   first guesses, only checked with the bot and the tests.
 - Co-op over the real internet. It is tested with two and three copies of
@@ -595,7 +591,7 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   explored map takes (about 108 MB by calculation), how the fog looks in
   motion (only still screenshots were checked), whether the minimap is big
   enough to read. Chest count and chest loot are first guesses.
-- The skill tree and the Character screen with a real mouse / trackpad /
+- The Skills page and the Character screen with a real mouse / trackpad /
   gamepad (only simulated input was tested).
 - How Cliff looks to a human eye: he is simple shapes in the general style
   the owner asked for, to be replaced by real art one day.
@@ -667,6 +663,14 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   and to continue -> the big map with fog of war, minimap and treasure
   chests (built, awaiting feedback). First guesses to ask about: the size of
   the map, four chests per run, how thick and how wide the fog is.
+- After v0.7: "Remove the [three-family] skill tree completely and add a
+  simple interface for essential upgrades like life, defense, movement
+  speed, critical etc... similar to the new weapon upgrade interface" -> the
+  Skills page is a plain list now (built, awaiting feedback). The powers
+  that used to sit at the ends of the tree's branches are kept, as
+  milestones at rank 15 of each stat (Claude's choice - if the owner finds
+  even that too much, drop the `power` column). SECOND LESSON, same as the
+  first: plain lists with a "+1" button are what this owner likes.
 - While v0.6 was being built: "next add more enemies including some that
   shoot from range. put working on the new maps last." -> Gobber, Chucker,
   Gasbag, Lunger (built, awaiting feedback); themed maps moved to the end of

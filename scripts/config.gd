@@ -11,7 +11,7 @@ extends Node
 ## ============================================================================
 
 const GAME_TITLE := "ROT RIOT"
-const GAME_VERSION := "0.8.0"
+const GAME_VERSION := "0.9.0"
 const HERO_NAME := "CLIFF"                    # the survivor you play
 # How he looks with nothing equipped (his gear is drawn over this, see scripts/autoload/art.gd).
 const HERO_LOOK := {"skin": "#dfae88", "skin_dark": "#b98660", "hair": "#3a2a1e", "shirt": "#23262b", "shirt_light": "#33373d",
@@ -633,119 +633,67 @@ const SKILL_POINT_COST_BASE := 120.0    # coins for the first bought skill point
 const SKILL_POINT_COST_GROWTH := 1.15   # ...each further one costs 15% more
 const RESPEC_COST_PER_LEVEL := 25       # coins to take all points back = this * character level
 
-# Passive stats. Their ranks come from the skill tree below and from gear.
+# Passive stats. Their ranks are bought on the SKILLS page and come from gear.
 #   "linear": each rank adds per_rank, forever.
 #   "curve":  approaches "max" but never reaches it; "half" is the rank at which
 #             you have half of max. (Stops speed/dodge from becoming silly.)
-#   "color"   the colour of the stat's family in the skill tree
-#   "nodes"   names of the three nodes along its branch, from the middle outwards
-#   "min_level" (optional) its branch needs at least this character level
-# Two of them are shown under another name than their id: "vitality" is
-# called HEALTH and "strength" is called DAMAGE, because VITALITY and STRENGTH
-# are the names of two families of the skill tree. (The ids are in save files.)
+#   "color"   the colour of the group it is listed under on the Skills page
+#   "min_level" (optional) it cannot be bought before this character level
+# The ids are in save files: never rename them. What the player reads is "name".
 # The last one, BOND, is the pet's stat: see PETS further down.
 const PASSIVE_ORDER := ["vitality", "defense", "evasion", "strength", "dexterity", "critical", "agility", "luck", "bond"]
 const PASSIVES := {
-	"vitality": {"name": "HEALTH", "desc": "More maximum health", "kind": "linear", "per_rank": 8.0,
-		"color": Color("5aa9ff"), "nodes": ["Thick Blood", "Iron Lungs", "Ox Heart"]},
-	"defense": {"name": "DEFENSE", "desc": "Take less damage from every hit", "kind": "curve", "max": 0.8, "half": 50.0,
-		"color": Color("5aa9ff"), "nodes": ["Tough Hide", "Scar Tissue", "Walking Bunker"]},
-	"evasion": {"name": "EVASION", "desc": "Chance to dodge a hit completely", "kind": "curve", "max": 0.6, "half": 40.0,
-		"color": Color("5aa9ff"), "nodes": ["Sidestep", "Slippery", "Phantom"]},
-	"strength": {"name": "DAMAGE", "desc": "More damage with every weapon", "kind": "linear", "per_rank": 0.03,
-		"color": Color("ff6b3d"), "nodes": ["Heavy Hands", "Bone Breaker", "Juggernaut"]},
-	"dexterity": {"name": "DEXTERITY", "desc": "Shoot, swing and reload faster", "kind": "curve", "max": 1.5, "half": 60.0,
-		"color": Color("ff6b3d"), "nodes": ["Loose Wrists", "Trigger Finger", "Lead Storm"]},
-	"critical": {"name": "CRITICAL", "desc": "Chance for a shot to deal double damage", "kind": "curve", "max": 0.6, "half": 40.0,
-		"color": Color("ff6b3d"), "nodes": ["Sharp Eye", "Weak Spots", "Surgeon"]},
-	"agility": {"name": "AGILITY", "desc": "Move faster", "kind": "curve", "max": 0.8, "half": 40.0,
-		"color": Color("b6e04a"), "nodes": ["Light Feet", "Sprinter", "Blur"]},
-	"luck": {"name": "LUCK", "desc": "Zombies drop coins and gear more often", "kind": "linear", "per_rank": 0.03,
-		"color": Color("b6e04a"), "nodes": ["Loose Change", "Grave Robber", "Jackpot"]},
+	"vitality": {"name": "HEALTH", "desc": "More maximum health", "kind": "linear", "per_rank": 8.0, "color": Color("5aa9ff")},
+	"defense": {"name": "DEFENSE", "desc": "Take less damage from every hit", "kind": "curve", "max": 0.8, "half": 50.0, "color": Color("5aa9ff")},
+	"evasion": {"name": "EVASION", "desc": "Chance to dodge a hit completely", "kind": "curve", "max": 0.6, "half": 40.0, "color": Color("5aa9ff")},
+	"strength": {"name": "DAMAGE", "desc": "More damage with every weapon", "kind": "linear", "per_rank": 0.03, "color": Color("ff6b3d")},
+	"dexterity": {"name": "ATTACK SPEED", "desc": "Shoot, swing and reload faster", "kind": "curve", "max": 1.5, "half": 60.0, "color": Color("ff6b3d")},
+	"critical": {"name": "CRITICAL", "desc": "Chance for a shot to deal double damage", "kind": "curve", "max": 0.6, "half": 40.0, "color": Color("ff6b3d")},
+	"agility": {"name": "MOVE SPEED", "desc": "Move faster", "kind": "curve", "max": 0.8, "half": 40.0, "color": Color("b6e04a")},
+	"luck": {"name": "LUCK", "desc": "Zombies drop coins and gear more often", "kind": "linear", "per_rank": 0.03, "color": Color("b6e04a")},
 	# BOND: every rank brings your pet's damage bonus closer to the most its rarity
 	# allows (PET_BOND_FULL ranks = all of it) and makes its own bite stronger.
-	# Its three nodes and its sealed node also teach the pet a trick (PET_TRICKS).
-	"bond": {"name": "BOND", "desc": "Your pet adds more to your damage and bites harder", "kind": "linear", "per_rank": 1.0,
-		"color": Color("b6e04a"), "nodes": ["Fetch", "Maul", "Guardian"], "sealed_name": "Frenzy", "min_level": 18},
+	# Certain ranks also teach the pet a trick (PET_TRICK_RANKS).
+	"bond": {"name": "PET BOND", "desc": "Your pet adds more to your damage and bites harder", "kind": "linear", "per_rank": 1.0,
+		"color": Color("b6e04a"), "min_level": 18},
 }
 
 # ----------------------------------------------------------------------------
-#  SKILL TREE (Skills screen) - built from these numbers by scripts/game/skill_tree.gd.
-#  Three families grow out of the survivor in the middle, each in its own colour:
-#    VITALITY  staying alive    (health, defense, evasion)
-#    STRENGTH  killing faster   (damage, dexterity, critical)
-#    INSTINCT  speed, luck, pet (agility, luck, bond)
-#  A family starts with one node that raises all three of its stats. From it
-#  three branches fan out, one per stat: three nodes, a sealed node on the side
-#  (opens after a deed) and a keystone (a special power) at the end. Every
-#  node has several levels. At the far end sits the family's emblem, an
-#  endless node. A node opens when the one before it has TREE_NEED_LEVELS levels.
+#  SKILLS (the Skills page) - a plain list, like the weapon upgrades in the
+#  Armory: one row per stat with a "+1" button. (There used to be a skill
+#  tree here; the owner had it removed: "remove the skill tree completely and
+#  add a simple interface for essential upgrades".)
+#  The rows are listed in three groups. Ranks have no upper limit.
 # ----------------------------------------------------------------------------
-# (The owner named the families VITALITY, STRENGTH and INSTINCT. The ids
-# "grit" and "fury" are only used inside the code and the save file - do not
-# rename them, saved trees are stored under them.)
-const TREE_FAMILY_ORDER := ["grit", "fury", "instinct"]
-const TREE_FAMILIES := {
-	"grit": {"name": "VITALITY", "desc": "Staying alive", "color": Color("5aa9ff"), "angle_deg": -90.0,
-		"stats": ["vitality", "defense", "evasion"]},
-	"fury": {"name": "STRENGTH", "desc": "Killing faster", "color": Color("ff6b3d"), "angle_deg": 30.0,
-		"stats": ["strength", "dexterity", "critical"]},
-	"instinct": {"name": "INSTINCT", "desc": "Speed, luck and your pet", "color": Color("b6e04a"), "angle_deg": 150.0,
-		"stats": ["agility", "luck", "bond"]},
-}
-const TREE_ROOT_LEVELS := 3             # levels of a family's first node (each level: +1 rank of all three of its stats)
-const TREE_ROOT_COST := 1               # skill points per level of it
-const TREE_NODE_LEVELS := 5             # levels of every node along a stat's branch (each level: +1 rank of that stat)
-const TREE_BRANCH := [                  # the three nodes of a branch, from the middle outwards:
-	{"level": 1, "cost": 1},            #   level = character level needed, cost = skill points per level of the node
-	{"level": 8, "cost": 2},
-	{"level": 18, "cost": 3},
+const SKILL_GROUPS := [
+	{"name": "VITALITY", "desc": "staying alive", "color": Color("5aa9ff"), "stats": ["vitality", "defense", "evasion"]},
+	{"name": "STRENGTH", "desc": "killing faster", "color": Color("ff6b3d"), "stats": ["strength", "dexterity", "critical"]},
+	{"name": "INSTINCT", "desc": "speed, luck and your pet", "color": Color("b6e04a"), "stats": ["agility", "luck", "bond"]},
 ]
-const TREE_NEED_LEVELS := 3             # levels a node needs before the next one along its branch opens
-const TREE_SEALED_RANKS := 3            # ranks from a sealed node (one level, opens after its deed)
-const TREE_SEALED_COST := 4
-const TREE_KEYSTONE_COST := 8           # a keystone needs the last node of its branch at full level
-const TREE_CAP_LEVEL := 22              # the family emblem: needs this character level and one keystone of the family
-const TREE_CAP_COST := 5                # skill points for its first level (+1 rank of all three stats, endless)...
-const TREE_CAP_COST_STEP := 3           # ...and one more point every N levels
-# Layout (pixels in tree space, the survivor is at 0,0).
-const TREE_ROOT_DIST := 92.0            # distance of a family's first node from the middle
-const TREE_STEP := 78.0                 # distance between the nodes of a branch
-const TREE_FAN_DEG := 40.0              # angle between the three branches of a family
-const TREE_SEAL_OFFSET := 56.0          # how far a sealed node sits beside its branch
-const TREE_KEY_DIST := 74.0             # distance from a branch's last node to its keystone
-const TREE_CAP_DIST := 100.0            # distance from the middle branch's keystone to the family emblem
-# Sealed nodes stay locked until a deed is done (checked against the saved
-# records). Kinds: "wave" = clear that wave on any map, "kills" = zombies killed
-# in total, "weapon_level" = reach that level with any weapon, "runs" = runs
-# played, "score" = points in one run, "bought" = skill points bought with
-# coins, "map" = clear all waves of that map, "level" = character level,
-# "pets" = how many pets you own.
-const TREE_SEAL_DEEDS := {
-	"vitality": {"kind": "wave", "value": 10}, "defense": {"kind": "kills", "value": 2000}, "evasion": {"kind": "runs", "value": 15},
-	"strength": {"kind": "kills", "value": 5000}, "dexterity": {"kind": "weapon_level", "value": 8}, "critical": {"kind": "score", "value": 40000},
-	"agility": {"kind": "wave", "value": 15}, "luck": {"kind": "bought", "value": 5}, "bond": {"kind": "pets", "value": 2},
-}
-# Keystones: one special power at the end of each stat's branch. "value" (and the
-# extra numbers) are what the power does; "desc" is filled in with them.
+const SKILL_RANK_COST_STEP := 5         # a rank costs 1 skill point, and one more for every N ranks of that stat already bought
+const KEYSTONE_RANK := 15               # buy this many ranks of a stat and its special power (KEYSTONES) is yours
+const PET_TRICK_RANKS := [1, 5, 10, 13] # ranks of PET BOND at which the pet learns its tricks (PET_TRICKS, in that order)
+# Special powers: one per stat, yours once you have bought KEYSTONE_RANK ranks
+# of it. "value" (and the extra numbers) are what the power does; "desc" is
+# filled in with them (see keystone_text() below).
 const KEYSTONES := {
-	"vitality": {"name": "SECOND WIND", "value": 0.3, "deed": {"kind": "wave", "value": 20},
+	"vitality": {"name": "SECOND WIND", "value": 0.3,
 		"desc": "Once per run, a killing blow leaves you at %d%% health instead and throws the horde back."},
-	"strength": {"name": "EXECUTIONER", "value": 0.4, "deed": {"kind": "kills", "value": 10000},
+	"strength": {"name": "EXECUTIONER", "value": 0.4,
 		"desc": "+%d%% damage against wounded zombies."},
-	"dexterity": {"name": "ADRENALINE", "value": 0.2, "combo": 20, "deed": {"kind": "weapon_level", "value": 15},
+	"dexterity": {"name": "ADRENALINE", "value": 0.2, "combo": 20,
 		"desc": "You shoot %d%% faster while your kill combo is %d or more."},
-	"agility": {"name": "BREAKAWAY", "value": 0.4, "time": 2.0, "deed": {"kind": "runs", "value": 40},
+	"agility": {"name": "BREAKAWAY", "value": 0.4, "time": 2.0,
 		"desc": "After being hit you move %d%% faster for %d seconds."},
-	"defense": {"name": "THICK SKIN", "value": 2.0, "deed": {"kind": "wave", "value": 30},
+	"defense": {"name": "THICK SKIN", "value": 2.0,
 		"desc": "The moment of safety after being hit lasts %d times as long."},
-	"evasion": {"name": "GHOST", "value": 1.0, "deed": {"kind": "score", "value": 150000},
+	"evasion": {"name": "GHOST", "value": 1.0,
 		"desc": "A dodge leaves you untouchable for %d second."},
-	"critical": {"name": "DEADEYE", "value": 3.0, "deed": {"kind": "wave", "value": 40},
+	"critical": {"name": "DEADEYE", "value": 3.0,
 		"desc": "Critical hits deal %d times the damage instead of double."},
-	"luck": {"name": "SCAVENGER", "value": 2.0, "crates": 0.25, "deed": {"kind": "bought", "value": 20},
+	"luck": {"name": "SCAVENGER", "value": 2.0, "crates": 0.25,
 		"desc": "Coins fly to you from %d times as far, and weapon crates appear %d%% more often."},
-	"bond": {"name": "FERAL", "value": 3.0, "deed": {"kind": "pets", "value": 3},
+	"bond": {"name": "FERAL", "value": 3.0,
 		"desc": "When you are badly hurt, your pet goes wild: it attacks %d times as fast."},
 }
 const CRIT_DAMAGE_MULT := 2.0
@@ -842,7 +790,7 @@ const WEAPON_PERKS := {
 #  helmet, amulet, chest, gloves, two rings, belt, pants, boots.
 #  Two identical pieces of the same tier can be forged into one piece of the
 #  next tier (the forge on the Character screen). Gear adds ranks to the passive stats, on top
-#  of the skill tree (scripts/game/player_stats.gd).
+#  of the ranks bought on the Skills page (scripts/game/player_stats.gd).
 # ----------------------------------------------------------------------------
 const GEAR_SLOTS := ["helmet", "amulet", "chest", "gloves", "ring1", "ring2", "belt", "pants", "boots"]
 # What kind of piece each slot takes, and all the kinds there are.
@@ -946,11 +894,11 @@ const GEAR_SLOT_NAMES := {"helmet": "HELMET", "amulet": "AMULET", "chest": "CHES
 #  A pet does two things:
 #    1. It adds to YOUR damage - at most its rarity's "damage" (legendary 15%,
 #       lower rarities less). How much of that you get depends on BOND, the
-#       pet's branch of the skill tree: PET_BOND_BASE of it with no BOND, all
+#       pet's own stat on the Skills page: PET_BOND_BASE of it with no BOND, all
 #       of it at PET_BOND_FULL ranks.
 #    2. It fights: it bites zombies that come close to you. Its bite is
 #       stronger for rarer pets ("bite") and grows with BOND without limit.
-#       Its tricks are the four big nodes of the BOND branch.
+#       It learns its tricks at certain ranks of BOND (PET_TRICK_RANKS).
 #  Zombies ignore pets: a pet cannot be hurt.
 # ----------------------------------------------------------------------------
 const PET_UNLOCK_LEVEL := 18
@@ -1191,7 +1139,29 @@ func skill_point_cost(already_bought: int) -> int:
 	return int(round(SKILL_POINT_COST_BASE * pow(SKILL_POINT_COST_GROWTH, float(already_bought))))
 
 
-## What a deed asks for, as shown on a sealed node (see TREE_SEAL_DEEDS).
+## A special power's description with its numbers filled in.
+func keystone_text(stat: String) -> String:
+	var k: Dictionary = KEYSTONES[stat]
+	var value := float(k["value"])
+	var text := String(k["desc"])
+	match stat:
+		"vitality", "strength":
+			return text % int(round(value * 100.0))
+		"dexterity":
+			return text % [int(round(value * 100.0)), int(k["combo"])]
+		"agility":
+			return text % [int(round(value * 100.0)), int(round(float(k["time"])))]
+		"luck":
+			return text % [int(round(value)), int(round(float(k["crates"]) * 100.0))]
+	return text % int(round(value))
+
+
+## What a deed asks for (the conditions for getting some of the pets). Kinds:
+## "wave" = clear that wave on any map, "kills" = zombies killed in total,
+## "weapon_level" = reach that level with any weapon, "runs" = runs played,
+## "score" = points in one run, "bought" = skill points bought with coins,
+## "map" = clear all waves of that map, "level" = character level,
+## "pets" = how many pets you own.
 func deed_text(deed: Dictionary) -> String:
 	var value := int(deed["value"])
 	match String(deed["kind"]):

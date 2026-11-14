@@ -7,7 +7,7 @@ extends Control
 ##
 ## A pet adds to the character's damage - at most what its rarity allows -
 ## and how much of that you get depends on BOND, the pet's branch of the
-## skill tree. The numbers are in Config (PETS section).
+## Skills page. The numbers are in Config (PETS section).
 
 const CARD_SIZE := Vector2(232, 372)
 
@@ -147,7 +147,7 @@ func _refresh() -> void:
 		_intro.text = "One pet comes along at a time. It bites zombies that come close and adds to your damage."
 	else:
 		_intro.text = "A pet joins you at character level %d.   You are level %d." % [Config.PET_UNLOCK_LEVEL, SaveData.level]
-	_bond.text = "BOND %d: a pet gives %d%% of its damage bonus (all of it at BOND %d). Raise BOND and teach tricks in the skill tree: CHARACTER, the BOND branch." % [
+	_bond.text = "PET BOND %d: a pet gives %d%% of its damage bonus (all of it at %d). Raise PET BOND on the SKILLS page - it also teaches your pet tricks." % [
 			bond, int(round(Config.pet_bond_share(bond) * 100.0)), Config.PET_BOND_FULL]
 
 	for i in _cards.size():

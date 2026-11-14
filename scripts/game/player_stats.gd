@@ -5,9 +5,9 @@ extends RefCounted
 ##
 ##     base value (Config)
 ##   + character level   (automatic growth per level)
-##   + passive stats     (ranks from the skill tree and from gear)
+##   + passive stats     (ranks bought on the Skills page and from gear)
 ##   + the pet           (adds to damage, up to what its rarity allows)
-##   + keystones         (special powers at the tips of the skill tree)
+##   + keystones         (a stat's special power, won with enough ranks of it)
 ##   + ... gear will plug in here in a later stage
 ##
 ## The player asks for a fresh copy when a run starts and whenever something
@@ -40,7 +40,7 @@ var pet := ""
 var pet_damage := 0.0           # what it adds to the character's damage (already inside damage_mult)
 var pet_bite := 0.0             # damage of one of its bites
 var pet_attack_speed := 1.0     # > 1 = it bites more often
-var pet_fetch := false          # tricks learned in the BOND branch
+var pet_fetch := false          # tricks learned with ranks of PET BOND (Config.PET_TRICK_RANKS)
 var pet_maul := false
 var pet_guard := false
 var pet_feral_speed := 1.0      # FERAL keystone: the pet's attack speed multiplier while the player is badly hurt

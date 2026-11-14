@@ -28,7 +28,6 @@ works on 4.5 and later.
 | Pause      | Esc or P                | Start                |
 | Fullscreen | F11                     | (Settings menu)      |
 | Menus      | Mouse, or arrows + Enter| D-pad / stick, A, B  |
-| Skill tree | Click a node to add a level (drag / scroll to move and zoom) | Stick, A, Y for the side buttons |
 
 ## How it plays
 
@@ -103,16 +102,13 @@ works on 4.5 and later.
 - Kills give **XP**. The blue bar along the bottom is your character level;
   each level makes you a little stronger and gives a **skill point** (the
   highest level is 100, and it is meant to take months to reach).
-- Spend skill points on the **Skills** screen. The skill tree has three
-  families, each in its own colour: **VITALITY** keeps you alive (health,
-  armor, dodging), **STRENGTH** kills faster (damage, fire rate, critical hits) and
-  **INSTINCT** is speed, luck and your pet. Start a family with its first
-  node, then follow a branch: every node has several levels (the little dots
-  under it), and three levels in a node open the next one. Hexagons are
-  **sealed** until you do a deed (the node tells you which); the diamond at
-  the end of a branch is a **keystone**, a special power; the big emblem at
-  the far end can be levelled for ever. The family names show how many
-  points you have put into each. Extra skill points can be bought with coins.
+- Spend skill points on the **Skills** screen. It is a plain list: one row
+  for each thing you can improve - HEALTH, DEFENSE, EVASION, DAMAGE, ATTACK
+  SPEED, CRITICAL, MOVE SPEED, LUCK and PET BOND - with a **+1** button at
+  the end of the row. A rank costs 1 point at first and a little more as the
+  stat gets high; there is no limit. When a stat reaches **rank 15** you
+  also get its special power (the row tells you which). You can buy extra
+  skill points with coins, or take all your points back for a fee.
 - Every weapon also has its **own level**, earned by killing with it. In the
   **Armory** each weapon has one plain page: a row per upgrade (power,
   shooting speed, stability, reload speed, how often its crate appears, how
@@ -143,7 +139,7 @@ works on 4.5 and later.
   pet adds more, up to 15% for the legendary one.
   How much of that you get, how hard the pet bites and which tricks it knows
   (fetching coins and gear, mauling, guarding you, a frenzy) all come from
-  **BOND**, the pet's own branch of the skill tree (in the INSTINCT family).
+  **PET BOND**, a row on the Skills screen (it opens at level 18).
 - Zombies drop **coins**. Everything you earn is saved.
 
 ## Getting the newest version (Mac)
@@ -152,7 +148,7 @@ Close Godot, then double-click **Update Rot Riot.command** inside the project
 folder. A Terminal window opens, downloads the latest version and replaces the
 folder. Your coins, level and upgrades are stored elsewhere and are kept.
 Then open the project in Godot again. The version number is shown in the
-bottom right corner of the main menu (now v0.8.0).
+bottom right corner of the main menu (now v0.9.0).
 
 After an update that changes the upgrade screens, points you had already
 spent are handed back so you can place them again in the new trees.
@@ -162,7 +158,7 @@ spent are handed back so you can place them again in the new trees.
 Open `scripts/config.gd` in Godot (double-click it in the FileSystem panel).
 Every number that matters is there with a comment: player speed, weapon
 damage and fire rates, zombie health, wave sizes, how much harder each map
-is, XP and skill point costs, the skill tree and its prices, weapon upgrades
+is, XP and skill point costs, skill prices and special powers, weapon upgrades
 and perks, every piece of gear with its drop chance and forging odds, every pet
 and what it adds, and all the "feel" values - screen shake, hit stop, knockback, recoil.
 Change a number, press F5, try it.
@@ -217,5 +213,5 @@ godot --headless --fixed-fps 60 -- --bench=250
 ```
 
 The first plays through the whole game automatically (menus, maps, the
-skill tree, weapon upgrades, gear and forging, pets, every weapon, boss, death, levels, save file), the
+skills, weapon upgrades, gear and forging, pets, every weapon, boss, death, levels, save file), the
 second checks every control, the third measures speed with 250 zombies. See `CLAUDE.md` for the design notes.
