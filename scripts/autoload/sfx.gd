@@ -50,6 +50,11 @@ var RECIPES := {
 	"wave_start": [_make_wave_start, -4.0, 0.3],
 	"wave_clear": [_make_wave_clear, -4.0, 0.3],
 	"game_over": [_make_game_over, -2.0, 0.5],
+	"mag_out": [_make_mag_out, -7.0, 0.04],
+	"mag_in": [_make_mag_in, -5.0, 0.04],
+	"rack": [_make_rack, -4.0, 0.04],
+	"shell_in": [_make_shell_in, -5.0, 0.04],
+	"hiss": [_make_hiss, -8.0, 0.1],
 	"level_up": [_make_level_up, -2.0, 0.3],
 	"weapon_level": [_make_weapon_level, -4.0, 0.2],
 	"dodge": [_make_dodge, -5.0, 0.1],
@@ -622,6 +627,48 @@ func _make_game_over(s: Synth) -> void:
 		s.tone(i * 0.26, hold, 0.5, notes[i], notes[i] * 0.985, hold * 0.6, Synth.TRIANGLE, 0.01)
 		s.tone(i * 0.26, hold, 0.3, notes[i] * 0.5, notes[i] * 0.49, hold * 0.6, Synth.SAW, 0.01)
 	s.lowpass(2200.0)
+
+
+# Reload sounds. Every gun uses the same few clicks at its own pitch
+# ("reload_pitch" in Config.WEAPONS): high and light for the pistol and SMG,
+# low and heavy for the machine gun and the launcher.
+func _make_mag_out(s: Synth) -> void:
+	# Release catch, then the magazine sliding out.
+	s.length(0.14)
+	s.noise(0.0, 0.02, 1.0, 0.004, 9000.0, 5000.0, 0.0003, 2500.0)
+	s.noise(0.03, 0.09, 0.5, 0.022, 4200.0, 2000.0, 0.002, 1200.0)
+
+
+func _make_mag_in(s: Synth) -> void:
+	# A solid clack as the fresh magazine seats.
+	s.length(0.16)
+	s.drive = 1.4
+	s.noise(0.0, 0.03, 1.3, 0.006, 6000.0, 2500.0, 0.0003, 900.0)
+	s.noise(0.0, 0.11, 0.8, 0.022, 2600.0, 900.0, 0.0005, 300.0)
+	s.tone(0.0, 0.05, 0.25, 170.0, 125.0, 0.015)
+
+
+func _make_rack(s: Synth) -> void:
+	# "Ch-chk": the slide pulled back and let go.
+	s.length(0.26)
+	s.drive = 1.5
+	s.noise(0.0, 0.05, 1.0, 0.012, 5200.0, 2500.0, 0.0005, 1000.0)
+	s.noise(0.08, 0.07, 1.4, 0.014, 6200.0, 2200.0, 0.0003, 800.0)
+	s.noise(0.08, 0.16, 0.3, 0.04, 2500.0, 900.0, 0.001, 300.0)
+
+
+func _make_shell_in(s: Synth) -> void:
+	# A shell thumbed into the tube.
+	s.length(0.13)
+	s.noise(0.0, 0.03, 1.0, 0.007, 5000.0, 2200.0, 0.0005, 800.0)
+	s.noise(0.02, 0.09, 0.55, 0.022, 2600.0, 1200.0, 0.001, 500.0)
+
+
+func _make_hiss(s: Synth) -> void:
+	# Gas escaping as a fuel tank is unscrewed, with a metal clank.
+	s.length(0.36)
+	s.noise(0.0, 0.03, 0.9, 0.007, 5000.0, 2000.0, 0.0005, 700.0)
+	s.noise(0.02, 0.33, 1.0, 0.11, 9500.0, 6000.0, 0.01, 3000.0)
 
 
 func _make_level_up(s: Synth) -> void:

@@ -24,7 +24,8 @@ works on 4.5 and later.
 | Move       | WASD or arrow keys      | Left stick           |
 | Aim        | Mouse                   | Right stick          |
 | Shoot      | Left mouse button (hold)| Right trigger (hold) |
-| Rage       | Space or right click    | LB, LT or X          |
+| Reload     | R (also automatic)      | X                    |
+| Rage       | Space or right click    | LB or LT             |
 | Pause      | Esc or P                | Start                |
 | Fullscreen | F11                     | (Settings menu)      |
 | Menus      | Mouse, or arrows + Enter| D-pad / stick, A, B  |
@@ -38,6 +39,9 @@ works on 4.5 and later.
   sledgehammer, launcher, flamethrower or chainsaw. The colour of a crate's
   glow shows how rare it is (white = common, green = uncommon, blue = rare).
   An arrow at the edge of the screen points to crates out of view.
+- **Reloading:** guns reload by themselves when empty, or press R to reload
+  early. The shotgun loads one shell at a time and you can fire in between.
+  Activating rage refills your magazine instantly.
 - **Dual wielding:** pick up a crate of the weapon you are already holding
   (it shows "x2") and you get one in each hand. Works with the pistol, SMG,
   shotgun and machine gun. A pistol crate always gives you two pistols.
@@ -52,6 +56,13 @@ works on 4.5 and later.
   weapon's points in the **Armory** on its power, shooting speed, stability,
   how often its crate appears and how long it lasts.
 - Zombies drop **coins**. Everything you earn is saved.
+
+## Getting the newest version (Mac)
+
+Close Godot, then double-click **Update Rot Riot.command** inside the project
+folder. A Terminal window opens, downloads the latest version and replaces the
+folder. Your coins, level and upgrades are stored elsewhere and are kept.
+Then open the project in Godot again.
 
 ## Tuning the game
 

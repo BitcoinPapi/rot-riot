@@ -59,7 +59,7 @@ func _init() -> void:
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 16)
 	_icon = TextureRect.new()
-	_icon.custom_minimum_size = Vector2(170, 66)
+	_icon.custom_minimum_size = Vector2(220, 80)
 	_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	head.add_child(_icon)
@@ -74,7 +74,7 @@ func _init() -> void:
 	name_row.add_child(_level)
 	head_text.add_child(name_row)
 	_xp_bar = UiKit.Bar.new()
-	_xp_bar.custom_minimum_size = Vector2(360, 14)
+	_xp_bar.custom_minimum_size = Vector2(320, 14)
 	head_text.add_child(_xp_bar)
 	_xp_text = UiKit.label("", 13, UiKit.DIM)
 	head_text.add_child(_xp_text)
@@ -178,7 +178,7 @@ func _refresh() -> void:
 		b.text = "%s    LV %d%s" % [String(Config.WEAPONS[id]["name"]), SaveData.weapon_level(id), badge]
 
 	var w: Dictionary = Config.WEAPONS[_selected]
-	_icon.texture = Art.t("gun_" + _selected)
+	_icon.texture = Art.t("icon_" + _selected)
 	_name.text = String(w["name"])
 	_name.add_theme_color_override("font_color", w["color"])
 	_level.text = "LEVEL %d" % SaveData.weapon_level(_selected)

@@ -19,6 +19,11 @@ var weapon: Dictionary = Config.WEAPONS[Config.STARTER_WEAPON]
 var weapon_time := 0.0          # seconds left on a crate weapon
 var weapon_time_max := 0.0      # what it started with (for the HUD bar)
 var dual := false               # holding one in each hand
+var ammo := 0                   # shots left in the magazine
+var mag_size := 0               # 0 = this weapon never reloads
+var reloading := false
+var wounded := false            # below Config.PLAYER_WOUNDED_AT health: bloodied, bandaged, dripping
+var reload_progress := 0.0      # 0..1 while reloading (HUD ring + animation)
 var fire_cd := 0.0
 var invuln := 0.0               # seconds of safety left after being hit
 var push_vel := Vector2.ZERO    # recoil shove
@@ -33,6 +38,9 @@ var _gun_kick := 0.0
 var _swing := 0.0               # melee swing animation, 1 -> 0
 var _swing_side := 1.0
 var _dual_side := 1.0           # which hand fired last
+var _reload_left := 0.0
+var _reload_total := 1.0
+var _reload_stage := 0          # which reload sound has played so far
 var _walk_phase := 0.0
 var _time := 0.0
 var _gun_tex: Texture2D
@@ -82,6 +90,11 @@ func tick(delta: float) -> void:
 	if move_input != Vector2.ZERO:
 		_walk_phase += delta * 14.0
 
+	# Badly hurt: the sprite changes and you leave drops of your own blood.
+	wounded = hp < max_hp * Config.PLAYER_WOUNDED_AT
+	if wounded and randf() < Config.PLAYER_DRIP_RATE * delta:
+		game.decals.blood_dot(pos + Vector2(randf_range(-6.0, 6.0), randf_range(-6.0, 6.0)), randf_range(3.0, 6.0))
+
 	# --- aim ---
 	aim = GameInput.get_aim_direction(self)
 	rotation = aim.angle()
@@ -97,10 +110,20 @@ func tick(delta: float) -> void:
 			_set_weapon(Config.STARTER_WEAPON)
 			Sfx.play("weapon_expire")
 
-	# --- fire ---
+	# --- reload and fire ---
+	if reloading:
+		_tick_reload(delta)
 	fire_cd -= delta
 	if GameInput.is_firing() and fire_cd <= 0.0:
-		_fire()
+		if mag_size > 0 and ammo <= 0:
+			start_reload()
+		elif reloading:
+			# Loading shells one by one can be cut short by firing; a magazine swap cannot.
+			if String(weapon["reload_kind"]) == "shell" and ammo > 0:
+				reloading = false
+				_fire()
+		else:
+			_fire()
 
 	queue_redraw()
 
@@ -169,6 +192,87 @@ func _fire() -> void:
 	game.hud.fired(float(w["recoil_gun"]))
 	Sfx.play(String(w["sound"]))
 
+	# Magazine: when the last round is gone the reload starts by itself.
+	if mag_size > 0:
+		ammo -= 1
+		if ammo <= 0:
+			start_reload()
+
+
+# ----------------------------------------------------------------------------
+#  Reloading
+# ----------------------------------------------------------------------------
+## Begin a reload (R / gamepad X, or automatically when the magazine is empty).
+func start_reload() -> void:
+	if not alive or mag_size <= 0 or reloading or ammo >= mag_size:
+		return
+	var w := weapon
+	reloading = true
+	reload_progress = 0.0
+	_reload_stage = 0
+	_reload_total = float(w["reload_time"]) / _reload_speed()
+	if String(w["reload_kind"]) == "shell":
+		_reload_left = _reload_total + Config.SHELL_FIRST_DELAY
+		return
+	_reload_left = _reload_total
+	Sfx.play_pitched(String(w.get("reload_start", "mag_out")), float(w["reload_pitch"]))
+	# The empty magazine falls and stays on the ground for the rest of the run.
+	var debris := String(w["mag_debris"])
+	if debris != "":
+		var side := Vector2(-aim.y, aim.x)
+		if dual:
+			game.fx.mag_drop(pos + aim * 10.0 + side * DUAL_HAND_OFFSET, aim, debris)
+			game.fx.mag_drop(pos + aim * 10.0 - side * DUAL_HAND_OFFSET, aim, debris)
+		else:
+			game.fx.mag_drop(pos + aim * 12.0, aim, debris)
+
+
+## Fire-rate bonuses (dexterity, the weapon's SHOOTING SPEED) also speed up reloads.
+func _reload_speed() -> float:
+	var speed: float = stats.fire_rate_mult * float(wmods["fire_rate"])
+	if game.rage_active:
+		speed *= Config.RELOAD_RAGE_MULT
+	return speed
+
+
+func _tick_reload(delta: float) -> void:
+	var w := weapon
+	var pitch: float = w["reload_pitch"]
+	_reload_left -= delta
+	if String(w["reload_kind"]) == "shell":
+		# One shell at a time; the pump is racked after the last one.
+		reload_progress = float(ammo) / float(mag_size)
+		if _reload_left <= 0.0:
+			ammo += 1
+			_gun_kick = 3.0
+			Sfx.play_pitched("shell_in", pitch * randf_range(0.95, 1.05))
+			if ammo >= mag_size:
+				reloading = false
+				_gun_kick = 7.0
+				Sfx.play_pitched("rack", pitch * 0.85)
+			else:
+				_reload_left = float(w["reload_time"]) / _reload_speed()
+		return
+	# Magazine swap: out (at the start), in, rack - then it is ready.
+	reload_progress = clampf(1.0 - _reload_left / _reload_total, 0.0, 1.0)
+	if _reload_stage == 0 and reload_progress >= Config.RELOAD_MAG_IN_AT:
+		_reload_stage = 1
+		_gun_kick = 3.0
+		Sfx.play_pitched(String(w.get("reload_mid", "mag_in")), pitch)
+	if _reload_stage == 1 and reload_progress >= Config.RELOAD_RACK_AT:
+		_reload_stage = 2
+		_gun_kick = 7.0
+		Sfx.play_pitched(String(w.get("reload_end", "rack")), pitch)
+	if _reload_left <= 0.0:
+		ammo = mag_size
+		reloading = false
+
+
+## Top the magazine up instantly (used when rage is activated).
+func refill_ammo() -> void:
+	ammo = mag_size
+	reloading = false
+
 
 ## Melee: hits every zombie inside the arc in front of the player. The
 ## sledgehammer swings (slow, huge); the chainsaw is held out and bites
@@ -214,6 +318,8 @@ func give_weapon(id: String) -> void:
 	var make_dual: bool = bool(cfg["dual"]) and (id == weapon_id or id == Config.STARTER_WEAPON)
 	_set_weapon(id)
 	dual = make_dual
+	mag_size = int(cfg["mag"]) * (Config.DUAL_MAG_MULT if dual else 1)
+	ammo = mag_size
 	var duration: float = float(cfg["duration"]) * float(wmods["duration"])
 	if id == Config.STARTER_WEAPON:
 		duration = Config.DUAL_PISTOL_DURATION
@@ -241,6 +347,9 @@ func _set_weapon(id: String) -> void:
 	weapon_time = 0.0
 	weapon_time_max = 0.0
 	dual = false
+	mag_size = int(weapon["mag"])
+	ammo = mag_size
+	reloading = false
 	wmods = PlayerStats.weapon_mods(id)
 	_gun_tex = Art.t("gun_" + id)
 	_gun_size = Art.size_of("gun_" + id)
@@ -280,9 +389,22 @@ func _draw() -> void:
 	# Body, with a small squash while walking.
 	var bob := 1.0 + sin(_walk_phase) * 0.035
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, bob))
-	var body := "player_flash" if _flash > 0.0 else "player"
+	var body := "player_flash" if _flash > 0.0 else ("player_hurt" if wounded else "player")
 	var tint := Color(1.0, 0.75, 0.7, alpha) if game.rage_active else Color(1, 1, 1, alpha)
 	Art.draw(self, body, Vector2.ZERO, 1.0, tint)
+
+	# Reload animation: the gun is pulled in and tipped over while the magazine
+	# is swapped, then snaps back out (the snap is the _gun_kick on the rack).
+	var reload_tilt := 0.0
+	var reload_pull := 0.0
+	if reloading:
+		if String(weapon["reload_kind"]) == "shell":
+			reload_tilt = 0.34
+			reload_pull = 2.0
+		else:
+			var ease_in_out := clampf(minf(reload_progress / 0.15, (1.0 - reload_progress) / 0.15), 0.0, 1.0)
+			reload_tilt = 0.8 * ease_in_out
+			reload_pull = 5.0 * ease_in_out
 
 	# Weapon in hand.
 	var gun_tint := Color(1, 1, 1, alpha)
@@ -297,12 +419,12 @@ func _draw() -> void:
 	elif dual:
 		# One in each hand; only the one that just fired kicks back.
 		for side: float in [-1.0, 1.0]:
-			var kick := _gun_kick if side == _dual_side else 0.0
-			draw_set_transform(Vector2(7.0 - kick, DUAL_HAND_OFFSET * side), 0.0, Vector2.ONE)
+			var kick := _gun_kick if (side == _dual_side or reloading) else 0.0
+			draw_set_transform(Vector2(7.0 - kick - reload_pull, DUAL_HAND_OFFSET * side), reload_tilt * side, Vector2.ONE)
 			draw_texture_rect(_gun_tex, Rect2(Vector2(0.0, -_gun_size.y * 0.5), _gun_size), false, gun_tint)
 	else:
 		# A running chainsaw shudders in the hands.
 		var shudder := Vector2(0.0, sin(_time * 95.0) * 0.9) if is_melee else Vector2.ZERO
-		draw_set_transform(Vector2(7.0 - _gun_kick, 0.0) + shudder, 0.0, Vector2.ONE)
+		draw_set_transform(Vector2(7.0 - _gun_kick - reload_pull, 0.0) + shudder, reload_tilt, Vector2.ONE)
 		draw_texture_rect(_gun_tex, Rect2(Vector2(0.0, -_gun_size.y * 0.5), _gun_size), false, gun_tint)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

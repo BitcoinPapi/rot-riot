@@ -95,6 +95,8 @@ func spawn(kind: int, at: Vector2, hp_mult: float = 1.0, speed_mult: float = 1.0
 	e.spawn_t = Config.SUMMON_RISE_TIME if rising else 0.0
 	e.burn_t = 0.0
 	e.burn_dps = 0.0
+	e.wounded = false
+	e.sway = 0.06 if kind == Config.BOSS else 0.13
 	e.phase = randf() * TAU
 	e.flank = Vector2.from_angle(randf() * TAU) * (randf() * Config.ENEMY_FLANK_SPREAD)
 	e.entered = game.arena.rect.grow(-e.radius).has_point(at)
@@ -117,6 +119,7 @@ func spawn(kind: int, at: Vector2, hp_mult: float = 1.0, speed_mult: float = 1.0
 		bigs.append(e)
 	e.tex_normal = Art.enemy_tex(kind, e.variant)
 	e.tex_flash = Art.enemy_flash_tex(kind)
+	e.tex_hurt = Art.enemy_hurt_tex(kind, e.variant)
 	e.texture = e.tex_normal
 	e.base_scale = 1.0 / Art.PX
 	e.scale = Vector2(e.base_scale, e.base_scale)
@@ -183,6 +186,8 @@ func tick(dt: float) -> void:
 	var player_share: float = Config.PLAYER_PUSHED_BY_ENEMIES
 	var runner: int = Config.RUNNER
 	var crowd_free: int = Config.ENEMY_CROWD_FREE
+	var drip: float = Config.WOUNDED_DRIP_RATE * dt
+	var decals := game.decals
 	var push_total := Vector2.ZERO
 	var has_bigs := not bigs.is_empty()
 
@@ -204,6 +209,8 @@ func tick(dt: float) -> void:
 		# On fire: steady damage, a few flames, and a charred body if it dies.
 		if e.burn_t > 0.0:
 			e.hp -= e.burn_dps * dt
+			if not e.wounded and e.hp < e.max_hp * Config.WOUNDED_AT:
+				_wound(e)
 			if randf() < dt * 7.0:
 				game.fx.ember(e.pos, e.radius)
 			if e.hp <= 0.0:
@@ -323,7 +330,10 @@ func tick(dt: float) -> void:
 
 		e.pos = epos
 		e.position = epos
-		e.rotation = e.face + sin(e.phase) * 0.13
+		e.rotation = e.face + sin(e.phase) * e.sway
+		# A badly hurt zombie leaves a trail of blood behind it.
+		if e.wounded and randf() < drip:
+			decals.blood_dot(epos + Vector2(randf_range(-5.0, 5.0), randf_range(-5.0, 5.0)), randf_range(3.0, 6.5))
 
 	if push_total != Vector2.ZERO and player_alive:
 		player.pos = arena.resolve(player.pos + push_total.limit_length(Config.PLAYER_MAX_PUSH_PER_FRAME), pr)
@@ -449,7 +459,9 @@ func _tick_boss(e: Enemy, dt: float) -> void:
 			player.pos = arena.resolve(e.pos + n * prr, player.radius)
 
 	e.position = e.pos
-	e.rotation = e.face + sin(e.phase) * 0.06
+	e.rotation = e.face + sin(e.phase) * e.sway
+	if e.wounded and randf() < Config.WOUNDED_DRIP_RATE * 3.0 * dt:
+		game.decals.blood_dot(e.pos + Vector2(randf_range(-30.0, 30.0), randf_range(-30.0, 30.0)), randf_range(6.0, 13.0))
 
 
 # ----------------------------------------------------------------------------
@@ -463,6 +475,8 @@ func damage(e: Enemy, amount: float, dir: Vector2, knockback: float, stagger: fl
 	if not e.alive:
 		return false
 	e.hp -= amount
+	if not e.wounded and e.hp > 0.0 and e.hp < e.max_hp * Config.WOUNDED_AT:
+		_wound(e)
 	if crit:
 		game.fx.crit_spark(e.pos, dir)
 		Sfx.play("crit", -4.0)
@@ -479,6 +493,16 @@ func damage(e: Enemy, amount: float, dir: Vector2, knockback: float, stagger: fl
 		return true
 	Sfx.play("zombie_hit", -6.0)
 	return false
+
+
+## The zombie is badly hurt: from now on it shows its wounds, limps and bleeds.
+func _wound(e: Enemy) -> void:
+	e.wounded = true
+	e.tex_normal = e.tex_hurt
+	if e.flash_t <= 0.0:
+		e.texture = e.tex_hurt
+	e.speed *= Config.WOUNDED_SPEED_MULT
+	e.sway *= Config.WOUNDED_LIMP
 
 
 ## Set a zombie on fire (flamethrower). Refreshes the timer if it already burns.

@@ -68,7 +68,7 @@ func opened() -> void:
 		_stats.text = "BEST SCORE %d   -   BEST WAVE %d   -   ZOMBIES KILLED %d" % [
 			SaveData.best_score, SaveData.best_wave, SaveData.total_kills]
 	else:
-		_stats.text = "WASD move  -  MOUSE aim  -  LEFT CLICK shoot  -  SPACE rage  (gamepad works too)"
+		_stats.text = "WASD move  -  MOUSE aim  -  LEFT CLICK shoot  -  R reload  -  SPACE rage  (gamepad works too)"
 	_notice.text = "New progression system: your old coins and upgrades were reset." if SaveData.was_reset_by_update else ""
 	_notice.visible = SaveData.was_reset_by_update
 	_first.grab_focus()

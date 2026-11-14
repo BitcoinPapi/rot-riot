@@ -50,7 +50,9 @@ Other dev flags (all after `--`, see `scripts/dev/dev_tools.gd`): `--play`,
 `--god`, `--wave=N`, `--weapon=ID`, `--dual`, `--keep-weapon`, `--no-crates`, `--no-rage`,
 `--cycle`, `--level=N`, `--coins=N`, `--screen=character|armory|settings|pause|gameover`,
 `--shot=PATH --shot-frame=N` (screenshot; needs a real display, e.g. `xvfb-run`),
-`--dump-sfx=DIR` (writes every generated sound as .wav).
+`--dump-sfx=DIR` (writes every generated sound as .wav),
+`--gallery=PREFIX[,PREFIX] --gallery-scale=N` (shows generated sprites enlarged, e.g.
+`--gallery=icon_` or `--gallery=boss_0,player`; combine with `--shot` to review art).
 
 Definition of done for any change: `--autotest` and `--inputtest` pass, and
 the `-d` run prints zero `WARNING` / `SCRIPT ERROR` lines.
@@ -87,6 +89,8 @@ scripts/ui/              ui_kit.gd (theme + helpers), menu_background, main_menu
                          armory_screen, settings_screen, pause_menu, game_over_screen
 scripts/dev/dev_tools.gd bot, autotest, input test, benchmark, screenshots (only with CLI args)
 assets/sprites/, assets/sfx/   empty; drop-in overrides for generated art and sounds
+Update Rot Riot.command  double-click updater for the owner's Mac (downloads main from GitHub,
+                         replaces the project folder; the save file lives elsewhere)
 ```
 
 ## Design
@@ -123,17 +127,38 @@ drop a crate.
   each hand if the weapon has `"dual": true` (pistol, SMG, shotgun, machine
   gun): about 1.8x fire rate, more spread and recoil. A pistol crate always
   gives dual pistols for 25 s. Crates that would dual show "x2".
+- *Reloading:* every gun has a magazine (`mag`) and reloads when empty or on
+  R / gamepad X (`GameInput.reload_pressed`). `reload_kind: "mag"` swaps the
+  whole magazine and blocks firing; `"shell"` (shotgun) loads one round at a
+  time and firing interrupts it. The launcher holds one round, so every shot
+  is followed by a reload. Melee weapons have `mag: 0`. Reload speed scales
+  with fire-rate bonuses (dexterity, the weapon's shooting-speed track) and
+  rage; activating rage refills the magazine. Each reload plays three shared
+  clicks (`mag_out`, `mag_in`, `rack`; shotgun `shell_in`; flamethrower
+  `hiss`) at the weapon's `reload_pitch`, tips the gun in the player's hands,
+  and drops an empty magazine / box / clip / shell case / fuel can that stays
+  on the ground like casings. HUD: ammo count in the weapon panel and under
+  the crosshair (red when low), a ring around the crosshair while reloading.
+- *Gun art:* each weapon has a detailed side-view picture (`icon_<id>`,
+  220x80, in `art.gd`) used on the HUD and in the Armory, plus a small
+  top-down sprite (`gun_<id>`) held by the player and shown on crates.
 - Weapon strength is compared with
   `--bench=150 --no-crates --no-rage --weapon=ID [--dual]` (kills in 15 s).
-  Last measured: pistol 35, SMG 69, shotgun 100, rifle 121, machine gun 136,
-  dual machine gun 264, chainsaw ~380, sledgehammer ~350, launcher ~510,
-  flamethrower ~600. Melee and flame numbers are flattered by the test (the
-  bot cannot die); real play punishes short range.
+  Last measured (with reloading): pistol 32, dual pistols 37, SMG 67,
+  shotgun 93, rifle 106, machine gun 124, dual machine gun 199, launcher
+  ~500, flamethrower ~620; sledgehammer ~350 and chainsaw ~380 do not
+  reload. Melee and flame numbers are flattered by the test (the bot cannot
+  die); real play punishes short range.
 
 **Enemies** (`Config.ENEMIES`): Shambler (basic), Runner (fast, zig-zags),
 Brute (tank, resists knockback and stagger), boss "The Gorger" every 5th wave
 (charge with a telegraphed wind-up, dazed afterwards; summons shamblers out of
 the ground; +60% HP each time it returns).
+*Wounded look:* below 30% health (`WOUNDED_AT`) a zombie switches to its
+`<sprite>_hurt` texture (gashes, bare ribs, a lost eye), limps, walks a
+little slower and leaves a trail of blood drops; its corpse keeps the wounds.
+The player gets a bloodied, bandaged sprite and drips blood below 30% too.
+Every new enemy or character needs a `_hurt` variant.
 
 **Waves** (`Config.wave_*` helpers): count = 22 + 13(w-1) + 1.5(w-1)^2, capped
 at 500 per wave and 240 alive. Zombies arrive in packs from the tree line so
@@ -228,8 +253,9 @@ effects were ~280 draw calls. Not yet measured on the owner's hardware.
   (length, loudness, brightness, how tonal they are), never listen. Owner
   feedback on v1: guns "sounded like lasers" (cause: fast high-to-low pitch
   sweeps). v2 guns are noise crack + body + low thump + echo tail with no
-  sweeps above ~200 Hz; not yet heard by the owner. Never add gliding tones
-  above ~200 Hz to a gun sound.
+  sweeps above ~200 Hz, and the owner says they sound much better. Never add
+  gliding tones above ~200 Hz to a gun sound. The newer sounds (SMG, rifle,
+  flamethrower, chainsaw, reload clicks) have not been heard yet.
 - A physical gamepad (only simulated gamepad events were tested).
 - The exported Windows .exe and macOS .app on real Windows / macOS machines
   (exports succeed and the exported game data passes the autotest on Linux).
@@ -238,12 +264,19 @@ effects were ~280 draw calls. Not yet measured on the owner's hardware.
 
 - Loved: the gore, corpses/blood/casings staying on the ground, the shooting.
 - Rage shook the screen too much -> `RAGE_SHAKE_MULT` (done).
-- Guns sounded like lasers -> rebuilt (done, awaiting feedback).
+- Guns sounded like lasers -> rebuilt. Owner: "the guns sound much better".
 - Far too easy (reached wave 15 on the first run and had to die on purpose)
   and upgrades far too cheap -> difficulty/economy pass: bigger and faster
   waves from several sides, tougher zombies. The owner then reported "it is
   harder, I reach about 5-6", which is about right for a new character.
 - Wants a hard character level cap of 100 that takes months (done).
+- Wants every gun to "look and feel amazing": reload animation and sound per
+  gun, detailed gun art (done, awaiting feedback); keep raising this bar.
+- Wants enemies and characters to look damaged under 30% health, with the
+  player still looking tough (done, awaiting feedback).
+- The owner's Mac: browser downloads do not work there, so updates go through
+  Terminal (curl) or the double-click updater. Always give the full update
+  command and say plainly that Return must be pressed.
 
 ## Roadmap (owner's requests, in the agreed build order)
 

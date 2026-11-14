@@ -20,6 +20,8 @@ extends Node
 ##                      (add --weapon=ID --no-crates --no-rage to compare weapons fairly)
 ##   --no-crates        no weapon crates appear (works with --bot too)
 ##   --no-rage          the bot never uses rage
+##   --gallery=PREFIX   show every generated sprite whose name starts with PREFIX, enlarged
+##                      (--gallery-scale=N to change the size) - for checking art
 ##   --dump-sfx=DIR     write every generated sound to DIR as .wav files, then quit
 ##   --coins=N          start with N coins (dev runs use a throwaway save file,
 ##                      never the player's real one, unless --real-save is given)
@@ -62,6 +64,8 @@ func _ready() -> void:
 			SaveData.raise_weapon_track("pistol", "power")
 			SaveData.raise_weapon_track("pistol", "power")
 			SaveData.raise_weapon_track("shotgun", "spawn")
+	if _args.has("gallery"):
+		_show_gallery.call_deferred()
 	if _args.has("autotest"):
 		_run_autotest.call_deferred()
 	if _args.has("inputtest"):
@@ -344,6 +348,77 @@ func _run_autotest() -> void:
 	await _frames(5)
 	_check(pl.weapon_id == "pistol" and not pl.dual and pl.weapon_time <= 0.0, "dual pistols run out back to one pistol")
 
+	# --- reloading ---
+	var waited := 0
+	_auto_bot = false
+	GameInput.set_virtual_input(Vector2.ZERO, Vector2.RIGHT, false)
+	pl.give_weapon("smg")
+	var smg_mag: int = Config.WEAPONS["smg"]["mag"]
+	_check(pl.mag_size == smg_mag and pl.ammo == smg_mag, "a picked-up gun has a full magazine")
+	pl.ammo = 2
+	GameInput.set_virtual_input(Vector2.ZERO, Vector2.RIGHT, true)
+	waited = 0
+	while not pl.reloading and waited < 120:
+		pl.hp = pl.max_hp
+		await _frames(1)
+		waited += 1
+	_check(pl.reloading and pl.ammo == 0, "an empty magazine starts a reload by itself")
+	var shots_before := game.projectiles.spawned_total
+	await _frames(10)
+	_check(game.projectiles.spawned_total == shots_before, "the gun cannot fire during a magazine swap")
+	waited = 0
+	while pl.reloading and waited < 300:
+		pl.hp = pl.max_hp
+		await _frames(1)
+		waited += 1
+	_check(not pl.reloading and pl.ammo > 0, "the reload finishes with a fresh magazine (%d frames)" % waited)
+	GameInput.set_virtual_input(Vector2.ZERO, Vector2.RIGHT, false)
+	await _frames(3)
+	pl.ammo = 5
+	pl.reloading = false
+	GameInput.press_reload()
+	await _frames(2)
+	_check(pl.reloading, "the reload button reloads a part-used magazine")
+	pl.refill_ammo()
+	GameInput.press_reload()
+	await _frames(2)
+	_check(not pl.reloading, "a full magazine is not reloaded")
+	pl.give_weapon("shotgun")
+	pl.ammo = 0
+	pl.start_reload()
+	waited = 0
+	while pl.ammo < 2 and waited < 200:
+		pl.hp = pl.max_hp
+		await _frames(1)
+		waited += 1
+	_check(pl.reloading and pl.ammo == 2, "the shotgun loads one shell at a time")
+	GameInput.set_virtual_input(Vector2.ZERO, Vector2.RIGHT, true)
+	pl.fire_cd = 0.0
+	await _frames(3)
+	_check(not pl.reloading or pl.ammo < 2, "firing cuts a shell-by-shell reload short")
+	GameInput.set_virtual_input(Vector2.ZERO, Vector2.RIGHT, false)
+	pl.give_weapon("sledge")
+	_check(pl.mag_size == 0 and not pl.reloading, "melee weapons never reload")
+	pl.give_weapon("pistol")
+	pl.give_weapon("pistol")
+	var pistol_mag: int = Config.WEAPONS["pistol"]["mag"]
+	_check(pl.mag_size == pistol_mag * Config.DUAL_MAG_MULT, "dual wielding has two magazines")
+	_auto_bot = true
+
+	# --- wounded looks ---
+	var hurt := game.enemies.spawn(Config.BRUTE, game.arena.clamp_inside(pl.pos + Vector2(-400, 0), 40.0))
+	_check(not hurt.wounded, "a fresh zombie is not wounded")
+	game.enemies.damage(hurt, hurt.max_hp * 0.75, Vector2.RIGHT, 0.0, 0.0, 0.0)
+	_check(hurt.alive and hurt.wounded and hurt.tex_normal == hurt.tex_hurt, "a zombie under 30% health shows its wounds")
+	pl.hp = pl.max_hp * 0.2
+	pl.invuln = 5.0
+	await _frames(2)
+	_check(pl.wounded, "the player looks battle-worn under 30% health")
+	pl.hp = pl.max_hp
+	pl.invuln = 0.0
+	await _frames(2)
+	_check(not pl.wounded, "and recovers the normal look when healed")
+
 	# --- crate rarity ---
 	_check(Config.crate_weight("launcher") < Config.crate_weight("machinegun")
 			and Config.crate_weight("machinegun") < Config.crate_weight("shotgun"), "rarer weapons are less likely to be in a crate")
@@ -376,11 +451,14 @@ func _run_autotest() -> void:
 	# --- rage ---
 	game.player.hp = game.player.max_hp
 	game.rage = Config.RAGE_MAX
+	game.player.give_weapon("smg")
+	game.player.ammo = 1
 	GameInput.press_rage()
 	await _frames(2)
 	_check(game.rage_active, "rage activates when the meter is full")
+	_check(game.player.ammo >= game.player.mag_size - 3, "activating rage refills the magazine")
 	# Hit stops freeze game time, so rage lasts a little longer in real frames.
-	var waited := 0
+	waited = 0
 	while game.rage_active and waited < int(Config.RAGE_DURATION * 60.0) * 2:
 		game.player.hp = game.player.max_hp
 		await _frames(1)
@@ -400,12 +478,13 @@ func _run_autotest() -> void:
 	_check(game.director.boss_alive(), "boss appears on wave %d" % Config.BOSS_EVERY)
 	if game.director.boss_alive():
 		var boss := game.director.boss
-		waited = 0
-		while boss.alive and boss.hp >= boss.max_hp and waited < 1500:
-			game.player.hp = game.player.max_hp
-			await _frames(1)
-			waited += 1
-		_check(boss.hp < boss.max_hp, "bullets hurt the boss")
+		# Fire one bullet straight at it from close by (bosses are too big for
+		# the zombie grid and are hit through a separate check).
+		var boss_hp := boss.hp
+		var muzzle := boss.pos + Vector2(boss.radius + 60.0, 0.0)
+		game.projectiles.spawn(muzzle, Vector2.LEFT, Config.WEAPONS["pistol"], "pistol", 25.0, 0.0)
+		await _frames(6)
+		_check(boss.hp < boss_hp, "bullets hurt the boss")
 		# Let it run its charge / summon logic for a while, then finish it off.
 		for i in 600:
 			game.player.hp = game.player.max_hp
@@ -595,6 +674,14 @@ func _run_inputtest() -> void:
 	await _frames(3)
 	_check(not GameInput.is_firing(), "releasing the button stops firing")
 
+	# --- reload on R ---
+	p.ammo = 3
+	_key(KEY_R, true)
+	await _frames(2)
+	_key(KEY_R, false)
+	_check(p.reloading, "R reloads")
+	p.refill_ammo()
+
 	# --- rage on Space ---
 	game.rage = Config.RAGE_MAX
 	_key(KEY_SPACE, true)
@@ -651,6 +738,12 @@ func _run_inputtest() -> void:
 	_check(not GameInput.is_firing(), "releasing the trigger stops firing")
 	game.rage_active = false
 	game.rage = Config.RAGE_MAX
+	p.ammo = 3
+	_pad_button(JOY_BUTTON_X, true)
+	await _frames(2)
+	_pad_button(JOY_BUTTON_X, false)
+	_check(p.reloading and not game.rage_active, "X reloads (and no longer triggers rage)")
+	p.refill_ammo()
 	_pad_button(JOY_BUTTON_LEFT_SHOULDER, true)
 	await _frames(2)
 	_pad_button(JOY_BUTTON_LEFT_SHOULDER, false)
@@ -686,3 +779,44 @@ func _run_inputtest() -> void:
 	else:
 		print("INPUTTEST FAILED: %d problem(s)" % _auto_failures.size())
 		_quit(1)
+
+
+# ----------------------------------------------------------------------------
+#  Art gallery: lays out generated sprites on a plain background.
+# ----------------------------------------------------------------------------
+func _show_gallery() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 100
+	add_child(layer)
+	var board := DrawLayer.new()
+	board.painter = _paint_gallery
+	layer.add_child(board)
+
+
+func _paint_gallery(ci: CanvasItem) -> void:
+	var prefixes := String(_args["gallery"]).split(",")
+	var zoom := float(_args.get("gallery-scale", "1.5"))
+	var view := get_viewport().get_visible_rect().size
+	ci.draw_rect(Rect2(Vector2.ZERO, view), Color("5d5646"))
+	var names: Array = Art.tex.keys()
+	names.sort()
+	var font := ThemeDB.fallback_font
+	var x := 16.0
+	var y := 16.0
+	var row_h := 0.0
+	for sprite: String in names:
+		var wanted := false
+		for prefix: String in prefixes:
+			if sprite.begins_with(prefix):
+				wanted = true
+		if not wanted or sprite.ends_with("_flash"):
+			continue
+		var s: Vector2 = Art.size_of(sprite) * zoom
+		if x + s.x > view.x - 16.0:
+			x = 16.0
+			y += row_h + 26.0
+			row_h = 0.0
+		ci.draw_texture_rect(Art.t(sprite), Rect2(Vector2(x, y), s), false)
+		ci.draw_string(font, Vector2(x, y + s.y + 14.0), sprite, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color(1, 1, 1, 0.8))
+		x += maxf(s.x, 90.0) + 18.0
+		row_h = maxf(row_h, s.y)

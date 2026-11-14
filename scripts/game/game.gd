@@ -94,6 +94,7 @@ func _ready() -> void:
 	hud_layer.add_child(hud)
 
 	GameInput.rage_pressed.connect(try_activate_rage)
+	GameInput.reload_pressed.connect(_on_reload_pressed)
 
 
 func _process(delta: float) -> void:
@@ -266,11 +267,18 @@ func rage_ready() -> bool:
 	return state == State.PLAYING and not rage_active and rage >= Config.RAGE_MAX
 
 
+func _on_reload_pressed() -> void:
+	if state == State.PLAYING and not get_tree().paused:
+		player.start_reload()
+
+
 func try_activate_rage() -> void:
 	if get_tree().paused or not rage_ready():
 		return
 	rage_active = true
 	rage_time = Config.RAGE_DURATION
+	if Config.RAGE_REFILLS_AMMO:
+		player.refill_ammo()
 	# The activation itself is a weapon: a blast that throws the horde back.
 	enemies.shockwave(player.pos, Config.RAGE_BURST_RADIUS, Config.RAGE_BURST_FORCE, Config.RAGE_BURST_DAMAGE, Config.RAGE_BURST_STAGGER)
 	fx.ring(player.pos, 20.0, Config.RAGE_BURST_RADIUS, 0.4, Color(1.0, 0.35, 0.15, 0.95))

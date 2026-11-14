@@ -149,33 +149,56 @@ func _draw_health_and_rage(p: Player) -> void:
 func _draw_weapon(p: Player, h: float) -> void:
 	var w: Dictionary = p.weapon
 	var color: Color = w["color"]
-	var x := 26.0
-	var y := h - 34.0
-	var gun: Texture2D = Art.t("gun_" + p.weapon_id)
-	var gsize := Art.size_of("gun_" + p.weapon_id) * 2.2
-	draw_rect(Rect2(x - 6, y - 62, 350, 78), Color(0, 0, 0, 0.5))
+	var px := 20.0
+	var pw := 372.0
+	var ph := 96.0
+	var py := h - 18.0 - ph
+	draw_rect(Rect2(px, py, pw, ph), Color(0, 0, 0, 0.55))
+
+	# The weapon's picture (two of them when dual wielding).
+	var icon: Texture2D = Art.t("icon_" + p.weapon_id)
+	var icon_rect := Rect2(px + 8.0, py + 8.0, 132.0, 48.0)
 	if p.dual:
-		draw_texture_rect(gun, Rect2(Vector2(x + 4, y - 40 - gsize.y * 0.5), gsize), false)
-		draw_texture_rect(gun, Rect2(Vector2(x + 4, y - 18 - gsize.y * 0.5), gsize), false)
+		draw_texture_rect(icon, Rect2(icon_rect.position + Vector2(10, 12), icon_rect.size), false, Color(0.55, 0.55, 0.6))
+		draw_texture_rect(icon, Rect2(icon_rect.position + Vector2(-2, -4), icon_rect.size), false)
 	else:
-		draw_texture_rect(gun, Rect2(Vector2(x + 4, y - 30 - gsize.y * 0.5), gsize), false)
-	_text(Vector2(x + 128, y - 28), p.weapon_label(), 20, color)
-	# The weapon's own level and how close it is to the next one.
+		draw_texture_rect(icon, icon_rect, false)
+
+	# Its own level and how close it is to the next one.
 	var wlevel := SaveData.weapon_level(p.weapon_id)
 	var wfrac := clampf(float(SaveData.weapon_xp(p.weapon_id)) / float(SaveData.weapon_xp_needed(p.weapon_id)), 0.0, 1.0)
-	_text(Vector2(x + 334, y + 10), "LV %d" % wlevel, 14, Color(1, 1, 1, 0.85), 2)
-	draw_rect(Rect2(x + 232, y + 2, 60, 4), Color(0, 0, 0, 0.6))
-	draw_rect(Rect2(x + 232, y + 2, 60 * wfrac, 4), Color(color.r, color.g, color.b, 0.9))
+	_text(Vector2(px + 10.0, py + ph - 10.0), "LV %d" % wlevel, 14, Color(1, 1, 1, 0.85))
+	draw_rect(Rect2(px + 56.0, py + ph - 19.0, 84.0, 5.0), Color(0, 0, 0, 0.6))
+	draw_rect(Rect2(px + 56.0, py + ph - 19.0, 84.0 * wfrac, 5.0), Color(color.r, color.g, color.b, 0.9))
+
+	var tx := px + 152.0
+	_text(Vector2(tx, py + 26.0), p.weapon_label(), 20, color)
+
+	# Ammo, or the reload in progress.
+	if p.mag_size <= 0:
+		_text(Vector2(tx, py + 54.0), "MELEE", 18, Color(1, 1, 1, 0.6))
+	elif p.reloading:
+		var blink := 0.6 + 0.4 * sin(_time * 14.0)
+		_text(Vector2(tx, py + 52.0), "RELOADING", 18, Color(1.0, 0.85, 0.35, blink))
+		draw_rect(Rect2(tx + 112.0, py + 40.0, 96.0, 8.0), Color(0.1, 0.1, 0.1))
+		draw_rect(Rect2(tx + 112.0, py + 40.0, 96.0 * p.reload_progress, 8.0), Color(1.0, 0.85, 0.35))
+	else:
+		var low := float(p.ammo) <= float(p.mag_size) * Config.LOW_AMMO_FRACTION
+		var ammo_color := Color(1.0, 0.3, 0.25) if low else Color.WHITE
+		var ammo_text := "%d" % p.ammo
+		_text(Vector2(tx, py + 56.0), ammo_text, 26, ammo_color)
+		var aw := _font.get_string_size(ammo_text, HORIZONTAL_ALIGNMENT_LEFT, -1, 26).x
+		_text(Vector2(tx + aw + 6.0, py + 56.0), "/ %d" % p.mag_size, 16, Color(1, 1, 1, 0.55))
+
+	# How long a crate weapon has left.
 	var duration: float = p.weapon_time_max
 	if duration > 0.0:
 		var frac := clampf(p.weapon_time / duration, 0.0, 1.0)
-		var blink := frac > 0.22 or fmod(_time, 0.3) < 0.18
-		draw_rect(Rect2(x + 128, y - 18, 206, 10), Color(0.1, 0.1, 0.1))
-		if blink:
-			draw_rect(Rect2(x + 128, y - 18, 206 * frac, 10), color)
-		_text(Vector2(x + 128, y + 10), "%.0fs" % ceilf(p.weapon_time), 14, Color(1, 1, 1, 0.8))
-	else:
-		_text(Vector2(x + 128, y - 4), "unlimited", 14, Color(1, 1, 1, 0.6))
+		var show_bar := frac > 0.22 or fmod(_time, 0.3) < 0.18
+		draw_rect(Rect2(tx, py + 70.0, 170.0, 8.0), Color(0.1, 0.1, 0.1))
+		if show_bar:
+			draw_rect(Rect2(tx, py + 70.0, 170.0 * frac, 8.0), color)
+		_text(Vector2(px + pw - 10.0, py + 80.0), "%.0fs" % ceilf(p.weapon_time), 15, Color(1, 1, 1, 0.8), 2)
 
 
 ## Character level and XP: a thin bar along the bottom edge of the screen.
@@ -255,9 +278,9 @@ func _draw_hint(w: float, h: float) -> void:
 	if _hint_t <= 0.0 or game.director.wave > 1:
 		return
 	var alpha := clampf(_hint_t / 1.0, 0.0, 1.0) * 0.9
-	var hint := "WASD move   -   MOUSE aim   -   LEFT CLICK shoot   -   SPACE rage   -   ESC pause"
+	var hint := "WASD move   -   MOUSE aim   -   LEFT CLICK shoot   -   R reload   -   SPACE rage   -   ESC pause"
 	if GameInput.using_gamepad():
-		hint = "LEFT STICK move   -   RIGHT STICK aim   -   RT shoot   -   LB rage   -   START pause"
+		hint = "LEFT STICK move   -   RIGHT STICK aim   -   RT shoot   -   X reload   -   LB rage   -   START pause"
 	_text(Vector2(w * 0.5, h - 104), hint, 17, Color(1, 1, 1, alpha), 1)
 
 
@@ -275,6 +298,18 @@ func _draw_crosshair(p: Player) -> void:
 		draw_line(at + dir * (gap - 1.0), at + dir * (gap + length + 1.0), Color(0, 0, 0, 0.7), 5.0)
 		draw_line(at + dir * gap, at + dir * (gap + length), color, 2.5)
 	draw_rect(Rect2(at - Vector2(2, 2), Vector2(4, 4)), color)
+
+	# Around the crosshair, where the eyes already are: a ring that fills
+	# while reloading, otherwise the shots left (red when nearly empty).
+	if p.mag_size > 0:
+		if p.reloading:
+			var radius := 24.0
+			draw_arc(at, radius, 0.0, TAU, 40, Color(0, 0, 0, 0.55), 5.0)
+			draw_arc(at, radius, -PI * 0.5, -PI * 0.5 + TAU * p.reload_progress, 40, Color(1.0, 0.85, 0.35), 3.0)
+		else:
+			var low := float(p.ammo) <= float(p.mag_size) * Config.LOW_AMMO_FRACTION
+			_text(at + Vector2(0.0, 36.0), "%d" % p.ammo, 16 if low else 13,
+					Color(1.0, 0.3, 0.25, 0.95) if low else Color(1, 1, 1, 0.6), 1, 4)
 
 
 ## Arrows at the screen edge pointing to weapon crates that are out of view.

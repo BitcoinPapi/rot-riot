@@ -60,6 +60,11 @@ const AIM_ASSIST_RANGE := 620.0
 #  dual          true = picking up a second one while holding it gives one in each hand
 #  duration      seconds a crate weapon lasts (0 = forever)
 #  interval      seconds between shots (lower = faster)
+#  mag           shots before it has to be reloaded (0 = never reloads)
+#  reload_kind   "mag" = swap the whole magazine (reload_time seconds, cannot shoot meanwhile)
+#                "shell" = one round at a time (reload_time seconds each, shooting interrupts it)
+#  reload_pitch  how high or low its reload clicks sound (1 = normal, lower = heavier)
+#  mag_debris    what falls on the ground when it is reloaded
 #  spread_deg    full width of the random cone
 #  knockback     shove speed given to a zombie that is hit
 #  stagger       seconds a hit zombie stops walking
@@ -88,10 +93,21 @@ const DUAL_INTERVAL_MULT := 0.55        # time between shots (0.55 = fires about
 const DUAL_SPREAD_MULT := 1.3           # ...but less accurate
 const DUAL_RECOIL_MULT := 1.15          # ...and it kicks more
 const DUAL_PISTOL_DURATION := 25.0      # seconds a second pistol lasts
+const DUAL_MAG_MULT := 2                # two guns = two magazines
+
+# Reloading. Reload speed also rises with fire-rate bonuses (dexterity, the
+# weapon's SHOOTING SPEED upgrade).
+const RELOAD_RAGE_MULT := 1.6           # reload this much faster while rage is active
+const RAGE_REFILLS_AMMO := true         # activating rage tops the magazine up instantly
+const LOW_AMMO_FRACTION := 0.25         # the ammo counter turns red below this
+const RELOAD_MAG_IN_AT := 0.55          # fraction of the reload at which the new magazine clicks in
+const RELOAD_RACK_AT := 0.86            # fraction at which the slide is racked
+const SHELL_FIRST_DELAY := 0.18         # extra pause before the first shell goes in
 
 const WEAPONS := {
 	"pistol": {
 		"name": "PISTOL", "kind": "bullet", "rarity": "common", "dual": true, "duration": 0.0,
+		"mag": 12, "reload_kind": "mag", "reload_time": 0.9, "reload_pitch": 1.15, "mag_debris": "mag",
 		"damage": 14.0, "interval": 0.24, "pellets": 1, "spread_deg": 2.5,
 		"bullet_speed": 1500.0, "speed_var": 0.0, "range": 720.0, "pierce": 0,
 		"knockback": 170.0, "stagger": 0.11, "move_mult": 1.0,
@@ -103,6 +119,7 @@ const WEAPONS := {
 	"smg": {
 		# Light and very fast: a hose of weak bullets, and you move quicker with it.
 		"name": "SMG", "kind": "bullet", "rarity": "common", "dual": true, "duration": 20.0,
+		"mag": 40, "reload_kind": "mag", "reload_time": 1.0, "reload_pitch": 1.28, "mag_debris": "mag",
 		"damage": 7.0, "interval": 0.05, "pellets": 1, "spread_deg": 11.0,
 		"bullet_speed": 1500.0, "speed_var": 0.06, "range": 520.0, "pierce": 0,
 		"knockback": 55.0, "stagger": 0.05, "move_mult": 1.1,
@@ -113,6 +130,7 @@ const WEAPONS := {
 	},
 	"shotgun": {
 		"name": "SHOTGUN", "kind": "bullet", "rarity": "common", "dual": true, "duration": 20.0,
+		"mag": 6, "reload_kind": "shell", "reload_time": 0.36, "reload_pitch": 1.0, "mag_debris": "",   # reload_time is per shell
 		"damage": 10.0, "interval": 0.72, "pellets": 9, "spread_deg": 26.0,
 		"bullet_speed": 1350.0, "speed_var": 0.18, "range": 400.0, "pierce": 1,
 		"knockback": 300.0, "stagger": 0.22, "move_mult": 1.0,
@@ -123,6 +141,7 @@ const WEAPONS := {
 	},
 	"machinegun": {
 		"name": "MACHINE GUN", "kind": "bullet", "rarity": "uncommon", "dual": true, "duration": 20.0,
+		"mag": 110, "reload_kind": "mag", "reload_time": 1.9, "reload_pitch": 0.72, "mag_debris": "box",
 		"damage": 10.0, "interval": 0.062, "pellets": 1, "spread_deg": 8.0,
 		"bullet_speed": 1650.0, "speed_var": 0.05, "range": 760.0, "pierce": 1,
 		"knockback": 85.0, "stagger": 0.07, "move_mult": 1.0,
@@ -134,6 +153,7 @@ const WEAPONS := {
 	"rifle": {
 		# Slow, loud, and each bullet goes straight through a whole line of zombies.
 		"name": "RIFLE", "kind": "bullet", "rarity": "uncommon", "dual": false, "duration": 22.0,
+		"mag": 6, "reload_kind": "mag", "reload_time": 1.3, "reload_pitch": 0.9, "mag_debris": "clip",
 		"damage": 85.0, "interval": 0.52, "pellets": 1, "spread_deg": 0.6,
 		"bullet_speed": 1900.0, "speed_var": 0.0, "range": 1100.0, "pierce": 6,
 		"pierce_keep": 0.85,          # damage kept after each zombie it passes through
@@ -145,6 +165,7 @@ const WEAPONS := {
 	},
 	"sledge": {
 		"name": "SLEDGEHAMMER", "kind": "melee", "rarity": "uncommon", "dual": false, "duration": 20.0,
+		"mag": 0, "reload_kind": "", "reload_time": 0.0, "reload_pitch": 1.0, "mag_debris": "",
 		"damage": 62.0, "interval": 0.34, "pellets": 1, "spread_deg": 0.0,
 		"bullet_speed": 0.0, "speed_var": 0.0, "range": 108.0, "pierce": 0,
 		"arc_deg": 160.0,             # width of the swing
@@ -159,7 +180,8 @@ const WEAPONS := {
 	},
 	"launcher": {
 		"name": "LAUNCHER", "kind": "grenade", "rarity": "rare", "dual": false, "duration": 18.0,
-		"damage": 95.0, "interval": 0.80, "pellets": 1, "spread_deg": 2.0,
+		"mag": 1, "reload_kind": "mag", "reload_time": 0.85, "reload_pitch": 0.58, "mag_debris": "shellcase",
+		"damage": 95.0, "interval": 0.15, "pellets": 1, "spread_deg": 2.0,
 		"bullet_speed": 760.0, "speed_var": 0.0, "range": 620.0, "pierce": 0,
 		"knockback": 0.0, "stagger": 0.0, "move_mult": 1.0,
 		"blast_radius": 135.0,        # everything inside takes damage
@@ -175,6 +197,8 @@ const WEAPONS := {
 		# A short cone of fire. Each puff does little, but it passes through
 		# everything and sets zombies burning (see burn_* below).
 		"name": "FLAMETHROWER", "kind": "flame", "rarity": "rare", "dual": false, "duration": 18.0,
+		"mag": 130, "reload_kind": "mag", "reload_time": 1.7, "reload_pitch": 0.8, "mag_debris": "can",
+		"reload_start": "hiss", "reload_end": "hiss",
 		"damage": 2.5, "interval": 0.04, "pellets": 2, "spread_deg": 24.0,
 		"bullet_speed": 560.0, "speed_var": 0.2, "range": 225.0, "pierce": 99,
 		"pierce_keep": 1.0,
@@ -191,6 +215,7 @@ const WEAPONS := {
 	"chainsaw": {
 		# Held out in front: grinds anything in a narrow cone, many times a second.
 		"name": "CHAINSAW", "kind": "melee", "rarity": "rare", "dual": false, "duration": 18.0,
+		"mag": 0, "reload_kind": "", "reload_time": 0.0, "reload_pitch": 1.0, "mag_debris": "",
 		"damage": 22.0, "interval": 0.075, "pellets": 1, "spread_deg": 0.0,
 		"bullet_speed": 0.0, "speed_var": 0.0, "range": 84.0, "pierce": 0,
 		"arc_deg": 95.0,
@@ -263,6 +288,14 @@ const ENEMIES := {
 		"roar_shake": 0.35, "spawn_shake": 0.5, "charge_shake": 0.3, "wall_slam_shake": 0.55,
 	},
 }
+
+# Badly hurt zombies look it: wounds, a limp, and a trail of blood.
+const WOUNDED_AT := 0.3                 # below this fraction of health a zombie shows its wounds
+const WOUNDED_SPEED_MULT := 0.88        # ...walks a little slower
+const WOUNDED_LIMP := 2.2               # ...sways this much more as it walks
+const WOUNDED_DRIP_RATE := 2.5          # ...and leaves this many blood drops per second
+const PLAYER_WOUNDED_AT := 0.3          # the player looks battle-worn below this fraction of health
+const PLAYER_DRIP_RATE := 5.0           # blood drops per second while the player is that hurt
 
 const ENEMY_SEPARATION := 0.7           # how firmly zombies push each other apart (0..1)
 const ENEMY_CROWD_FREE := 2             # zombies touching more neighbours than this slow down (keeps hordes from squashing into a blob)
@@ -398,7 +431,7 @@ const PASSIVE_ORDER := ["vitality", "strength", "dexterity", "agility", "defense
 const PASSIVES := {
 	"vitality": {"name": "VITALITY", "desc": "More maximum health", "kind": "linear", "per_rank": 8.0},
 	"strength": {"name": "STRENGTH", "desc": "More damage with every weapon", "kind": "linear", "per_rank": 0.03},
-	"dexterity": {"name": "DEXTERITY", "desc": "Shoot and swing faster", "kind": "curve", "max": 1.5, "half": 60.0},
+	"dexterity": {"name": "DEXTERITY", "desc": "Shoot, swing and reload faster", "kind": "curve", "max": 1.5, "half": 60.0},
 	"agility": {"name": "AGILITY", "desc": "Move faster", "kind": "curve", "max": 0.8, "half": 40.0},
 	"defense": {"name": "DEFENSE", "desc": "Take less damage from every hit", "kind": "curve", "max": 0.8, "half": 50.0},
 	"evasion": {"name": "EVASION", "desc": "Chance to dodge a hit completely", "kind": "curve", "max": 0.6, "half": 40.0},
@@ -418,7 +451,7 @@ const WEAPON_RANK_COST_STEP := 10       # every N ranks, the next ranks cost one
 const WEAPON_TRACK_ORDER := ["power", "speed", "stability", "spawn", "duration"]
 const WEAPON_TRACKS := {
 	"power": {"name": "POWER", "desc": "More damage", "kind": "linear", "per_rank": 0.05, "crate_only": false},
-	"speed": {"name": "SHOOTING SPEED", "desc": "Faster rate of fire", "kind": "curve", "max": 1.0, "half": 30.0, "crate_only": false},
+	"speed": {"name": "SHOOTING SPEED", "desc": "Faster fire and reload", "kind": "curve", "max": 1.0, "half": 30.0, "crate_only": false},
 	"stability": {"name": "STABILITY", "desc": "Tighter spread, less recoil", "kind": "curve", "max": 0.75, "half": 15.0, "crate_only": false},
 	"spawn": {"name": "SPAWN RATE", "desc": "Its crate appears more often", "kind": "linear", "per_rank": 0.12, "crate_only": true},
 	"duration": {"name": "DURATION", "desc": "Lasts longer when picked up", "kind": "curve", "max": 1.5, "half": 30.0, "crate_only": true},

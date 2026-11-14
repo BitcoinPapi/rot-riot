@@ -197,6 +197,34 @@ func casing(pos: Vector2, aim: Vector2, kind: String) -> void:
 	_casings.append(c)
 
 
+## An empty magazine (or ammo box, clip, shell case, fuel can) dropped during
+## a reload. Like casings, it comes to rest and stays on the ground.
+func mag_drop(pos: Vector2, aim: Vector2, kind: String) -> void:
+	var c := Casing.new()
+	c.pos = pos
+	c.vel = Vector2.from_angle(randf() * TAU) * randf_range(25.0, 80.0) - aim * randf_range(10.0, 45.0)
+	c.rot = randf() * TAU
+	c.spin = randf_range(-14.0, 14.0)
+	c.life = Config.CASING_LIFETIME * 0.8
+	match kind:
+		"box":
+			c.size = Vector2(8.0, 10.5)
+			c.color = Color(0.33, 0.37, 0.24)
+		"clip":
+			c.size = Vector2(2.6, 9.0)
+			c.color = Color(0.9, 0.72, 0.3)
+		"shellcase":
+			c.size = Vector2(6.0, 10.0)
+			c.color = Color(0.85, 0.68, 0.28)
+		"can":
+			c.size = Vector2(7.0, 11.0)
+			c.color = Color(0.7, 0.2, 0.15)
+		_:
+			c.size = Vector2(4.6, 9.0)
+			c.color = Color(0.2, 0.21, 0.25)
+	_casings.append(c)
+
+
 ## A dead zombie tumbling away from the hit before it settles on the ground.
 func corpse(e: Enemy, dir: Vector2) -> void:
 	var c := Corpse.new()

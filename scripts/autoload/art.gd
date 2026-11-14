@@ -46,6 +46,11 @@ func enemy_tex(kind: int, variant: int) -> Texture2D:
 	return tex["%s_%d" % [ENEMY_SPRITE[kind], variant]]
 
 
+## The badly-hurt look of a zombie (same outline, with wounds drawn over it).
+func enemy_hurt_tex(kind: int, variant: int) -> Texture2D:
+	return tex["%s_%d_hurt" % [ENEMY_SPRITE[kind], variant]]
+
+
 func enemy_flash_tex(kind: int) -> Texture2D:
 	return tex["%s_0_flash" % ENEMY_SPRITE[kind]]
 
@@ -64,32 +69,41 @@ func _build() -> void:
 	var shirts := ["#5b6f8c", "#8a5550", "#7d7a55", "#5a6d62"]
 	var skins := ["#8fb56a", "#86a95f", "#9bbd74", "#7fa262"]
 	for i in SHAMBLER_VARIANTS:
-		_svg("shambler_%d" % i, 56, 56, SVG_SHAMBLER.format({
+		var shambler := SVG_SHAMBLER.format({
 			"line": "#1a2114", "skin": skins[i], "shirt": shirts[i], "blood": "#7a1f1f",
-			"hair": "#34422a", "eye": "#ff3b30"}))
+			"hair": "#34422a", "eye": "#ff3b30"})
+		_svg("shambler_%d" % i, 56, 56, shambler)
+		_svg("shambler_%d_hurt" % i, 56, 56, shambler + WOUNDS_SHAMBLER)
 	_flash("shambler_0")
 
 	var runner_shirts := ["#6b4a3a", "#4f4a6b"]
 	for i in RUNNER_VARIANTS:
-		_svg("runner_%d" % i, 48, 48, SVG_RUNNER.format({
+		var runner := SVG_RUNNER.format({
 			"line": "#231a0c", "skin": "#e0b040", "shirt": runner_shirts[i],
-			"hair": "#7a3b1c", "eye": "#ffffff"}))
+			"hair": "#7a3b1c", "eye": "#ffffff"})
+		_svg("runner_%d" % i, 48, 48, runner)
+		_svg("runner_%d_hurt" % i, 48, 48, runner + WOUNDS_RUNNER)
 	_flash("runner_0")
 
 	var brute_shirts := ["#4a3d5c", "#5c3d46"]
 	for i in BRUTE_VARIANTS:
-		_svg("brute_%d" % i, 92, 92, SVG_BRUTE.format({
+		var brute := SVG_BRUTE.format({
 			"line": "#17111f", "skin": "#8d6fa8", "skin2": "#73578c", "shirt": brute_shirts[i],
-			"bone": "#d9d2bd", "hair": "#3b2a4d", "eye": "#ffe14a"}))
+			"bone": "#d9d2bd", "hair": "#3b2a4d", "eye": "#ffe14a"})
+		_svg("brute_%d" % i, 92, 92, brute)
+		_svg("brute_%d_hurt" % i, 92, 92, brute + WOUNDS_BRUTE)
 	_flash("brute_0")
 
-	_svg("boss_0", 176, 176, SVG_BOSS.format({
+	var boss := SVG_BOSS.format({
 		"line": "#1c0a0a", "skin": "#8e2f2f", "skin2": "#6e2222", "skin3": "#a53c36",
-		"bone": "#e6dcc0", "eye": "#ffd23f"}))
+		"bone": "#e6dcc0", "eye": "#ffd23f"})
+	_svg("boss_0", 176, 176, boss)
+	_svg("boss_0_hurt", 176, 176, boss + WOUNDS_BOSS)
 	_flash("boss_0")
 
 	# --- player and weapons ---
 	_svg("player", 56, 56, SVG_PLAYER)
+	_svg("player_hurt", 56, 56, SVG_PLAYER + WOUNDS_PLAYER)   # battle-worn look at low health
 	_flash("player")
 	_svg("gun_pistol", 24, 12, SVG_GUN_PISTOL, false)
 	_svg("gun_shotgun", 42, 14, SVG_GUN_SHOTGUN, false)
@@ -101,6 +115,18 @@ func _build() -> void:
 	_svg("gun_flamethrower", 48, 22, SVG_GUN_FLAMETHROWER, false)
 	_svg("gun_chainsaw", 54, 22, SVG_GUN_CHAINSAW, false)
 	_svg("grenade", 16, 16, SVG_GRENADE)
+
+	# --- detailed weapon pictures (side view) for the HUD and the Armory ---
+	# 220x80 each. To replace one with real art: assets/sprites/icon_<weapon>.png at 440x160.
+	_svg("icon_pistol", 220, 80, ICON_DEFS + ICON_PISTOL, false)
+	_svg("icon_smg", 220, 80, ICON_DEFS + ICON_SMG, false)
+	_svg("icon_shotgun", 220, 80, ICON_DEFS + ICON_SHOTGUN, false)
+	_svg("icon_machinegun", 220, 80, ICON_DEFS + ICON_MACHINEGUN, false)
+	_svg("icon_rifle", 220, 80, ICON_DEFS + ICON_RIFLE, false)
+	_svg("icon_sledge", 220, 80, ICON_DEFS + ICON_SLEDGE, false)
+	_svg("icon_launcher", 220, 80, ICON_DEFS + ICON_LAUNCHER, false)
+	_svg("icon_flamethrower", 220, 80, ICON_DEFS + ICON_FLAMETHROWER, false)
+	_svg("icon_chainsaw", 220, 80, ICON_DEFS + ICON_CHAINSAW, false)
 
 	# --- pickups ---
 	_svg("coin", 18, 18, SVG_COIN)
@@ -268,6 +294,68 @@ const SVG_BOSS := """
 <path d="M2,-14 Q-6,0 2,14" stroke="{line}" stroke-width="3.4" fill="none" stroke-linecap="round"/>
 """
 
+# Wounds drawn on top of a zombie once it is badly hurt: open gashes, bare
+# ribs, a lost eye, bloody hands. (To replace with real art: <name>_hurt.png.)
+const WOUNDS_SHAMBLER := """
+<path d="M-10,-3 L-4,2 L-7,9 L-12,5 Z" fill="#4a0a0a"/>
+<path d="M-9,1 L-6,4 M-8.5,5 L-5.5,7" stroke="#e8dcc0" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M-3,-11 L1,-9 L-2,-6 Z" fill="#7a1010"/>
+<circle cx="2" cy="4.2" r="3.4" fill="#7a1010"/>
+<circle cx="7.4" cy="3" r="2.3" fill="#1a0505"/>
+<path d="M7.4,3 L10,6.4" stroke="#7a1010" stroke-width="1.4" stroke-linecap="round"/>
+<circle cx="16.5" cy="-8" r="3.6" fill="#7a1010"/>
+<path d="M9,10 L15,9" stroke="#7a1010" stroke-width="3" stroke-linecap="round"/>
+<circle cx="-13" cy="-9" r="1.4" fill="#7a1010"/><circle cx="-6" cy="14" r="1.2" fill="#7a1010"/>
+"""
+
+const WOUNDS_RUNNER := """
+<path d="M-6,-4 L-1,0 L-5,6 L-8,2 Z" fill="#4a0a0a"/>
+<path d="M-5.4,0.6 L-3.2,2.8" stroke="#e8dcc0" stroke-width="1.3" stroke-linecap="round"/>
+<path d="M3,-3.4 L8,-1 L4,2 Z" fill="#7a1010"/>
+<circle cx="5" cy="2.5" r="2" fill="#1a0505"/>
+<path d="M-8,10 L-14,12" stroke="#7a1010" stroke-width="3.6" stroke-linecap="round"/>
+<circle cx="-2" cy="-8" r="1.8" fill="#7a1010"/><circle cx="9.4" cy="1.4" r="1.2" fill="#7a1010"/>
+"""
+
+const WOUNDS_BRUTE := """
+<path d="M-18,-8 L-6,-2 L-12,12 L-20,6 Z" fill="#3a0606"/>
+<path d="M-16,-2 L-9,2 M-15,4 L-10,7 M-14,9 L-11,11" stroke="#e8dcc0" stroke-width="2" stroke-linecap="round"/>
+<path d="M-2,14 L8,18 L2,24 L-6,20 Z" fill="#7a1010"/>
+<path d="M0,-8 L8,-10 L6,-3 L1,-2 Z" fill="#7a1010"/>
+<circle cx="11.6" cy="-4.2" r="3.1" fill="#1a0505"/>
+<path d="M11.6,-4.2 L15,1" stroke="#7a1010" stroke-width="1.8" stroke-linecap="round"/>
+<circle cx="27" cy="18" r="6.2" fill="#7a1010"/>
+<path d="M10,-20 L22,-18" stroke="#7a1010" stroke-width="5" stroke-linecap="round"/>
+<circle cx="-22" cy="-16" r="2.4" fill="#7a1010"/><circle cx="-10" cy="-22" r="1.8" fill="#7a1010"/><circle cx="-16" cy="20" r="2" fill="#7a1010"/>
+"""
+
+const WOUNDS_BOSS := """
+<path d="M-40,-10 L-18,-2 L-26,26 L-44,14 Z" fill="#3a0606"/>
+<path d="M-36,-2 L-24,4 M-35,6 L-24,11 M-33,14 L-26,18" stroke="#e8dcc0" stroke-width="3" stroke-linecap="round"/>
+<path d="M-10,-40 L8,-34 L-2,-22 L-14,-28 Z" fill="#3a0606"/>
+<path d="M-6,22 L14,30 L4,42 L-10,36 Z" fill="#5a0c0c"/>
+<path d="M4,-18 L20,-22 L18,-8 L8,-6 Z" fill="#5a0c0c"/>
+<circle cx="23.6" cy="-10" r="5.2" fill="#1a0505"/>
+<path d="M23.6,-10 L30,0" stroke="#5a0c0c" stroke-width="3" stroke-linecap="round"/>
+<path d="M-50,-8 L-78,0 L-50,8 Z" fill="#1c0a0a"/>
+<path d="M-48,-5 L-56,-1 L-48,4 Z" fill="#e6dcc0"/>
+<circle cx="50" cy="36" r="10.5" fill="#5a0c0c"/>
+<path d="M20,-40 L40,-37" stroke="#5a0c0c" stroke-width="8" stroke-linecap="round"/>
+<circle cx="-30" cy="-32" r="3" fill="#5a0c0c"/><circle cx="-20" cy="40" r="3.4" fill="#5a0c0c"/><circle cx="0" cy="-48" r="2.6" fill="#5a0c0c"/>
+"""
+
+# The player at low health: bloodied and bandaged, still standing.
+const WOUNDS_PLAYER := """
+<path d="M-7,-12 L-1,-9.5 L-5,-4.5 L-9,-7 Z" fill="#7a1010"/>
+<path d="M-6,8 L-1,5.4 L1,10 L-4,12 Z" fill="#7a1010"/>
+<path d="M4.4,8.4 L9,6" stroke="#1c1712" stroke-width="5" stroke-linecap="round"/>
+<path d="M4.4,8.4 L9,6" stroke="#ece6d2" stroke-width="3.2" stroke-linecap="round"/>
+<path d="M5.8,7.6 L7.6,6.7" stroke="#c9422f" stroke-width="1.4" stroke-linecap="round"/>
+<path d="M-0.5,-4.5 L4,-1.2 L1,2.4" stroke="#7a1010" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M8.4,-5.4 L11.2,-2.8" stroke="#0c0e11" stroke-width="1"/>
+<circle cx="-3" cy="13" r="1.3" fill="#7a1010"/><circle cx="10" cy="-9.4" r="1.2" fill="#7a1010"/><circle cx="-11" cy="2" r="1.1" fill="#7a1010"/>
+"""
+
 const SVG_PLAYER := """
 <circle cx="0" cy="0" r="20" fill="#000000" fill-opacity="0.24"/>
 <path d="M0,-10.5 L13,-4" stroke="#1c1712" stroke-width="9" stroke-linecap="round" fill="none"/>
@@ -286,82 +374,365 @@ const SVG_PLAYER := """
 """
 
 const SVG_GUN_PISTOL := """
-<rect x="3" y="-3.2" width="18" height="6.4" rx="1.6" fill="#16181c"/>
-<rect x="6" y="-2.2" width="14" height="2.4" rx="1" fill="#9aa3ad"/>
+<rect x="3" y="-3.5" width="18.6" height="7" rx="1.8" fill="#0c0e11"/>
+<rect x="4" y="-2.6" width="16.6" height="5.2" rx="1.2" fill="#6d7580"/>
+<rect x="4" y="-2.6" width="16.6" height="1.9" rx="0.9" fill="#b4bdc7"/>
+<rect x="11" y="-1.2" width="5" height="2.6" rx="0.6" fill="#191c20"/>
+<rect x="11.6" y="-0.8" width="3.8" height="0.9" rx="0.4" fill="#f3d27a"/>
+<path d="M5.6,-2.4 L5.6,2.4 M7.1,-2.4 L7.1,2.4 M8.6,-2.4 L8.6,2.4" stroke="#3a4048" stroke-width="0.7"/>
+<rect x="19" y="-0.7" width="1.6" height="1.4" rx="0.4" fill="#ff5a3c"/>
+<rect x="3.4" y="-1.1" width="1.5" height="2.2" rx="0.4" fill="#191c20"/>
 """
 
 const SVG_GUN_SHOTGUN := """
-<rect x="1" y="-3.6" width="14" height="7.2" rx="2" fill="#16181c"/>
-<rect x="2" y="-2.6" width="12" height="5.2" rx="1.6" fill="#8a5a2c"/>
-<rect x="13" y="-4.2" width="27" height="8.4" rx="1.6" fill="#16181c"/>
-<rect x="14.5" y="-3" width="24.5" height="2.5" rx="1" fill="#b4bcc6"/>
-<rect x="14.5" y="0.5" width="24.5" height="2.5" rx="1" fill="#8e97a2"/>
-<rect x="20" y="-4.6" width="8" height="9.2" rx="1.4" fill="#6b4420" stroke="#16181c" stroke-width="1"/>
+<rect x="1" y="-3.8" width="14" height="7.6" rx="2" fill="#0c0e11"/>
+<rect x="2" y="-2.8" width="12" height="5.6" rx="1.6" fill="#8c5c2f"/>
+<path d="M3,-1.2 L13,-1.6 M3,0.8 L13,0.4" stroke="#5c3a1c" stroke-width="0.7"/>
+<rect x="2" y="-2.8" width="12" height="1.6" rx="0.8" fill="#c48d54"/>
+<rect x="13" y="-4.4" width="27.6" height="8.8" rx="1.7" fill="#0c0e11"/>
+<rect x="14.4" y="-3.2" width="25" height="2.7" rx="1" fill="#b4bdc7"/>
+<rect x="14.4" y="0.5" width="25" height="2.7" rx="1" fill="#6d7580"/>
+<rect x="14.4" y="-3.2" width="25" height="0.9" rx="0.4" fill="#e3e9ef"/>
+<rect x="20" y="-4.9" width="8.4" height="9.8" rx="1.6" fill="#0c0e11"/>
+<rect x="20.9" y="-4" width="6.6" height="8" rx="1" fill="#8c5c2f"/>
+<path d="M22.6,-4 L22.6,4 M24.2,-4 L24.2,4 M25.8,-4 L25.8,4" stroke="#5c3a1c" stroke-width="0.8"/>
+<circle cx="38.6" cy="-1.8" r="0.9" fill="#f3d27a"/>
+<rect x="15.5" y="-0.6" width="3.4" height="1.2" rx="0.4" fill="#c9422f"/>
 """
 
 const SVG_GUN_MACHINEGUN := """
-<rect x="0" y="-3.4" width="12" height="6.8" rx="1.6" fill="#16181c"/>
-<rect x="10" y="-4.6" width="22" height="9.2" rx="1.8" fill="#16181c"/>
-<rect x="12" y="-3.2" width="18" height="3" rx="1" fill="#5d6670"/>
-<rect x="30" y="-2.6" width="14" height="5.2" rx="1.2" fill="#16181c"/>
-<rect x="32" y="-1.4" width="11" height="2.2" rx="1" fill="#99a2ad"/>
-<rect x="15" y="3" width="8" height="5.6" rx="1.2" fill="#3c434b" stroke="#16181c" stroke-width="1"/>
+<rect x="0" y="-3.6" width="12" height="7.2" rx="1.7" fill="#0c0e11"/>
+<rect x="1" y="-2.6" width="10" height="5.2" rx="1.2" fill="#30353c"/>
+<rect x="10" y="-4.8" width="22.4" height="9.6" rx="1.9" fill="#0c0e11"/>
+<rect x="11" y="-3.8" width="20.4" height="7.6" rx="1.3" fill="#3f454d"/>
+<rect x="13" y="-3.2" width="15" height="3" rx="1" fill="#8d96a1"/>
+<rect x="13" y="-3.2" width="15" height="1" rx="0.5" fill="#c9d0d8"/>
+<rect x="30" y="-2.8" width="14.6" height="5.6" rx="1.3" fill="#0c0e11"/>
+<rect x="31" y="-1.8" width="12.6" height="3.6" rx="0.9" fill="#8d96a1"/>
+<circle cx="33.5" cy="0" r="0.8" fill="#191c20"/><circle cx="36.3" cy="0" r="0.8" fill="#191c20"/><circle cx="39.1" cy="0" r="0.8" fill="#191c20"/><circle cx="41.9" cy="0" r="0.8" fill="#191c20"/>
+<rect x="14.4" y="2.8" width="9.2" height="6" rx="1.3" fill="#0c0e11"/>
+<rect x="15.3" y="3.7" width="7.4" height="4.2" rx="0.8" fill="#5a7436"/>
+<path d="M16,-4.6 L16,-6.2 L20,-6.2 L20,-4.6" stroke="#0c0e11" stroke-width="1.2" fill="none"/>
+<rect x="24" y="1.6" width="1.4" height="2.2" fill="#f3d27a"/><rect x="26" y="1.6" width="1.4" height="2.2" fill="#f3d27a"/>
 """
 
 const SVG_GUN_LAUNCHER := """
-<rect x="1" y="-5.6" width="38" height="11.2" rx="3" fill="#16181c"/>
-<rect x="2.5" y="-4.2" width="35" height="8.4" rx="2.2" fill="#5f7d3a"/>
-<rect x="34" y="-7.4" width="9" height="14.8" rx="2.4" fill="#16181c"/>
-<rect x="35.4" y="-6" width="6.2" height="12" rx="1.6" fill="#3f5626"/>
-<rect x="10" y="-4.2" width="5" height="8.4" fill="#e9c94a"/>
+<rect x="0" y="-3.4" width="9" height="6.8" rx="1.8" fill="#0c0e11"/>
+<rect x="1" y="-2.4" width="7" height="4.8" rx="1.3" fill="#8c5c2f"/>
+<rect x="7" y="-5.8" width="32" height="11.6" rx="3" fill="#0c0e11"/>
+<rect x="8.2" y="-4.5" width="29.6" height="9" rx="2.2" fill="#5a7436"/>
+<rect x="8.2" y="-4.5" width="29.6" height="2.8" rx="1.4" fill="#8aa65a"/>
+<rect x="14" y="-4.5" width="2.2" height="9" fill="#3a4d22"/><rect x="29" y="-4.5" width="2.2" height="9" fill="#3a4d22"/>
+<rect x="20" y="-4.5" width="5" height="9" fill="#e9c94a"/>
+<path d="M20,-4.5 L22.5,-4.5 L20,0 Z M22.5,4.5 L25,4.5 L25,0 Z" fill="#191c20" fill-opacity="0.7"/>
+<rect x="34" y="-7.6" width="9.4" height="15.2" rx="2.6" fill="#0c0e11"/>
+<rect x="35.3" y="-6.2" width="6.8" height="12.4" rx="1.8" fill="#3a4d22"/>
+<ellipse cx="40.6" cy="0" rx="1.3" ry="4.4" fill="#0c0e11"/>
+<rect x="17" y="-7" width="2" height="2.8" fill="#30353c"/>
 """
 
 const SVG_GUN_SLEDGE := """
-<rect x="0" y="-2.8" width="42" height="5.6" rx="2" fill="#16181c"/>
-<rect x="1.2" y="-1.6" width="40" height="3.2" rx="1.4" fill="#9a6a38"/>
-<rect x="36" y="-12.5" width="15" height="25" rx="3" fill="#16181c"/>
-<rect x="37.6" y="-11" width="11.8" height="22" rx="2" fill="#a9b2bd"/>
-<rect x="37.6" y="-11" width="11.8" height="5.5" rx="2" fill="#d5dbe2"/>
+<rect x="0" y="-3" width="42" height="6" rx="2.4" fill="#0c0e11"/>
+<rect x="1.2" y="-1.8" width="40" height="3.6" rx="1.6" fill="#8c5c2f"/>
+<rect x="1.2" y="-1.8" width="40" height="1.2" rx="0.6" fill="#c48d54"/>
+<rect x="1.2" y="-2.2" width="13" height="4.4" rx="1.8" fill="#30353c"/>
+<path d="M4,-2 L6,2 M7.5,-2 L9.5,2 M11,-2 L13,2" stroke="#0c0e11" stroke-width="0.8"/>
+<rect x="35.6" y="-13" width="16" height="26" rx="3.2" fill="#0c0e11"/>
+<rect x="37.2" y="-11.4" width="12.8" height="22.8" rx="2.2" fill="#8d96a1"/>
+<rect x="37.2" y="-11.4" width="12.8" height="6" rx="2.2" fill="#d5dbe2"/>
+<rect x="37.2" y="-11.4" width="3" height="22.8" rx="1.4" fill="#b4bdc7"/>
+<path d="M43,3 L50,2 L50,10 L45,10.5 Z" fill="#7a1010"/>
+<path d="M42,-3 L46,0 M45,-7 L48,-5" stroke="#3a4048" stroke-width="0.8"/>
+"""
+
+# ----------------------------------------------------------------------------
+#  Detailed weapon pictures. Shared metal / wood / paint gradients first, then
+#  one drawing per weapon (all facing right, origin at the middle of the left edge).
+# ----------------------------------------------------------------------------
+const ICON_DEFS := """
+<defs>
+<linearGradient id="mt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b4bdc7"/><stop offset="0.5" stop-color="#6d7580"/><stop offset="1" stop-color="#3a4048"/></linearGradient>
+<linearGradient id="dk" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5a616b"/><stop offset="0.5" stop-color="#30353c"/><stop offset="1" stop-color="#191c20"/></linearGradient>
+<linearGradient id="wd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c48d54"/><stop offset="0.6" stop-color="#8c5c2f"/><stop offset="1" stop-color="#5c3a1c"/></linearGradient>
+<linearGradient id="ol" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8aa65a"/><stop offset="0.6" stop-color="#5a7436"/><stop offset="1" stop-color="#3a4d22"/></linearGradient>
+<linearGradient id="rd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e86a50"/><stop offset="0.55" stop-color="#b53520"/><stop offset="1" stop-color="#6e1a10"/></linearGradient>
+<linearGradient id="og" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffa64d"/><stop offset="0.6" stop-color="#e06a14"/><stop offset="1" stop-color="#9c4409"/></linearGradient>
+<linearGradient id="br" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3d27a"/><stop offset="1" stop-color="#a87c26"/></linearGradient>
+</defs>
+"""
+
+const ICON_PISTOL := """
+<g stroke="#0c0e11" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+<path d="M56,-4 L176,-4 L176,5 L128,7 L122,15 L96,15 L90,7 L86,7 L76,38 L48,38 L58,7 Z" fill="url(#dk)"/>
+<path d="M52,-23 L170,-23 L177,-16 L177,-4 L52,-4 Z" fill="url(#mt)"/>
+<rect x="175" y="-18" width="9" height="9" rx="2" fill="#191c20"/>
+<path d="M52,-19 L43,-23 L43,-10 L52,-8 Z" fill="#30353c"/>
+<path d="M62,11 L84,11 L75,34 L53,34 Z" fill="url(#wd)" stroke-width="1.6"/>
+<path d="M97,7 Q99,23 112,23 Q124,23 124,9" fill="none" stroke-width="3"/>
+</g>
+<path d="M62,-20 L62,-7 M68,-20 L68,-7 M74,-20 L74,-7 M80,-20 L80,-7 M86,-20 L86,-7" stroke="#2b3037" stroke-width="2"/>
+<rect x="112" y="-21" width="27" height="8" rx="2" fill="#15171a"/>
+<rect x="114" y="-20" width="23" height="2.4" rx="1" fill="#f3d27a" fill-opacity="0.8"/>
+<path d="M108,8 Q106,15 110,18" fill="none" stroke="#b4bdc7" stroke-width="2.6" stroke-linecap="round"/>
+<path d="M61,16 L80,16 M59,21 L78,21 M57,26 L76,26 M55,31 L74,31" stroke="#4a2e16" stroke-width="1.5"/>
+<rect x="54" y="-27" width="9" height="5" rx="1" fill="#191c20"/><rect x="164" y="-26" width="5" height="4" rx="1" fill="#191c20"/>
+<circle cx="166.5" cy="-26" r="1.2" fill="#ff5a3c"/>
+<path d="M96,-18 L166,-18" stroke="#e3e9ef" stroke-width="1.4" stroke-opacity="0.75" stroke-linecap="round"/>
+<circle cx="100" cy="1" r="2" fill="#191c20"/><circle cx="150" cy="1" r="2" fill="#191c20"/>
+<path d="M132,-1 L170,-1" stroke="#191c20" stroke-width="1.4"/>
+"""
+
+const ICON_SMG := """
+<g stroke="#0c0e11" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+<path d="M60,-11 L26,-11 L26,8 L42,8" fill="none" stroke-width="4.5"/>
+<path d="M104,2 L123,2 L128,38 L111,38 Z" fill="url(#mt)"/>
+<path d="M70,2 L91,2 L84,31 L63,31 Z" fill="url(#dk)"/>
+<path d="M137,2 L151,2 L149,25 L139,25 Z" fill="url(#dk)"/>
+<rect x="150" y="-14" width="36" height="10" rx="2.5" fill="url(#mt)"/>
+<rect x="184" y="-12" width="12" height="6" rx="1.5" fill="#191c20"/>
+<path d="M58,-19 L152,-19 L152,2 L58,2 Z" fill="url(#dk)"/>
+</g>
+<path d="M66,-23 L72,-23 L72,-19 L66,-19 Z M78,-23 L84,-23 L84,-19 L78,-19 Z M90,-23 L96,-23 L96,-19 L90,-19 Z M102,-23 L108,-23 L108,-19 L102,-19 Z M114,-23 L120,-23 L120,-19 L114,-19 Z M126,-23 L132,-23 L132,-19 L126,-19 Z M138,-23 L144,-23 L144,-19 L138,-19 Z" fill="#30353c" stroke="#0c0e11" stroke-width="1.2"/>
+<rect x="96" y="-15" width="26" height="7" rx="1.5" fill="#101215"/>
+<rect x="98" y="-14" width="22" height="2.2" rx="1" fill="#f3d27a" fill-opacity="0.8"/>
+<path d="M92,3 Q93,16 103,16" fill="none" stroke="#0c0e11" stroke-width="2.6"/>
+<path d="M97,4 Q96,9 99,12" fill="none" stroke="#b4bdc7" stroke-width="2.2" stroke-linecap="round"/>
+<path d="M110,9 L125,9 M111,16 L126,16 M112,23 L127,23 M113,30 L128,30" stroke="#3a4048" stroke-width="1.5"/>
+<path d="M68,8 L86,8 M67,13 L85,13 M66,18 L84,18 M65,23 L83,23" stroke="#191c20" stroke-width="1.4"/>
+<path d="M156,-11 L182,-11" stroke="#e3e9ef" stroke-width="1.3" stroke-opacity="0.8" stroke-linecap="round"/>
+<circle cx="130" cy="-9" r="3" fill="#6d7580" stroke="#0c0e11" stroke-width="1.2"/>
+<path d="M62,-6 L148,-6" stroke="#191c20" stroke-width="1.2"/>
+<circle cx="66" cy="-13" r="1.8" fill="#191c20"/><circle cx="146" cy="-13" r="1.8" fill="#191c20"/>
+"""
+
+const ICON_SHOTGUN := """
+<g stroke="#0c0e11" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+<path d="M6,-5 L50,-13 L62,-13 L62,7 L50,9 L14,23 L6,21 Z" fill="url(#wd)"/>
+<rect x="104" y="-3" width="90" height="8.5" rx="2.5" fill="url(#dk)"/>
+<rect x="104" y="-14" width="110" height="9" rx="2.5" fill="url(#mt)"/>
+<path d="M60,-15 L106,-15 L106,9 L60,9 Z" fill="url(#dk)"/>
+<rect x="124" y="-6" width="46" height="15" rx="4" fill="url(#wd)"/>
+<path d="M66,9 Q68,24 80,24 Q90,24 90,10" fill="none" stroke-width="3"/>
+<rect x="188" y="-16" width="6" height="23" rx="1.5" fill="#30353c" stroke-width="1.6"/>
+</g>
+<path d="M131,-4 L131,7 M137,-4 L137,7 M143,-4 L143,7 M149,-4 L149,7 M155,-4 L155,7 M161,-4 L161,7" stroke="#5c3a1c" stroke-width="1.8"/>
+<rect x="72" y="-12" width="22" height="7" rx="1.5" fill="#101215"/>
+<rect x="74" y="-11" width="12" height="5" rx="1.5" fill="#c9422f"/>
+<rect x="86" y="-11" width="5" height="5" rx="1" fill="#f3d27a"/>
+<path d="M78,10 Q77,16 80,19" fill="none" stroke="#b4bdc7" stroke-width="2.4" stroke-linecap="round"/>
+<path d="M12,2 Q30,-4 52,-6 M12,10 Q32,2 54,0 M14,17 Q32,10 50,4" stroke="#5c3a1c" stroke-width="1.3" fill="none" stroke-opacity="0.8"/>
+<path d="M6,-5 L6,21" stroke="#191c20" stroke-width="4" stroke-linecap="round"/>
+<circle cx="209" cy="-16" r="2.2" fill="#f3d27a" stroke="#0c0e11" stroke-width="1"/>
+<path d="M110,-11 L206,-11" stroke="#e3e9ef" stroke-width="1.4" stroke-opacity="0.8" stroke-linecap="round"/>
+<circle cx="66" cy="-9" r="1.8" fill="#191c20"/><circle cx="100" cy="3" r="1.8" fill="#191c20"/>
+"""
+
+const ICON_MACHINEGUN := """
+<g stroke="#0c0e11" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+<path d="M170,-2 L158,30 M170,-2 L186,30" fill="none" stroke-width="4"/>
+<path d="M6,-10 L40,-13 L40,9 L22,11 L6,7 Z" fill="url(#dk)"/>
+<path d="M46,7 L65,7 L58,31 L39,31 Z" fill="url(#dk)"/>
+<rect x="74" y="5" width="36" height="28" rx="3.5" fill="url(#ol)"/>
+<rect x="180" y="-9" width="30" height="7" rx="2" fill="url(#dk)"/>
+<rect x="206" y="-12" width="11" height="13" rx="2.5" fill="#30353c"/>
+<rect x="120" y="-12" width="62" height="12" rx="3" fill="url(#mt)"/>
+<path d="M40,-17 L122,-17 L122,7 L40,7 Z" fill="url(#dk)"/>
+<rect x="58" y="-22" width="52" height="7" rx="2" fill="url(#mt)"/>
+<path d="M94,-22 Q108,-37 124,-22" fill="none" stroke-width="4.5"/>
+</g>
+<circle cx="130" cy="-6" r="2.3" fill="#191c20"/><circle cx="140" cy="-6" r="2.3" fill="#191c20"/><circle cx="150" cy="-6" r="2.3" fill="#191c20"/><circle cx="160" cy="-6" r="2.3" fill="#191c20"/><circle cx="170" cy="-6" r="2.3" fill="#191c20"/>
+<rect x="62" y="1" width="4" height="7" rx="1" fill="url(#br)" stroke="#0c0e11" stroke-width="0.8"/><rect x="67" y="1" width="4" height="7" rx="1" fill="url(#br)" stroke="#0c0e11" stroke-width="0.8"/><rect x="72" y="1" width="4" height="7" rx="1" fill="url(#br)" stroke="#0c0e11" stroke-width="0.8"/><rect x="77" y="1" width="4" height="7" rx="1" fill="url(#br)" stroke="#0c0e11" stroke-width="0.8"/><rect x="82" y="1" width="4" height="7" rx="1" fill="url(#br)" stroke="#0c0e11" stroke-width="0.8"/>
+<path d="M74,13 L110,13" stroke="#3a4d22" stroke-width="2"/>
+<rect x="88" y="10" width="8" height="6" rx="1.5" fill="#b4bdc7" stroke="#0c0e11" stroke-width="1"/>
+<path d="M80,20 L104,20 M80,25 L104,25" stroke="#3a4d22" stroke-width="1.4"/>
+<path d="M66,8 Q67,20 76,21" fill="none" stroke="#0c0e11" stroke-width="2.4"/>
+<path d="M45,13 L61,13 M44,18 L60,18 M43,23 L59,23" stroke="#191c20" stroke-width="1.4"/>
+<path d="M6,-10 L6,7" stroke="#191c20" stroke-width="4" stroke-linecap="round"/>
+<path d="M62,-19 L106,-19" stroke="#e3e9ef" stroke-width="1.3" stroke-opacity="0.8" stroke-linecap="round"/>
+<path d="M124,-9 L178,-9" stroke="#e3e9ef" stroke-width="1.2" stroke-opacity="0.6" stroke-linecap="round"/>
+<rect x="46" y="-12" width="10" height="6" rx="1" fill="#101215"/>
+<circle cx="116" cy="-11" r="2" fill="#191c20"/><circle cx="46" cy="2" r="2" fill="#191c20"/>
+"""
+
+const ICON_RIFLE := """
+<g stroke="#0c0e11" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+<rect x="106" y="-12" width="108" height="6.5" rx="2" fill="url(#mt)"/>
+<path d="M4,-3 L46,-11 L152,-8 L152,2 L72,5 L62,11 L46,9 L12,21 L4,19 Z" fill="url(#wd)"/>
+<rect x="62" y="-13" width="46" height="8" rx="2" fill="url(#dk)"/>
+<path d="M68,5 Q70,20 82,20 Q92,20 92,7" fill="none" stroke-width="3"/>
+<rect x="76" y="-18" width="6" height="7" rx="1" fill="#30353c" stroke-width="1.4"/><rect x="106" y="-18" width="6" height="7" rx="1" fill="#30353c" stroke-width="1.4"/>
+<rect x="58" y="-27" width="72" height="10" rx="5" fill="url(#dk)"/>
+<rect x="50" y="-29" width="14" height="14" rx="4" fill="url(#dk)"/>
+<rect x="122" y="-30" width="16" height="16" rx="4.5" fill="url(#dk)"/>
+<path d="M92,-9 L101,3" fill="none" stroke-width="4"/>
+<circle cx="102" cy="4" r="4" fill="url(#mt)"/>
+</g>
+<ellipse cx="136" cy="-22" rx="2.2" ry="5.4" fill="#7fd0ff" fill-opacity="0.85"/>
+<ellipse cx="52" cy="-22" rx="1.8" ry="4.6" fill="#0c0e11"/>
+<rect x="90" y="-31" width="7" height="5" rx="1.5" fill="#6d7580" stroke="#0c0e11" stroke-width="1.2"/>
+<path d="M80,6 Q79,12 82,15" fill="none" stroke="#b4bdc7" stroke-width="2.4" stroke-linecap="round"/>
+<path d="M10,4 Q30,-3 54,-6 M10,12 Q34,3 60,0 M12,18 Q30,11 48,6 M66,-1 L148,-4 M110,-1 L150,-1" stroke="#5c3a1c" stroke-width="1.3" fill="none" stroke-opacity="0.8"/>
+<path d="M4,-3 L4,19" stroke="#191c20" stroke-width="4" stroke-linecap="round"/>
+<path d="M204,-12 L207,-18 L210,-12 Z" fill="#191c20"/>
+<path d="M112,-10 L206,-10" stroke="#e3e9ef" stroke-width="1.3" stroke-opacity="0.8" stroke-linecap="round"/>
+<path d="M62,-24 L126,-24" stroke="#8d96a1" stroke-width="1.2" stroke-opacity="0.7" stroke-linecap="round"/>
+"""
+
+const ICON_SLEDGE := """
+<g stroke="#0c0e11" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+<rect x="8" y="-5.5" width="164" height="11" rx="5" fill="url(#wd)"/>
+<rect x="12" y="-7" width="50" height="14" rx="5" fill="#30353c"/>
+<rect x="158" y="-33" width="44" height="66" rx="7" fill="url(#mt)"/>
+<rect x="154" y="-36" width="52" height="11" rx="4" fill="url(#dk)"/>
+<rect x="154" y="25" width="52" height="11" rx="4" fill="url(#dk)"/>
+</g>
+<path d="M18,-7 L26,7 M27,-7 L35,7 M36,-7 L44,7 M45,-7 L53,7" stroke="#191c20" stroke-width="2"/>
+<path d="M70,-2 L150,-2 M76,2 L140,2" stroke="#5c3a1c" stroke-width="1.2" stroke-opacity="0.8"/>
+<path d="M164,-22 L164,22" stroke="#e3e9ef" stroke-width="2.4" stroke-opacity="0.7" stroke-linecap="round"/>
+<path d="M176,-14 L186,-6 M190,-18 L196,-12 M178,8 L184,16" stroke="#3a4048" stroke-width="1.6" stroke-linecap="round"/>
+<path d="M186,6 L202,2 L202,26 L190,25 Q182,18 186,6 Z" fill="#7a1010" fill-opacity="0.9"/>
+<circle cx="182" cy="24" r="2.2" fill="#7a1010"/><circle cx="196" cy="-2" r="1.6" fill="#7a1010"/>
+<rect x="168" y="-4" width="8" height="8" rx="1.5" fill="#8c5c2f" stroke="#0c0e11" stroke-width="1.2"/>
+"""
+
+const ICON_LAUNCHER := """
+<g stroke="#0c0e11" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+<path d="M6,-6 L40,-11 L54,-11 L54,9 L40,11 L12,19 L6,17 Z" fill="url(#wd)"/>
+<path d="M58,9 L77,9 L70,32 L51,32 Z" fill="url(#dk)"/>
+<path d="M122,9 L138,9 L136,29 L124,29 Z" fill="url(#dk)"/>
+<rect x="88" y="-19" width="112" height="28" rx="5" fill="url(#ol)"/>
+<rect x="194" y="-22" width="15" height="34" rx="5" fill="#3a4d22"/>
+<rect x="50" y="-15" width="42" height="24" rx="4" fill="url(#dk)"/>
+<rect x="120" y="-34" width="6" height="16" rx="1.5" fill="#30353c" stroke-width="1.6"/>
+</g>
+<rect x="108" y="-19" width="7" height="28" fill="#3a4d22"/><rect x="170" y="-19" width="7" height="28" fill="#3a4d22"/>
+<rect x="140" y="-19" width="12" height="28" fill="#e9c94a"/>
+<path d="M140,-19 L146,-19 L140,-9 Z M146,-19 L152,-19 L152,-15 L142,2 L140,2 L140,-4 Z M152,-6 L152,5 L146,9 L143,9 Z" fill="#191c20" fill-opacity="0.75"/>
+<path d="M118,-30 L128,-30 M118,-25 L128,-25" stroke="#b4bdc7" stroke-width="1.4"/>
+<circle cx="88" cy="6" r="3.4" fill="#6d7580" stroke="#0c0e11" stroke-width="1.4"/>
+<path d="M78,10 Q80,22 90,22 Q98,22 98,11" fill="none" stroke="#0c0e11" stroke-width="2.6"/>
+<path d="M88,11 Q87,16 90,18" fill="none" stroke="#b4bdc7" stroke-width="2.2" stroke-linecap="round"/>
+<path d="M94,-14 L190,-14" stroke="#e8f0c8" stroke-width="1.6" stroke-opacity="0.6" stroke-linecap="round"/>
+<ellipse cx="204" cy="-5" rx="2.6" ry="11" fill="#0c0e11"/>
+<path d="M12,1 Q28,-4 50,-6 M12,9 Q30,3 50,1" stroke="#5c3a1c" stroke-width="1.3" fill="none" stroke-opacity="0.8"/>
+<path d="M56,15 L73,15 M55,20 L72,20 M54,25 L71,25" stroke="#191c20" stroke-width="1.4"/>
+<circle cx="58" cy="-8" r="2" fill="#191c20"/><circle cx="84" cy="-8" r="2" fill="#191c20"/>
+"""
+
+const ICON_FLAMETHROWER := """
+<g stroke="#0c0e11" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+<path d="M48,10 Q66,30 86,8" fill="none" stroke-width="5.5"/>
+<rect x="6" y="-28" width="42" height="21" rx="10" fill="url(#rd)"/>
+<rect x="6" y="-3" width="42" height="21" rx="10" fill="url(#rd)"/>
+<rect x="20" y="-30" width="6" height="50" rx="2" fill="#30353c"/>
+<path d="M84,5 L103,5 L96,30 L77,30 Z" fill="url(#dk)"/>
+<path d="M119,5 L133,5 L131,24 L121,24 Z" fill="url(#dk)"/>
+<rect x="136" y="-9" width="56" height="10" rx="2.5" fill="url(#mt)"/>
+<rect x="146" y="-14" width="36" height="5" rx="1.5" fill="url(#dk)"/>
+<rect x="186" y="3" width="15" height="5" rx="1.5" fill="url(#mt)" stroke-width="1.6"/>
+<path d="M190,-13 L205,-15 L205,5 L190,3 Z" fill="url(#dk)"/>
+<rect x="70" y="-11" width="68" height="16" rx="3.5" fill="url(#dk)"/>
+<circle cx="34" cy="-31" r="4.5" fill="url(#mt)"/>
+</g>
+<path d="M206,-7 Q218,-13 215,-5 Q222,-2 213,3 Q208,1 206,-2 Z" fill="#ff9a2e"/>
+<path d="M207,-5 Q213,-8 212,-3 Q214,-1 210,1 Q207,0 207,-3 Z" fill="#fff0a8"/>
+<circle cx="104" cy="-12" r="6" fill="#ece6d2" stroke="#0c0e11" stroke-width="1.6"/>
+<path d="M104,-12 L108,-15" stroke="#c9422f" stroke-width="1.6" stroke-linecap="round"/>
+<circle cx="152" cy="-11.5" r="1.3" fill="#0c0e11"/><circle cx="159" cy="-11.5" r="1.3" fill="#0c0e11"/><circle cx="166" cy="-11.5" r="1.3" fill="#0c0e11"/><circle cx="173" cy="-11.5" r="1.3" fill="#0c0e11"/>
+<path d="M12,-22 L42,-22 M12,3 L42,3" stroke="#ffb09c" stroke-width="2" stroke-opacity="0.7" stroke-linecap="round"/>
+<path d="M30,-17 L40,-17 L35,-10 Z M30,8 L40,8 L35,15 Z" fill="#f3d27a" stroke="#0c0e11" stroke-width="1"/>
+<path d="M104,6 Q105,17 114,18" fill="none" stroke="#0c0e11" stroke-width="2.4"/>
+<path d="M82,11 L99,11 M81,16 L98,16 M80,21 L97,21" stroke="#191c20" stroke-width="1.4"/>
+<path d="M140,-6 L188,-6" stroke="#e3e9ef" stroke-width="1.3" stroke-opacity="0.8" stroke-linecap="round"/>
+<path d="M76,-6 L96,-6 M116,-6 L134,-6" stroke="#8d96a1" stroke-width="1.2" stroke-opacity="0.6" stroke-linecap="round"/>
+"""
+
+const ICON_CHAINSAW := """
+<g stroke="#0c0e11" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+<path d="M96,-11 L196,-11 Q213,-11 213,0 Q213,11 196,11 L96,11 Z" fill="url(#mt)"/>
+<path d="M20,-9 L4,-9 L4,15 L20,15" fill="none" stroke-width="5.5"/>
+<path d="M30,-19 Q30,-36 56,-36 L84,-36 Q98,-36 98,-21" fill="none" stroke-width="5.5"/>
+<path d="M18,-19 L92,-19 L100,-8 L100,17 L18,17 Z" fill="url(#og)"/>
+<circle cx="42" cy="2" r="10" fill="url(#dk)"/>
+</g>
+<path d="M102,-11 L105,-16.5 L108,-11 Z M112,-11 L115,-16.5 L118,-11 Z M122,-11 L125,-16.5 L128,-11 Z M132,-11 L135,-16.5 L138,-11 Z M142,-11 L145,-16.5 L148,-11 Z M152,-11 L155,-16.5 L158,-11 Z M162,-11 L165,-16.5 L168,-11 Z M172,-11 L175,-16.5 L178,-11 Z M182,-11 L185,-16.5 L188,-11 Z M192,-11 L195,-16.5 L198,-11 Z" fill="#191c20" stroke="#0c0e11" stroke-width="1"/>
+<path d="M102,11 L105,16.5 L108,11 Z M112,11 L115,16.5 L118,11 Z M122,11 L125,16.5 L128,11 Z M132,11 L135,16.5 L138,11 Z M142,11 L145,16.5 L148,11 Z M152,11 L155,16.5 L158,11 Z M162,11 L165,16.5 L168,11 Z M172,11 L175,16.5 L178,11 Z M182,11 L185,16.5 L188,11 Z M192,11 L195,16.5 L198,11 Z" fill="#191c20" stroke="#0c0e11" stroke-width="1"/>
+<path d="M206,-9 L212,-12 L211,-4 Z M210,3 L217,3 L211,9 Z" fill="#191c20" stroke="#0c0e11" stroke-width="1"/>
+<path d="M106,0 L198,0" stroke="#3a4048" stroke-width="2.2" stroke-linecap="round"/>
+<path d="M104,-6 L200,-6" stroke="#e3e9ef" stroke-width="1.4" stroke-opacity="0.8" stroke-linecap="round"/>
+<circle cx="106" cy="-4" r="2.6" fill="#30353c" stroke="#0c0e11" stroke-width="1"/><circle cx="106" cy="5" r="2.6" fill="#30353c" stroke="#0c0e11" stroke-width="1"/>
+<path d="M178,-2 Q196,-10 210,-2 Q212,6 200,9 Q186,8 178,-2 Z" fill="#7a1010" fill-opacity="0.9"/>
+<circle cx="170" cy="5" r="2" fill="#7a1010"/><circle cx="160" cy="-5" r="1.5" fill="#7a1010"/>
+<circle cx="42" cy="2" r="4" fill="#6d7580" stroke="#0c0e11" stroke-width="1.2"/>
+<path d="M62,-13 L62,-3 M68,-13 L68,-3 M74,-13 L74,-3 M80,-13 L80,-3 M86,-13 L86,-3" stroke="#9c4409" stroke-width="2" stroke-linecap="round"/>
+<path d="M24,-14 L54,-14" stroke="#ffd9a8" stroke-width="2" stroke-opacity="0.8" stroke-linecap="round"/>
+<rect x="60" y="4" width="30" height="9" rx="2" fill="#191c20"/>
+<path d="M64,8.5 L86,8.5" stroke="#ffa64d" stroke-width="1.6"/>
+<path d="M8,-2 L8,8" stroke="#6d7580" stroke-width="2.4" stroke-linecap="round"/>
 """
 
 const SVG_GUN_SMG := """
-<rect x="0" y="-2.6" width="9" height="5.2" rx="1.4" fill="#16181c"/>
-<rect x="7" y="-4.4" width="19" height="8.8" rx="1.8" fill="#16181c"/>
-<rect x="9" y="-3" width="15" height="2.6" rx="1" fill="#4f6b73"/>
-<rect x="25" y="-2.2" width="10" height="4.4" rx="1.2" fill="#16181c"/>
-<rect x="27" y="-1.1" width="7" height="1.8" rx="0.8" fill="#99a2ad"/>
-<rect x="13" y="3" width="6" height="5" rx="1.2" fill="#3c434b" stroke="#16181c" stroke-width="1"/>
+<rect x="0" y="-2.8" width="9" height="5.6" rx="1.4" fill="#0c0e11"/>
+<rect x="1" y="-1.8" width="7" height="3.6" rx="1" fill="#30353c"/>
+<rect x="7" y="-4.6" width="19.4" height="9.2" rx="1.9" fill="#0c0e11"/>
+<rect x="8" y="-3.6" width="17.4" height="7.2" rx="1.3" fill="#3f454d"/>
+<rect x="8" y="-3.6" width="17.4" height="2.2" rx="1" fill="#6d7580"/>
+<path d="M10,-1 L10,1 M13,-1 L13,1 M16,-1 L16,1 M19,-1 L19,1 M22,-1 L22,1" stroke="#191c20" stroke-width="1.2"/>
+<rect x="25" y="-2.4" width="10.4" height="4.8" rx="1.3" fill="#0c0e11"/>
+<rect x="26" y="-1.4" width="8.6" height="2.8" rx="0.9" fill="#8d96a1"/>
+<rect x="26" y="-1.4" width="8.6" height="1" rx="0.5" fill="#c9d0d8"/>
+<rect x="12.6" y="3" width="6.8" height="5.4" rx="1.2" fill="#0c0e11"/>
+<rect x="13.5" y="3.8" width="5" height="3.8" rx="0.8" fill="#565d67"/>
+<rect x="20" y="-5.4" width="3" height="1.8" rx="0.5" fill="#8d96a1"/>
 """
 
 const SVG_GUN_RIFLE := """
-<rect x="0" y="-3.4" width="16" height="6.8" rx="2" fill="#16181c"/>
-<rect x="1" y="-2.4" width="14" height="4.8" rx="1.5" fill="#7a5230"/>
-<rect x="14" y="-3.2" width="20" height="6.4" rx="1.4" fill="#16181c"/>
-<rect x="16" y="-2" width="16" height="2.2" rx="1" fill="#5d6670"/>
-<rect x="32" y="-1.9" width="25" height="3.8" rx="1.2" fill="#16181c"/>
-<rect x="34" y="-0.9" width="22" height="1.6" rx="0.8" fill="#aab2bc"/>
-<rect x="18" y="-6.2" width="12" height="3.4" rx="1.4" fill="#2a2f36" stroke="#16181c" stroke-width="0.8"/>
+<rect x="0" y="-3.6" width="17" height="7.2" rx="2" fill="#0c0e11"/>
+<rect x="1" y="-2.6" width="15" height="5.2" rx="1.5" fill="#8c5c2f"/>
+<rect x="1" y="-2.6" width="15" height="1.6" rx="0.8" fill="#c48d54"/>
+<rect x="14" y="-3.4" width="20.4" height="6.8" rx="1.5" fill="#0c0e11"/>
+<rect x="15" y="-2.4" width="18.4" height="4.8" rx="1" fill="#8c5c2f"/>
+<rect x="32" y="-2.1" width="25.4" height="4.2" rx="1.2" fill="#0c0e11"/>
+<rect x="33" y="-1.1" width="23.6" height="2.2" rx="0.8" fill="#8d96a1"/>
+<rect x="33" y="-1.1" width="23.6" height="0.8" rx="0.4" fill="#d5dbe2"/>
+<rect x="15" y="-1.9" width="18" height="3.8" rx="1.9" fill="#0c0e11"/>
+<rect x="16" y="-1.2" width="16" height="2.4" rx="1.2" fill="#30353c"/>
+<rect x="13.4" y="-2.5" width="4.4" height="5" rx="1.4" fill="#0c0e11"/>
+<rect x="30.4" y="-2.7" width="4.8" height="5.4" rx="1.5" fill="#0c0e11"/>
+<ellipse cx="33.6" cy="0" rx="0.9" ry="1.7" fill="#7fd0ff"/>
+<rect x="24" y="2.6" width="5" height="1.8" rx="0.8" fill="#8d96a1"/>
 """
 
 const SVG_GUN_FLAMETHROWER := """
-<rect x="0" y="-8.5" width="14" height="17" rx="5" fill="#16181c"/>
-<rect x="1.4" y="-7" width="11.2" height="14" rx="4" fill="#b23a2a"/>
-<rect x="3" y="-5.5" width="3" height="11" rx="1.5" fill="#d9644f"/>
-<rect x="12" y="-3.6" width="24" height="7.2" rx="2" fill="#16181c"/>
-<rect x="14" y="-2.4" width="20" height="2.4" rx="1" fill="#6d747d"/>
-<rect x="34" y="-2.6" width="12" height="5.2" rx="1.4" fill="#16181c"/>
-<rect x="36" y="-1.4" width="9" height="2.8" rx="1" fill="#e9a23a"/>
-<circle cx="46" cy="0" r="1.8" fill="#ffd36b"/>
+<rect x="0" y="-9" width="14.4" height="8.6" rx="4" fill="#0c0e11"/>
+<rect x="0" y="0.4" width="14.4" height="8.6" rx="4" fill="#0c0e11"/>
+<rect x="1.2" y="-7.8" width="12" height="6.2" rx="3" fill="#b53520"/>
+<rect x="1.2" y="1.6" width="12" height="6.2" rx="3" fill="#b53520"/>
+<rect x="2.4" y="-7.2" width="9" height="1.6" rx="0.8" fill="#e86a50"/><rect x="2.4" y="2.2" width="9" height="1.6" rx="0.8" fill="#e86a50"/>
+<rect x="6" y="-9.4" width="2.4" height="18.8" rx="1" fill="#30353c"/>
+<rect x="12" y="-3.8" width="24.4" height="7.6" rx="2" fill="#0c0e11"/>
+<rect x="13.2" y="-2.6" width="22" height="5.2" rx="1.3" fill="#3f454d"/>
+<rect x="13.2" y="-2.6" width="22" height="1.7" rx="0.8" fill="#6d7580"/>
+<circle cx="19" cy="0" r="1.9" fill="#ece6d2" stroke="#0c0e11" stroke-width="0.7"/>
+<rect x="34" y="-2.8" width="12.4" height="5.6" rx="1.5" fill="#0c0e11"/>
+<rect x="35.2" y="-1.6" width="10" height="3.2" rx="1" fill="#e9a23a"/>
+<circle cx="24.5" cy="0" r="0.7" fill="#0c0e11"/><circle cx="27.5" cy="0" r="0.7" fill="#0c0e11"/><circle cx="30.5" cy="0" r="0.7" fill="#0c0e11"/>
+<circle cx="46.2" cy="0" r="1.7" fill="#ffd36b"/>
 """
 
 const SVG_GUN_CHAINSAW := """
-<rect x="4" y="-10" width="10" height="4.4" rx="2" fill="#16181c"/>
-<rect x="0" y="-7" width="18" height="14" rx="3" fill="#16181c"/>
-<rect x="1.4" y="-5.6" width="15.2" height="11.2" rx="2.2" fill="#e8731f"/>
-<rect x="4" y="-3" width="6" height="6" rx="1.5" fill="#b3540f"/>
-<rect x="16" y="-4.6" width="37" height="9.2" rx="4.6" fill="#16181c"/>
-<rect x="18" y="-2.8" width="33" height="5.6" rx="2.8" fill="#aab2bc"/>
-<path d="M20,-4.6 L22,-6.2 L24,-4.6 M27,-4.6 L29,-6.2 L31,-4.6 M34,-4.6 L36,-6.2 L38,-4.6 M41,-4.6 L43,-6.2 L45,-4.6 M20,4.6 L22,6.2 L24,4.6 M27,4.6 L29,6.2 L31,4.6 M34,4.6 L36,6.2 L38,4.6 M41,4.6 L43,6.2 L45,4.6" stroke="#16181c" stroke-width="1.6" fill="none"/>
+<rect x="4" y="-10.2" width="10" height="4.8" rx="2.2" fill="#0c0e11"/>
+<rect x="0" y="-7.2" width="18.4" height="14.4" rx="3.2" fill="#0c0e11"/>
+<rect x="1.3" y="-5.9" width="15.8" height="11.8" rx="2.3" fill="#e06a14"/>
+<rect x="1.3" y="-5.9" width="15.8" height="3.6" rx="1.8" fill="#ffa64d"/>
+<circle cx="7" cy="1" r="3" fill="#30353c" stroke="#0c0e11" stroke-width="0.8"/>
+<path d="M11.5,-1.5 L11.5,3.5 M13.3,-1.5 L13.3,3.5 M15.1,-1.5 L15.1,3.5" stroke="#9c4409" stroke-width="0.9"/>
+<rect x="16" y="-4.8" width="37.4" height="9.6" rx="4.8" fill="#0c0e11"/>
+<rect x="17.8" y="-3" width="33.8" height="6" rx="3" fill="#8d96a1"/>
+<rect x="17.8" y="-3" width="33.8" height="1.8" rx="0.9" fill="#d5dbe2"/>
+<path d="M20,-4.8 L22,-6.6 L24,-4.8 M27,-4.8 L29,-6.6 L31,-4.8 M34,-4.8 L36,-6.6 L38,-4.8 M41,-4.8 L43,-6.6 L45,-4.8 M20,4.8 L22,6.6 L24,4.8 M27,4.8 L29,6.6 L31,4.8 M34,4.8 L36,6.6 L38,4.8 M41,4.8 L43,6.6 L45,4.8" stroke="#0c0e11" stroke-width="1.6" fill="none"/>
+<path d="M19,0 L49,0" stroke="#3a4048" stroke-width="0.9"/>
+<path d="M42,-2 Q48,-4 51,-1 Q51,3 46,3 Q43,2 42,-2 Z" fill="#7a1010"/>
 """
 
 const SVG_GRENADE := """

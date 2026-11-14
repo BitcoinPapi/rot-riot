@@ -6,11 +6,13 @@ extends Node
 ##      GameInput.get_move()            -> Vector2, length 0..1
 ##      GameInput.get_aim_direction(n)  -> Vector2, length 1
 ##      GameInput.is_firing()           -> bool
-##  and listens to the signals  rage_pressed / pause_pressed / back_pressed.
+##  and listens to the signals  rage_pressed / reload_pressed / pause_pressed /
+##  back_pressed.
 ##
 ##  ADDING TOUCH CONTROLS LATER (mobile):
 ##  Build on-screen sticks that call  set_virtual_input(move, aim, firing)
-##  every frame and  press_rage() / press_pause()  from their buttons.
+##  every frame and  press_rage() / press_reload() / press_pause()  from their
+##  buttons.
 ##  Nothing else in the game has to change. (The test bot already plays the
 ##  game through exactly this path.)
 ## ============================================================================
@@ -18,6 +20,7 @@ extends Node
 signal pause_pressed
 signal back_pressed
 signal rage_pressed
+signal reload_pressed
 signal device_changed(device: int)
 
 enum Device { KEYBOARD_MOUSE, GAMEPAD, TOUCH }
@@ -56,9 +59,11 @@ func _register_actions() -> void:
 	_bind("aim_down", [_axis(JOY_AXIS_RIGHT_Y, 1.0)])
 	# Shooting: left mouse button or right trigger.
 	_bind("fire", [_mouse(MOUSE_BUTTON_LEFT), _axis(JOY_AXIS_TRIGGER_RIGHT, 1.0)])
-	# Rage: Space, right mouse button, left trigger, left bumper or X button.
+	# Rage: Space, right mouse button, left trigger or left bumper.
 	_bind("rage", [_key(KEY_SPACE), _mouse(MOUSE_BUTTON_RIGHT), _axis(JOY_AXIS_TRIGGER_LEFT, 1.0),
-			_button(JOY_BUTTON_LEFT_SHOULDER), _button(JOY_BUTTON_X)])
+			_button(JOY_BUTTON_LEFT_SHOULDER)])
+	# Reload: R or the X button. (Guns also reload by themselves when empty.)
+	_bind("reload", [_key(KEY_R), _button(JOY_BUTTON_X)])
 	# Pause: Escape, P or the Start button.
 	_bind("pause", [_key(KEY_ESCAPE), _key(KEY_P), _button(JOY_BUTTON_START)])
 	# Fullscreen toggle.
@@ -182,6 +187,10 @@ func press_rage() -> void:
 	rage_pressed.emit()
 
 
+func press_reload() -> void:
+	reload_pressed.emit()
+
+
 func press_pause() -> void:
 	pause_pressed.emit()
 
@@ -218,6 +227,8 @@ func _input(event: InputEvent) -> void:
 		back_pressed.emit()
 	elif event.is_action_pressed("rage"):
 		rage_pressed.emit()
+	elif event.is_action_pressed("reload"):
+		reload_pressed.emit()
 
 
 func _detect_device(event: InputEvent) -> void:

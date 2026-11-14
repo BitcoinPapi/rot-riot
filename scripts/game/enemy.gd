@@ -21,6 +21,8 @@ var attack_t := 0.0
 var flash_t := 0.0              # white hit-flash time left
 var stagger_t := 0.0            # can't walk while this is > 0
 var spawn_t := 0.0              # rising out of the ground (summoned zombies)
+var wounded := false            # below Config.WOUNDED_AT health: shows wounds, limps, bleeds
+var sway := 0.13                # how far the body rocks from side to side while walking
 var burn_t := 0.0               # on fire for this many more seconds...
 var burn_dps := 0.0             # ...losing this much health per second
 var burn_src := ""              # the weapon that lit it (gets the XP if it dies)
@@ -48,6 +50,7 @@ var is_big := false
 # Sprites
 var tex_normal: Texture2D
 var tex_flash: Texture2D
+var tex_hurt: Texture2D
 var base_scale := 0.5
 
 # Boss only
