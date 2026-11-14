@@ -9,6 +9,7 @@ extends Node
 signal coins_changed
 signal settings_changed
 signal progress_changed          # level, points or ranks changed
+signal gear_changed              # what the hero wears changed (his pictures are redrawn)
 
 const SAVE_VERSION := 2
 
@@ -303,10 +304,12 @@ func _load_tree(data: Dictionary) -> void:
 			if not SkillTree.has(id):
 				known = false
 				continue
-			tree[id] = count if bool(SkillTree.nodes()[id]["repeat"]) else 1
-		# If the tree's layout changed (a learned node is gone, or cut off from
-		# the middle), hand every point back rather than keep a broken tree.
-		if not known or not _tree_connected():
+			var most := int(SkillTree.nodes()[id]["max"])
+			tree[id] = count if most <= 0 else mini(count, most)
+		# If the tree has changed since this was saved (a learned node is gone,
+		# or no longer grows from what is learned), hand every point back
+		# rather than keep a broken tree.
+		if not known or not _tree_valid():
 			points_returned = maxi(int(data.get("tree_spent", 0)), spent_points())
 			skill_points += points_returned
 			tree = {}
@@ -323,17 +326,12 @@ func _load_tree(data: Dictionary) -> void:
 	_recount_tree()
 
 
-## True if every learned node can be reached from the middle through learned nodes.
-func _tree_connected() -> bool:
-	var seen := {"start": true}
-	var todo: Array[String] = ["start"]
-	while not todo.is_empty():
-		var id: String = todo.pop_back()
-		for other: String in SkillTree.nodes()[id]["links"]:
-			if not seen.has(other) and tree.has(other):
-				seen[other] = true
-				todo.append(other)
-	return seen.size() - 1 == tree.size()
+## True if every learned node grows from a node that has enough levels.
+func _tree_valid() -> bool:
+	for id: String in tree.keys():
+		if not node_requirement_met(id):
+			return false
+	return true
 
 
 func _recount_tree() -> void:
@@ -349,23 +347,35 @@ func _recount_tree() -> void:
 			_keystones[String(n["stat"])] = true
 
 
-## How many times a node has been learned (the middle node always counts).
+## How many levels of a node have been bought (the middle node always counts).
 func node_count(id: String) -> int:
 	return 1 if id == "start" else int(tree.get(id, 0))
 
 
-## Skill points for the next purchase of a node.
+## Skill points for the next level of a node.
 func node_cost(id: String) -> int:
 	return SkillTree.cost(id, node_count(id))
+
+
+## True if one of the nodes this node grows from has enough levels.
+func node_requirement_met(id: String) -> bool:
+	var n: Dictionary = SkillTree.nodes()[id]
+	var requires: Array = n["requires"]
+	if requires.is_empty():
+		return true
+	for other: String in requires:
+		if node_count(other) >= int(n["requires_count"]):
+			return true
+	return false
 
 
 ## Where a node stands: one of SkillTree.OWNED / READY / POOR / LEVEL / SEALED / FAR.
 func node_status(id: String) -> int:
 	var n: Dictionary = SkillTree.nodes()[id]
-	var count := node_count(id)
-	if count > 0 and not bool(n["repeat"]):
+	var most := int(n["max"])
+	if most > 0 and node_count(id) >= most:
 		return SkillTree.OWNED
-	if count == 0 and not node_touches_learned(id):
+	if not node_requirement_met(id):
 		return SkillTree.FAR
 	if level < int(n["level"]):
 		return SkillTree.LEVEL
@@ -376,17 +386,10 @@ func node_status(id: String) -> int:
 	return SkillTree.READY
 
 
-func node_touches_learned(id: String) -> bool:
-	for other: String in SkillTree.nodes()[id]["links"]:
-		if node_count(other) > 0:
-			return true
-	return false
-
-
-## Spend skill points on a node. Returns false (and changes nothing) if it
-## cannot be learned right now.
+## Spend skill points on one more level of a node. Returns false (and changes
+## nothing) if that is not possible right now.
 func learn_node(id: String) -> bool:
-	if not SkillTree.has(id) or node_status(id) != SkillTree.READY:
+	if id == "start" or not SkillTree.has(id) or node_status(id) != SkillTree.READY:
 		return false
 	skill_points -= node_cost(id)
 	tree[id] = node_count(id) + 1
@@ -395,6 +398,16 @@ func learn_node(id: String) -> bool:
 	progress_changed.emit()
 	save_game()
 	return true
+
+
+## Skill points put into one family of the tree (GRIT, FURY, INSTINCT).
+func family_points(family: String) -> int:
+	var total := 0
+	for id: String in tree.keys():
+		if String(SkillTree.nodes()[id]["family"]) == family:
+			for owned in int(tree[id]):
+				total += SkillTree.cost(id, owned)
+	return total
 
 
 func has_keystone(stat: String) -> bool:
@@ -721,6 +734,7 @@ func _load_gear(data: Dictionary) -> void:
 
 
 func _recount_gear() -> void:
+	gear_changed.emit()
 	_gear_ranks = {}
 	for slot: String in Config.GEAR_SLOTS:
 		var key := String(gear_worn.get(slot, ""))
@@ -929,8 +943,8 @@ func choose_pet(id: String) -> bool:
 	return true
 
 
-## True if the pet trick number `index` (Config.PET_TRICKS) has been learned
-## in the BOND branch of the skill tree.
+## True if the pet trick number `index` (Config.PET_TRICKS) has been learned:
+## the first level of the matching BOND node in the skill tree.
 func has_pet_trick(index: int) -> bool:
 	return node_count(SkillTree.trick_node(index)) > 0
 

@@ -30,6 +30,8 @@ const ENEMY_VARIANTS := [SHAMBLER_VARIANTS, RUNNER_VARIANTS, BRUTE_VARIANTS, 1]
 func _ready() -> void:
 	_build()
 	_images.clear()
+	# The hero is redrawn whenever he puts something on or takes it off.
+	SaveData.gear_changed.connect(refresh_hero)
 
 
 ## Texture by name.
@@ -102,9 +104,7 @@ func _build() -> void:
 	_flash("boss_0")
 
 	# --- player and weapons ---
-	_svg("player", 56, 56, SVG_PLAYER)
-	_svg("player_hurt", 56, 56, SVG_PLAYER + WOUNDS_PLAYER)   # battle-worn look at low health
-	_flash("player")
+	refresh_hero()
 	_svg("gun_pistol", 24, 12, SVG_GUN_PISTOL, false)
 	_svg("gun_shotgun", 42, 14, SVG_GUN_SHOTGUN, false)
 	_svg("gun_machinegun", 46, 18, SVG_GUN_MACHINEGUN, false)
@@ -224,6 +224,268 @@ func _pet_svg(look: Dictionary) -> String:
 	out += "<circle cx=\"18.8\" cy=\"0\" r=\"1.25\" fill=\"%s\"/>" % dark
 	for side: float in [-1.0, 1.0]:
 		out += "<circle cx=\"13.6\" cy=\"%s\" r=\"%s\" fill=\"%s\"/>" % [str(side * 2.5), "1.4" if bool(look["ember"]) else "1.0", eye]
+	return out
+
+
+# ----------------------------------------------------------------------------
+#  The hero. His pictures are built from Config.HERO_LOOK plus whatever gear
+#  he is wearing (each piece's "look" in Config.GEAR_ITEMS), so he looks the
+#  same in the menus (front view, "hero_front") and in the game (top-down
+#  "player", with its wounded and hit-flash versions).
+# ----------------------------------------------------------------------------
+## Redraw the hero from the gear worn right now.
+func refresh_hero() -> void:
+	var worn: Dictionary = SaveData.gear_worn
+	var top := _hero_top_svg(worn)
+	_svg("player", 56, 56, top)
+	_svg("player_hurt", 56, 56, top + WOUNDS_PLAYER)   # battle-worn look at low health
+	_flash("player")
+	_svg("hero_front", 220, 400, _hero_front_svg(worn))
+	for sprite: String in ["player", "player_hurt", "hero_front"]:
+		_images.erase(sprite)
+
+
+## The "look" of the piece worn in a slot ({} = nothing there).
+func _worn_look(worn: Dictionary, slot: String) -> Dictionary:
+	var key := String(worn.get(slot, ""))
+	if key == "":
+		return {}
+	var item := Config.gear_item_of(key)
+	if not Config.GEAR_ITEMS.has(item):
+		return {}
+	return Config.GEAR_ITEMS[item]["look"]
+
+
+## The hero seen from above (56x56, facing right, holding his gun in front).
+func _hero_top_svg(worn: Dictionary) -> String:
+	var h: Dictionary = Config.HERO_LOOK
+	var dark := "#15130f"
+	var skin := String(h["skin"])
+	var shirt := String(h["shirt"])
+	var strap := String(h["strap"])
+	var helmet := _worn_look(worn, "helmet")
+	var chest := _worn_look(worn, "chest")
+	var gloves := _worn_look(worn, "gloves")
+	var belt := _worn_look(worn, "belt")
+	var chest_style := String(chest.get("style", ""))
+	var covered := chest_style == "jacket" or chest_style == "armor"      # sleeves down to the wrist
+	var torso := String(chest["color"]) if covered else shirt
+	var arm := torso if covered else skin
+	var hand := skin if gloves.is_empty() else String(gloves["color"])
+	var out := "<circle cx=\"0\" cy=\"0\" r=\"20\" fill=\"#000000\" fill-opacity=\"0.24\"/>"
+
+	# Arms reaching forward to the gun, hands on it.
+	for side: float in [-1.0, 1.0]:
+		var line := "M0,%s L13,%s" % [str(side * 10.5), str(side * 4.0)]
+		out += "<path d=\"%s\" stroke=\"%s\" stroke-width=\"9\" stroke-linecap=\"round\" fill=\"none\"/>" % [line, dark]
+		out += "<path d=\"%s\" stroke=\"%s\" stroke-width=\"5.6\" stroke-linecap=\"round\" fill=\"none\"/>" % [line, arm]
+		if not covered:
+			# The short sleeve of his shirt.
+			out += "<path d=\"M0,%s L5,%s\" stroke=\"%s\" stroke-width=\"5.6\" stroke-linecap=\"round\" fill=\"none\"/>" % [
+					str(side * 10.5), str(side * 8.0), shirt]
+		out += "<circle cx=\"14\" cy=\"%s\" r=\"3.5\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.2\"/>" % [str(side * 3.6), hand, dark]
+		if String(gloves.get("style", "")) == "wraps":
+			out += "<path d=\"M12.4,%s L15.6,%s\" stroke=\"%s\" stroke-width=\"1\"/>" % [str(side * 3.6 - 1.6), str(side * 3.6 + 1.6), String(gloves["trim"])]
+
+	# Belt pouches peeking out at the hips.
+	var pouch := String(h["pouch"]) if belt.is_empty() else String(belt["color"])
+	for side: float in [-1.0, 1.0]:
+		out += "<rect x=\"-8\" y=\"%s\" width=\"6.5\" height=\"4\" rx=\"1.2\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1\"/>" % [
+				str(side * 13.6 - 2.0), pouch, dark]
+
+	# Shoulders and back.
+	out += "<ellipse cx=\"-2\" cy=\"0\" rx=\"10.4\" ry=\"14.6\" fill=\"%s\"/>" % dark
+	out += "<ellipse cx=\"-2\" cy=\"0\" rx=\"8.8\" ry=\"13\" fill=\"%s\"/>" % torso
+	if not covered:
+		# His harness: a strap over each shoulder and one across the back.
+		for side: float in [-1.0, 1.0]:
+			out += "<path d=\"M-9.5,%s L4.5,%s\" stroke=\"%s\" stroke-width=\"2.2\" stroke-linecap=\"round\"/>" % [str(side * 6.6), str(side * 6.6), strap]
+		out += "<path d=\"M-7,-6.6 L-7,6.6\" stroke=\"%s\" stroke-width=\"2\"/>" % strap
+	match chest_style:
+		"vest":
+			out += "<ellipse cx=\"-2.5\" cy=\"0\" rx=\"7.6\" ry=\"8.6\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1\"/>" % [String(chest["color"]), String(chest["trim"])]
+		"bandolier":
+			out += "<path d=\"M-9,-9 L5,9\" stroke=\"%s\" stroke-width=\"3.4\" stroke-linecap=\"round\"/>" % String(chest["color"])
+			for k in 4:
+				out += "<circle cx=\"%s\" cy=\"%s\" r=\"0.9\" fill=\"%s\"/>" % [str(-7.0 + 3.4 * k), str(-6.4 + 4.3 * k), String(chest["trim"])]
+		"armor":
+			for side: float in [-1.0, 1.0]:
+				out += "<circle cx=\"0\" cy=\"%s\" r=\"4.8\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.2\"/>" % [str(side * 11.4), String(chest["color"]), dark]
+			out += "<path d=\"M-8,-6 L-8,6\" stroke=\"%s\" stroke-width=\"1.5\" stroke-linecap=\"round\"/>" % String(chest["trim"])
+		"jacket":
+			out += "<path d=\"M2,-6.5 Q6.5,0 2,6.5\" stroke=\"%s\" stroke-width=\"1.8\" fill=\"none\" stroke-linecap=\"round\"/>" % String(chest["trim"])
+
+	# Head: short dark hair, a sliver of face at the front.
+	out += "<circle cx=\"2.5\" cy=\"0\" r=\"8.6\" fill=\"%s\"/>" % dark
+	out += "<circle cx=\"2.5\" cy=\"0\" r=\"7.1\" fill=\"%s\"/>" % skin
+	out += "<path d=\"M6.3,-6 A7.1,7.1 0 1 0 6.3,6 Q3.2,0 6.3,-6 Z\" fill=\"%s\"/>" % String(h["hair"])
+	var brim := "M6.5,-6 Q14.5,0 6.5,6 Q8.6,0 6.5,-6 Z"
+	match String(helmet.get("style", "")):
+		"hardhat":
+			out += "<ellipse cx=\"8.4\" cy=\"0\" rx=\"3.4\" ry=\"6.6\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.1\"/>" % [String(helmet["color"]), dark]
+			out += "<circle cx=\"2.5\" cy=\"0\" r=\"8.8\" fill=\"%s\"/><circle cx=\"2.5\" cy=\"0\" r=\"7.5\" fill=\"%s\"/>" % [dark, String(helmet["color"])]
+			out += "<path d=\"M-4.4,0 L9.2,0\" stroke=\"%s\" stroke-width=\"1.7\" stroke-linecap=\"round\"/>" % String(helmet["trim"])
+		"cap":
+			out += "<circle cx=\"2.5\" cy=\"0\" r=\"7.2\" fill=\"%s\"/>" % String(helmet["color"])
+			out += "<path d=\"%s\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/>" % [brim, String(helmet["trim"]), dark]
+			out += "<circle cx=\"1.6\" cy=\"0\" r=\"1.5\" fill=\"%s\"/>" % String(helmet["trim"])
+		"mask":
+			out += "<ellipse cx=\"8.2\" cy=\"0\" rx=\"3.3\" ry=\"5\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1\"/>" % [String(helmet["color"]), dark]
+			for side: float in [-1.0, 1.0]:
+				out += "<circle cx=\"9.8\" cy=\"%s\" r=\"2.3\" fill=\"%s\" stroke=\"%s\" stroke-width=\"0.8\"/>" % [str(side * 5.6), String(helmet["trim"]), dark]
+		"visor":
+			out += "<circle cx=\"2.5\" cy=\"0\" r=\"8.8\" fill=\"%s\"/><circle cx=\"2.5\" cy=\"0\" r=\"7.5\" fill=\"%s\"/>" % [dark, String(helmet["color"])]
+			out += "<path d=\"%s\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.1\" stroke-linejoin=\"round\"/>" % [brim, String(helmet["trim"]), dark]
+	return out
+
+
+## The hero standing, seen from the front (220x400) - for the menus.
+func _hero_front_svg(worn: Dictionary) -> String:
+	var h: Dictionary = Config.HERO_LOOK
+	var dark := "#15130f"
+	var skin := String(h["skin"])
+	var shirt := String(h["shirt"])
+	var strap := String(h["strap"])
+	var metal := String(h["metal"])
+	var helmet := _worn_look(worn, "helmet")
+	var chest := _worn_look(worn, "chest")
+	var gloves := _worn_look(worn, "gloves")
+	var belt := _worn_look(worn, "belt")
+	var pants := _worn_look(worn, "pants")
+	var boots := _worn_look(worn, "boots")
+	var amulet := _worn_look(worn, "amulet")
+	var chest_style := String(chest.get("style", ""))
+	var covered := chest_style == "jacket" or chest_style == "armor"
+	var out := "<ellipse cx=\"0\" cy=\"190\" rx=\"74\" ry=\"9\" fill=\"#000000\" fill-opacity=\"0.35\"/>"
+
+	# Legs, knee pads, the holster on his thigh.
+	var leg := String(h["pants"]) if pants.is_empty() else String(pants["color"])
+	var knee := String(h["pads"]) if pants.is_empty() else String(pants["trim"])
+	for side: float in [-1.0, 1.0]:
+		var x := -36.0 if side < 0.0 else 6.0
+		out += "<rect x=\"%s\" y=\"36\" width=\"30\" height=\"138\" rx=\"9\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2.4\"/>" % [str(x), leg, dark]
+		out += "<rect x=\"%s\" y=\"98\" width=\"27\" height=\"25\" rx=\"7\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.6\"/>" % [str(x + 1.5), knee, dark]
+	out += "<rect x=\"6\" y=\"62\" width=\"30\" height=\"6\" fill=\"%s\"/>" % String(h["pads"])
+	out += "<rect x=\"27\" y=\"58\" width=\"15\" height=\"34\" rx=\"3\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.6\"/>" % [String(h["pads"]), dark]
+
+	# Boots.
+	var boot := String(h["boots"]) if boots.is_empty() else String(boots["color"])
+	var sole := "#3a3d42" if boots.is_empty() else String(boots["trim"])
+	var boot_top := 170.0 if String(boots.get("style", "boots")) == "shoes" else 158.0
+	for side: float in [-1.0, 1.0]:
+		var x := -41.0 if side < 0.0 else 3.0
+		out += "<rect x=\"%s\" y=\"%s\" width=\"38\" height=\"%s\" rx=\"7\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2.4\"/>" % [
+				str(x), str(boot_top), str(190.0 - boot_top), boot, dark]
+		out += "<rect x=\"%s\" y=\"183\" width=\"36\" height=\"5\" rx=\"2\" fill=\"%s\"/>" % [str(x + 1.0), sole]
+
+	# Arms (behind the body), the pistol in his right hand.
+	var sleeve := String(chest["color"]) if covered else skin
+	var hand := skin if gloves.is_empty() else String(gloves["color"])
+	out += "<rect x=\"57\" y=\"56\" width=\"11\" height=\"46\" rx=\"2\" fill=\"#2a2c30\" stroke=\"%s\" stroke-width=\"2\"/>" % dark
+	for side: float in [-1.0, 1.0]:
+		var arm := "M%s,-78 L%s,-14 L%s,44" % [str(side * 52.0), str(side * 60.0), str(side * 62.0)]
+		out += "<path d=\"%s\" stroke=\"%s\" stroke-width=\"26\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill=\"none\"/>" % [arm, dark]
+		out += "<path d=\"%s\" stroke=\"%s\" stroke-width=\"21.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill=\"none\"/>" % [arm, sleeve]
+		if not covered:
+			out += "<path d=\"M%s,-78 L%s,-46\" stroke=\"%s\" stroke-width=\"21.4\" stroke-linecap=\"round\" fill=\"none\"/>" % [str(side * 52.0), str(side * 56.0), shirt]
+		if not gloves.is_empty():
+			out += "<path d=\"M%s,24 L%s,44\" stroke=\"%s\" stroke-width=\"21.4\" stroke-linecap=\"round\" fill=\"none\"/>" % [str(side * 61.0), str(side * 62.0), hand]
+		out += "<circle cx=\"%s\" cy=\"52\" r=\"11.5\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2\"/>" % [str(side * 62.0), hand, dark]
+		if String(gloves.get("style", "")) == "wraps":
+			for k in 3:
+				out += "<path d=\"M%s,%s L%s,%s\" stroke=\"%s\" stroke-width=\"1.6\"/>" % [str(side * 62.0 - 9.0), str(44.0 + 6.0 * k),
+						str(side * 62.0 + 9.0), str(47.0 + 6.0 * k), String(gloves["trim"])]
+
+	# Rings: a small band on each hand.
+	for pair: Array in [["ring1", -1.0], ["ring2", 1.0]]:
+		var ring := _worn_look(worn, String(pair[0]))
+		if not ring.is_empty():
+			out += "<circle cx=\"%s\" cy=\"58\" r=\"3.4\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.2\"/>" % [str(float(pair[1]) * 67.0), String(ring["color"]), dark]
+
+	# Body: black shirt, or what he wears over it.
+	var torso_shape := "M-46,-90 Q0,-102 46,-90 L38,40 L-38,40 Z"
+	out += "<path d=\"%s\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2.4\" stroke-linejoin=\"round\"/>" % [torso_shape, String(chest["color"]) if covered else shirt, dark]
+	if not covered:
+		out += "<path d=\"M-20,-90 Q0,-96 20,-90 L16,34 L-16,34 Z\" fill=\"%s\" fill-opacity=\"0.4\"/>" % String(h["shirt_light"])
+		# His harness: shoulder straps and a chest strap with a buckle.
+		for side: float in [-1.0, 1.0]:
+			out += "<path d=\"M%s,-95 L%s,38\" stroke=\"%s\" stroke-width=\"8.6\"/>" % [str(side * 29.0), str(side * 22.0), dark]
+			out += "<path d=\"M%s,-95 L%s,38\" stroke=\"%s\" stroke-width=\"6\"/>" % [str(side * 29.0), str(side * 22.0), strap]
+		out += "<rect x=\"-41\" y=\"-42\" width=\"82\" height=\"10\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.6\"/>" % [strap, dark]
+		out += "<rect x=\"-8\" y=\"-45\" width=\"16\" height=\"16\" rx=\"2\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.6\"/>" % [metal, dark]
+	match chest_style:
+		"jacket":
+			for side: float in [-1.0, 1.0]:
+				out += "<path d=\"M%s,-97 L%s,38\" stroke=\"%s\" stroke-width=\"3\" stroke-linecap=\"round\"/>" % [str(side * 12.0), str(side * 5.0), String(chest["trim"])]
+			out += "<path d=\"M0,-80 L0,38\" stroke=\"%s\" stroke-width=\"1.6\"/>" % dark
+		"vest":
+			out += "<path d=\"M-34,-90 Q0,-99 34,-90 L32,34 L-32,34 Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2.4\" stroke-linejoin=\"round\"/>" % [String(chest["color"]), dark]
+			for side: float in [-1.0, 1.0]:
+				out += "<rect x=\"%s\" y=\"-18\" width=\"20\" height=\"24\" rx=\"3\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.4\"/>" % [
+						str(-26.0 if side < 0.0 else 6.0), String(chest["trim"]), dark]
+		"bandolier":
+			out += "<path d=\"M-38,-88 L34,34\" stroke=\"%s\" stroke-width=\"15\"/>" % dark
+			out += "<path d=\"M-38,-88 L34,34\" stroke=\"%s\" stroke-width=\"12\"/>" % String(chest["color"])
+			for k in 7:
+				out += "<rect x=\"%s\" y=\"%s\" width=\"4\" height=\"9\" rx=\"1.5\" fill=\"%s\" stroke=\"%s\" stroke-width=\"0.8\" transform=\"rotate(-30 %s %s)\"/>" % [
+						str(-33.0 + 9.4 * k), str(-83.0 + 16.0 * k), String(chest["trim"]), dark, str(-31.0 + 9.4 * k), str(-78.5 + 16.0 * k)]
+		"armor":
+			out += "<path d=\"M-36,-88 Q0,-97 36,-88 L30,8 Q0,20 -30,8 Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2.4\" stroke-linejoin=\"round\"/>" % [String(chest["color"]), dark]
+			out += "<path d=\"M-30,-40 Q0,-34 30,-40\" stroke=\"%s\" stroke-width=\"2.6\" fill=\"none\"/>" % String(chest["trim"])
+			for side: float in [-1.0, 1.0]:
+				out += "<ellipse cx=\"%s\" cy=\"-84\" rx=\"17\" ry=\"13\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2.4\"/>" % [str(side * 50.0), String(chest["color"]), dark]
+
+	# Belt with a buckle and pouches.
+	var belt_color := String(h["belt"]) if belt.is_empty() else String(belt["color"])
+	var buckle := metal if belt.is_empty() else String(belt["trim"])
+	var pouch := String(h["pouch"]) if belt.is_empty() else String(belt["color"])
+	for side: float in [-1.0, 1.0]:
+		out += "<rect x=\"%s\" y=\"44\" width=\"18\" height=\"24\" rx=\"3\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.6\"/>" % [
+				str(-41.0 if side < 0.0 else 23.0), pouch, dark]
+	out += "<rect x=\"-41\" y=\"30\" width=\"82\" height=\"16\" rx=\"3\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2\"/>" % [belt_color, dark]
+	out += "<rect x=\"-10\" y=\"31\" width=\"20\" height=\"14\" rx=\"2\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.4\"/>" % [buckle, dark]
+
+	# Neck and head: short dark hair, a steady look.
+	out += "<rect x=\"-10\" y=\"-114\" width=\"20\" height=\"24\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2\"/>" % [String(h["skin_dark"]), dark]
+	for side: float in [-1.0, 1.0]:
+		out += "<ellipse cx=\"%s\" cy=\"-136\" rx=\"4.5\" ry=\"7.5\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.8\"/>" % [str(side * 27.0), skin, dark]
+	out += "<ellipse cx=\"0\" cy=\"-138\" rx=\"27\" ry=\"31\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2.4\"/>" % [skin, dark]
+	out += "<path d=\"M-28,-140 Q-31,-175 0,-175 Q31,-175 28,-140 Q24,-158 8,-156 Q-10,-154 -22,-161 Q-27,-152 -28,-140 Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2\" stroke-linejoin=\"round\"/>" % [
+			String(h["hair"]), dark]
+	for side: float in [-1.0, 1.0]:
+		out += "<ellipse cx=\"%s\" cy=\"-135\" rx=\"3.4\" ry=\"2.3\" fill=\"#1b1b1b\"/>" % str(side * 10.0)
+		out += "<path d=\"M%s,-144 L%s,-141.5\" stroke=\"%s\" stroke-width=\"2.8\" stroke-linecap=\"round\"/>" % [str(side * 16.0), str(side * 5.0), String(h["hair"])]
+	out += "<path d=\"M0,-133 L-2,-125\" stroke=\"%s\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>" % String(h["skin_dark"])
+	out += "<path d=\"M-7,-118 L7,-118\" stroke=\"#7a4a3a\" stroke-width=\"2.2\" stroke-linecap=\"round\"/>"
+	match String(helmet.get("style", "")):
+		"hardhat":
+			out += "<path d=\"M-31,-148 Q-31,-182 0,-182 Q31,-182 31,-148 Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2.4\" stroke-linejoin=\"round\"/>" % [String(helmet["color"]), dark]
+			out += "<rect x=\"-5\" y=\"-182\" width=\"10\" height=\"32\" fill=\"%s\"/>" % String(helmet["trim"])
+			out += "<rect x=\"-37\" y=\"-152\" width=\"74\" height=\"9\" rx=\"4\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2\"/>" % [String(helmet["color"]), dark]
+		"cap":
+			out += "<path d=\"M-29,-149 Q-29,-178 0,-178 Q29,-178 29,-149 Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2.4\" stroke-linejoin=\"round\"/>" % [String(helmet["color"]), dark]
+			out += "<path d=\"M-30,-151 Q2,-160 36,-151 L40,-143 Q2,-151 -30,-145 Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2\" stroke-linejoin=\"round\"/>" % [String(helmet["trim"]), dark]
+		"mask":
+			out += "<path d=\"M-27,-128 L27,-128\" stroke=\"%s\" stroke-width=\"3\"/>" % String(helmet["trim"])
+			out += "<path d=\"M-18,-133 Q0,-139 18,-133 L14,-111 Q0,-103 -14,-111 Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2\" stroke-linejoin=\"round\"/>" % [String(helmet["color"]), dark]
+			for side: float in [-1.0, 1.0]:
+				out += "<circle cx=\"%s\" cy=\"-114\" r=\"8.5\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2\"/>" % [str(side * 21.0), String(helmet["trim"]), dark]
+		"visor":
+			out += "<path d=\"M-31,-132 Q-34,-182 0,-182 Q34,-182 31,-132 L26,-119 L-26,-119 Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2.4\" stroke-linejoin=\"round\"/>" % [String(helmet["color"]), dark]
+			out += "<rect x=\"-24\" y=\"-149\" width=\"48\" height=\"19\" rx=\"6\" fill=\"%s\" fill-opacity=\"0.9\" stroke=\"%s\" stroke-width=\"1.6\"/>" % [String(helmet["trim"]), dark]
+
+	# Amulet on a thin chain.
+	if not amulet.is_empty():
+		out += "<path d=\"M-13,-97 L0,-72 L13,-97\" stroke=\"%s\" stroke-width=\"1.8\" fill=\"none\"/>" % metal
+		match String(amulet["style"]):
+			"tags":
+				out += "<rect x=\"-7\" y=\"-74\" width=\"9\" height=\"14\" rx=\"2\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.4\"/>" % [String(amulet["color"]), dark]
+				out += "<rect x=\"-1\" y=\"-71\" width=\"9\" height=\"14\" rx=\"2\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.4\"/>" % [String(amulet["color"]), dark]
+			"medal":
+				out += "<rect x=\"-5\" y=\"-76\" width=\"10\" height=\"9\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.2\"/>" % [String(amulet["trim"]), dark]
+				out += "<circle cx=\"0\" cy=\"-61\" r=\"7.5\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.6\"/>" % [String(amulet["color"]), dark]
+			_:
+				out += "<path d=\"M-6,-73 L6,-73 L0,-54 Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.6\" stroke-linejoin=\"round\"/>" % [String(amulet["color"]), dark]
 	return out
 
 
@@ -419,23 +681,6 @@ const WOUNDS_PLAYER := """
 <path d="M-0.5,-4.5 L4,-1.2 L1,2.4" stroke="#7a1010" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
 <path d="M8.4,-5.4 L11.2,-2.8" stroke="#0c0e11" stroke-width="1"/>
 <circle cx="-3" cy="13" r="1.3" fill="#7a1010"/><circle cx="10" cy="-9.4" r="1.2" fill="#7a1010"/><circle cx="-11" cy="2" r="1.1" fill="#7a1010"/>
-"""
-
-const SVG_PLAYER := """
-<circle cx="0" cy="0" r="20" fill="#000000" fill-opacity="0.24"/>
-<path d="M0,-10.5 L13,-4" stroke="#1c1712" stroke-width="9" stroke-linecap="round" fill="none"/>
-<path d="M0,10.5 L13,4" stroke="#1c1712" stroke-width="9" stroke-linecap="round" fill="none"/>
-<path d="M0,-10.5 L13,-4" stroke="#e8862e" stroke-width="5.6" stroke-linecap="round" fill="none"/>
-<path d="M0,10.5 L13,4" stroke="#e8862e" stroke-width="5.6" stroke-linecap="round" fill="none"/>
-<circle cx="14" cy="-3.6" r="3.5" fill="#f0c7a0" stroke="#1c1712" stroke-width="1.2"/>
-<circle cx="14" cy="3.6" r="3.5" fill="#f0c7a0" stroke="#1c1712" stroke-width="1.2"/>
-<ellipse cx="-2" cy="0" rx="10.4" ry="14.6" fill="#1c1712"/>
-<ellipse cx="-2" cy="0" rx="8.8" ry="13" fill="#e8862e"/>
-<rect x="-12.5" y="-7.5" width="7.5" height="15" rx="2.5" fill="#6b5236" stroke="#1c1712" stroke-width="1.4"/>
-<circle cx="2.5" cy="0" r="8.6" fill="#1c1712"/>
-<circle cx="2.5" cy="0" r="7.1" fill="#2f6aa8"/>
-<path d="M6.5,-6 Q14.5,0 6.5,6 Q8.6,0 6.5,-6 Z" fill="#1f4c7c" stroke="#1c1712" stroke-width="1.2" stroke-linejoin="round"/>
-<circle cx="1.5" cy="0" r="1.8" fill="#5c9bdc"/>
 """
 
 const SVG_GUN_PISTOL := """
@@ -817,6 +1062,9 @@ const SYMBOLS := {
 	"stat_critical": "<circle r=\"10.5\" fill=\"none\" stroke=\"#fff\" stroke-width=\"3.2\"/><path d=\"M0 -18 V-7 M0 7 V18 M-18 0 H-7 M7 0 H18\" stroke=\"#fff\" stroke-width=\"3.2\" stroke-linecap=\"round\"/><circle r=\"2.4\" fill=\"#fff\"/>",
 	"stat_luck": "<circle cx=\"-6\" cy=\"-7\" r=\"6.6\" fill=\"#fff\"/><circle cx=\"6\" cy=\"-7\" r=\"6.6\" fill=\"#fff\"/><circle cx=\"-6\" cy=\"4\" r=\"6.6\" fill=\"#fff\"/><circle cx=\"6\" cy=\"4\" r=\"6.6\" fill=\"#fff\"/><path d=\"M0 2 C1 9 3 14 7 17\" fill=\"none\" stroke=\"#fff\" stroke-width=\"3\" stroke-linecap=\"round\"/>",
 	"stat_bond": "<ellipse cx=\"0\" cy=\"7\" rx=\"9.5\" ry=\"8\" fill=\"#fff\"/><circle cx=\"-12\" cy=\"-3\" r=\"4.3\" fill=\"#fff\"/><circle cx=\"-4.6\" cy=\"-11\" r=\"4.6\" fill=\"#fff\"/><circle cx=\"4.6\" cy=\"-11\" r=\"4.6\" fill=\"#fff\"/><circle cx=\"12\" cy=\"-3\" r=\"4.3\" fill=\"#fff\"/>",
+	"family_grit": "<path d=\"M0 -18 L15 -12 L15 1 C15 10 7 15.5 0 19 C-7 15.5 -15 10 -15 1 L-15 -12Z\" fill=\"#fff\"/><path d=\"M-7 -4 L0 3 L7 -4 L7 2 L0 9 L-7 2Z\" fill=\"#000\" fill-opacity=\"0.6\"/>",
+	"family_fury": "<path d=\"M0 -19 C3 -11 12 -7 12 4 C12 12 6 18 0 18 C-6 18 -12 12 -12 4 C-12 -1 -9 -5 -6 -8 C-6 -3 -3 0 -1 0 C-3 -6 -2 -13 0 -19Z\" fill=\"#fff\"/><path d=\"M0 16 C-4 16 -6 12 -6 9 C-6 5 -2 3 0 -1 C2 3 6 5 6 9 C6 12 4 16 0 16Z\" fill=\"#000\" fill-opacity=\"0.55\"/>",
+	"family_instinct": "<path d=\"M-18 0 C-10 -12 10 -12 18 0 C10 12 -10 12 -18 0Z\" fill=\"#fff\"/><circle r=\"6.5\" fill=\"#000\" fill-opacity=\"0.65\"/><circle r=\"2.6\" fill=\"#fff\"/>",
 	"ui_star": "<path d=\"M0 -18 L5.3 -5.6 L18.5 -5.6 L7.8 2.6 L11.4 15.5 L0 7.8 L-11.4 15.5 L-7.8 2.6 L-18.5 -5.6 L-5.3 -5.6Z\" fill=\"#fff\"/>",
 	"ui_infinity": "<path d=\"M0 0 C-4 -9 -16 -9 -16 0 C-16 9 -4 9 0 0 C4 -9 16 -9 16 0 C16 9 4 9 0 0Z\" fill=\"none\" stroke=\"#fff\" stroke-width=\"4\"/>",
 	"ui_lock": "<rect x=\"-11\" y=\"-3\" width=\"22\" height=\"18\" rx=\"3\" fill=\"#fff\"/><path d=\"M-7 -3 V-8 C-7 -18 7 -18 7 -8 V-3\" fill=\"none\" stroke=\"#fff\" stroke-width=\"3.6\"/><circle cy=\"5\" r=\"2.6\" fill=\"#000\" fill-opacity=\"0.7\"/>",

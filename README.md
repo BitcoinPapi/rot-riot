@@ -29,7 +29,7 @@ works on 4.5 and later.
 | Pause      | Esc or P                | Start                |
 | Fullscreen | F11                     | (Settings menu)      |
 | Menus      | Mouse, or arrows + Enter| D-pad / stick, A, B  |
-| Upgrade trees | Drag to move, scroll to zoom, click a node | Stick, A, Y for the side buttons |
+| Skill tree | Click a node to add a level (drag / scroll to move and zoom) | Stick, A, Y for the side buttons |
 
 ## How it plays
 
@@ -40,11 +40,15 @@ works on 4.5 and later.
   wave brings a boss. **Every boss you beat is a checkpoint**: next time you
   can start that map from the wave after it (choose it on the map screen),
   with a weapon crate waiting beside you.
-- You start with a pistol. **Crates** drop into the arena with a better
-  weapon that lasts about 20 seconds: SMG, shotgun, machine gun, rifle,
-  sledgehammer, launcher, flamethrower or chainsaw. The colour of a crate's
-  glow shows how rare it is (white = common, green = uncommon, blue = rare).
-  An arrow at the edge of the screen points to crates out of view.
+- You play **Cliff**. He starts with a pistol. **Crates** drop into the arena
+  with a better weapon that lasts about 20 seconds: SMG, shotgun, machine
+  gun, rifle, sledgehammer, launcher, flamethrower or chainsaw. The crate
+  shows a big picture of the weapon, and its name underneath in the colour
+  of its rarity (white = common, green = uncommon, blue = rare). An arrow at
+  the edge of the screen points to crates out of view.
+- **Careful where you shoot:** crates are wood. Your bullets, flames and
+  explosions damage them, and a crate that is shot to pieces takes its
+  weapon with it.
 - **Reloading:** guns reload by themselves when empty, or press R to reload
   early. The shotgun loads one shell at a time and you can fire in between.
   Activating rage refills your magazine instantly.
@@ -56,32 +60,38 @@ works on 4.5 and later.
 - Kills give **XP**. The blue bar along the bottom is your character level;
   each level makes you a little stronger and gives a **skill point** (the
   highest level is 100, and it is meant to take months to reach).
-- Spend skill points in the **skill tree** on the **Character** screen: a big
-  web with a branch for each stat (health, strength, fire rate, speed,
-  defense, evasion, critical hits, luck - and one for your pet). Start in the middle and work
-  outwards: a node can be learned when it touches one you already have.
-  Rings further out need a higher level. Hexagons with a padlock are
-  **sealed** until you do a deed (the node tells you which). At the tip of
-  every branch waits a **keystone** - a special power - and an endless node
-  you can keep buying. Extra skill points can be bought with coins.
-- Every weapon also has its **own level**, earned by killing with it, and its
-  **own tree** in the **Armory**: power, shooting speed, stability, reload
-  speed, how often its crate appears and how long it lasts - plus three gold
-  **perks** per weapon that change how it works (bigger magazine, bullets
-  that go through more zombies, a wider swing, a bigger blast...).
+- Spend skill points on the **Skills** screen. The skill tree has three
+  families, each in its own colour: **GRIT** keeps you alive (health, armor,
+  dodging), **FURY** kills faster (damage, fire rate, critical hits) and
+  **INSTINCT** is speed, luck and your pet. Start a family with its first
+  node, then follow a branch: every node has several levels (the little dots
+  under it), and three levels in a node open the next one. Hexagons are
+  **sealed** until you do a deed (the node tells you which); the diamond at
+  the end of a branch is a **keystone**, a special power; the big emblem at
+  the far end can be levelled for ever. The family names show how many
+  points you have put into each. Extra skill points can be bought with coins.
+- Every weapon also has its **own level**, earned by killing with it. In the
+  **Armory** each weapon has one plain page: a row per upgrade (power,
+  shooting speed, stability, reload speed, how often its crate appears, how
+  long it lasts) with a "+1" button, and three **perks** that open at weapon
+  levels 5, 12 and 20 and change how the weapon works (bigger magazine,
+  bullets that go through more zombies, a wider swing, a bigger blast...).
 - **Gear.** Now and then a zombie drops something to wear - you will see a
   pillar of light in the colour of its quality, and an arrow at the edge of
   the screen points to it. Walk over it and it is yours for good, even if you
-  die. Rings and amulets only drop from bosses. On the **Gear** screen the
-  nine slots (helmet, amulet, chest, gloves, two rings, belt, pants, boots)
-  are laid out like a body, and around them every piece in the game has a row
-  of five qualities: common (white), sturdy (green), fine (blue), superior
-  (purple), legendary (orange). Click a piece you own to wear it.
-- **Forging.** Two identical pieces of the same quality can be forged into
-  one of the next quality: a node glows when you can. Sturdy always works,
-  fine works 90% of the time, superior 40%, legendary 10%. If it fails you
-  lose one of the two pieces - and for superior and legendary there is a
-  chance of losing both. The game asks you twice before a forging that can fail.
+  die. Rings and amulets only drop from bosses.
+- The **Character** screen shows Cliff in the middle with his nine slots on
+  either side (helmet, chest, gloves, pants, boots; amulet, two rings, belt),
+  his stats underneath and your **inventory** on the right. Click a piece in
+  the inventory to wear it; click a slot to take it off. Cliff changes with
+  what he wears - on this screen and in the game.
+- **Forging.** FORGE in the inventory opens the forge. Two identical pieces
+  of the same quality can be forged into one of the next quality: common
+  (white), sturdy (green), fine (blue), superior (purple), legendary
+  (orange). Sturdy always works, fine works 90% of the time, superior 40%,
+  legendary 10%. If it fails you lose one of the two pieces - and for
+  superior and legendary there is a chance of losing both. The game asks you
+  twice before a forging that can fail.
 - **Pets.** At character level 18 a stray dog, Scraps, starts following you
   and fights at your side. There are five pets, from common to legendary
   (**Pets** on the main menu shows them all and what each one needs: a
@@ -90,7 +100,7 @@ works on 4.5 and later.
   pet adds more, up to 15% for the legendary one.
   How much of that you get, how hard the pet bites and which tricks it knows
   (fetching coins and gear, mauling, guarding you, a frenzy) all come from
-  **BOND**, the pet's own branch of the skill tree on the Character screen.
+  **BOND**, the pet's own branch of the skill tree (in the INSTINCT family).
 - Zombies drop **coins**. Everything you earn is saved.
 
 ## Getting the newest version (Mac)
@@ -99,7 +109,7 @@ Close Godot, then double-click **Update Rot Riot.command** inside the project
 folder. A Terminal window opens, downloads the latest version and replaces the
 folder. Your coins, level and upgrades are stored elsewhere and are kept.
 Then open the project in Godot again. The version number is shown in the
-bottom right corner of the main menu (now v0.4.0).
+bottom right corner of the main menu (now v0.5.0).
 
 After an update that changes the upgrade screens, points you had already
 spent are handed back so you can place them again in the new trees.
@@ -109,8 +119,8 @@ spent are handed back so you can place them again in the new trees.
 Open `scripts/config.gd` in Godot (double-click it in the FileSystem panel).
 Every number that matters is there with a comment: player speed, weapon
 damage and fire rates, zombie health, wave sizes, how much harder each map
-is, XP and skill point costs, the size and prices of the upgrade trees, the
-perks, every piece of gear with its drop chance and forging odds, every pet
+is, XP and skill point costs, the skill tree and its prices, weapon upgrades
+and perks, every piece of gear with its drop chance and forging odds, every pet
 and what it adds, and all the "feel" values - screen shake, hit stop, knockback, recoil.
 Change a number, press F5, try it.
 
@@ -118,7 +128,9 @@ Change a number, press F5, try it.
 
 - Sprite: put a PNG named like the sprite in `assets/sprites/`
   (for example `shambler_0.png`, `player.png`, `boss_0.png`), drawn facing
-  right at twice the size listed in `scripts/autoload/art.gd`.
+  right at twice the size listed in `scripts/autoload/art.gd`. (Cliff's own
+  pictures, `player.png` and `hero_front.png`, are normally drawn from the
+  gear he wears; a PNG replaces that with one fixed picture.)
 - Sound: put a `.wav` or `.ogg` named like the sound in `assets/sfx/`
   (for example `shotgun.wav`). The names are listed at the top of
   `scripts/autoload/sfx.gd`.
@@ -161,6 +173,6 @@ godot --headless -d --fixed-fps 60 -- --inputtest
 godot --headless --fixed-fps 60 -- --bench=250
 ```
 
-The first plays through the whole game automatically (menus, maps, both
-upgrade trees, gear and forging, pets, every weapon, rage, boss, death, levels, save file), the
+The first plays through the whole game automatically (menus, maps, the
+skill tree, weapon upgrades, gear and forging, pets, every weapon, rage, boss, death, levels, save file), the
 second checks every control, the third measures speed with 250 zombies. See `CLAUDE.md` for the design notes.

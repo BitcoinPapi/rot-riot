@@ -5,7 +5,8 @@ extends Node
 ##
 ##   --play             skip the menu and start a run
 ##   --bot              start a run and let a simple bot play (through GameInput's virtual sticks)
-##   --screen=NAME      open a menu screen (maps, character, armory, gear, pets, settings, pause, gameover, victory) for screenshots
+##   --screen=NAME      open a menu screen (maps, character, skills, armory, pets, settings, pause, gameover, victory) for screenshots
+##   --forge            with --screen=character: open the forge
 ##   --gear=N           start with N random pieces of gear, some of them worn
 ##   --pets=N           own the first N pets and take the last of them along (use with --level=18 or more)
 ##   --drop-gear        one second into a run, drop a piece of every tier around the player (and one on top of them)
@@ -60,8 +61,8 @@ func _ready() -> void:
 			for i in int(_args["level"]) - 1:
 				SaveData.add_xp(SaveData.xp_needed())
 			SaveData.add_xp(int(SaveData.xp_needed() * 0.4))
-			for id: String in ["vitality.0", "vitality.1", "vitality.2", "strength.0", "strength.1", "strength.2",
-					"strength.t0.0", "evasion.0", "vitality-strength.a0.0", "vitality.3"]:
+			for id: String in ["grit.root", "grit.root", "grit.root", "vitality.1", "vitality.1", "vitality.1", "vitality.1",
+					"fury.root", "strength.1", "strength.1", "strength.1", "strength.2", "instinct.root", "bond.1"]:
 				SaveData.learn_node(id)
 			SaveData.add_weapon_xp("pistol", 2500)
 			SaveData.add_weapon_xp("shotgun", 900)
@@ -219,10 +220,15 @@ func _open_screen(app: Main, screen: String) -> void:
 				_finish_wave(app.game, Config.WAVES_PER_MAP)
 		_:
 			app.open_screen(screen)
-			if screen == "character":
-				_aim_tree(((app.get("_screens") as Dictionary)["character"] as CharacterScreen).get("_tree"))
-			if screen == "gear":
-				_aim_tree(((app.get("_screens") as Dictionary)["gear"] as GearScreen).get("_tree"))
+			if screen == "skills":
+				_aim_tree(((app.get("_screens") as Dictionary)["skills"] as SkillScreen).get("_tree"))
+			if screen == "character" and _args.has("forge"):
+				var sheet: CharacterScreen = (app.get("_screens") as Dictionary)["character"]
+				sheet.call("_open_forge")
+				for key: String in SaveData.gear_bag.keys():
+					if SaveData.gear_count(key) >= 2 and Config.gear_tier_of(key) < Config.GEAR_TIERS.size():
+						sheet.call("_choose_forge", key)
+						break
 			if screen == "armory" and _args.has("armory-weapon"):
 				var screens: Dictionary = app.get("_screens")
 				(screens["armory"] as ArmoryScreen).call("_select", String(_args["armory-weapon"]))
@@ -344,77 +350,94 @@ func _run_autotest() -> void:
 	await _frames(2)
 	_check(is_equal_approx(float(SaveData.get_setting("master_volume")), 0.5), "settings change is stored")
 
-	# --- character screen: skill points and the skill tree ---
-	app.open_screen("character")
+	# --- skills screen: skill points and the skill tree ---
+	app.open_screen("skills")
 	await _frames(3)
-	var character: CharacterScreen = (app.get("_screens") as Dictionary)["character"]
-	_check(not SaveData.learn_node("strength.0"), "cannot learn a node with 0 skill points")
+	var skills: SkillScreen = (app.get("_screens") as Dictionary)["skills"]
+	_check(not SaveData.learn_node("fury.root"), "cannot learn a node with 0 skill points")
 	_check(not SaveData.buy_skill_point(), "cannot buy a skill point with 0 coins")
 	SaveData.add_coins(1000)
 	var before := SaveData.coins
 	var price := SaveData.skill_point_price()
 	_check(SaveData.buy_skill_point() and SaveData.skill_points == 1, "coins buy a skill point")
 	_check(SaveData.coins == before - price and SaveData.skill_point_price() > price, "the price is paid and the next point costs more")
-	_check(not SaveData.learn_node("vitality.1"), "a node that touches nothing learned cannot be learned")
-	character.call("_on_node_activated", "vitality.0")
-	_check(SaveData.node_count("vitality.0") == 1 and SaveData.passive_rank("vitality") == 1 and SaveData.skill_points == 0,
-			"a skill point learns a node next to the middle")
+	_check(not SaveData.learn_node("vitality.1"), "a branch cannot be started before its family")
+	skills.call("_on_node_activated", "grit.root")
+	_check(SaveData.node_count("grit.root") == 1 and SaveData.passive_rank("vitality") == 1 and SaveData.passive_rank("defense") == 1
+			and SaveData.passive_rank("evasion") == 1 and SaveData.skill_points == 0, "a family's first node raises all three of its stats")
 	SaveData.buy_skill_point()
-	SaveData.learn_node("strength.0")
-	_check(SaveData.spent_points() == 2, "spent points are counted")
+	SaveData.learn_node("fury.root")
+	_check(SaveData.spent_points() == 2 and SaveData.family_points("grit") == 1 and SaveData.family_points("fury") == 1
+			and SaveData.family_points("instinct") == 0, "points are counted per family")
 	await _frames(3)
 
-	# The tree itself: one web, nothing overlapping.
+	# The tree itself: three equal families, everything grows from the middle, nothing overlaps.
 	var tree_nodes := SkillTree.nodes()
-	var reached := {"start": true}
-	var todo: Array[String] = ["start"]
-	while not todo.is_empty():
-		var at: String = todo.pop_back()
-		for other: String in tree_nodes[at]["links"]:
-			if not reached.has(other):
-				reached[other] = true
-				todo.append(other)
-	_check(reached.size() == tree_nodes.size() and tree_nodes.size() >= 200, "the skill tree is one connected web (%d nodes)" % tree_nodes.size())
-	var closest := INF
 	var tree_ids := SkillTree.order()
+	var per_family := {}
+	var grows := true
+	for id: String in tree_ids:
+		var tn: Dictionary = tree_nodes[id]
+		if id != "start":
+			per_family[String(tn["family"])] = int(per_family.get(String(tn["family"]), 0)) + 1
+			for parent: String in tn["requires"]:
+				if not tree_nodes.has(parent) or tree_ids.find(parent) > tree_ids.find(id):
+					grows = false
+			if (tn["requires"] as Array).is_empty():
+				grows = false
+	_check(grows and per_family.size() == 3 and int(per_family["grit"]) == int(per_family["fury"]) and int(per_family["fury"]) == int(per_family["instinct"]),
+			"the skill tree has three families of %d nodes each, all growing out of the middle" % int(per_family.get("grit", 0)))
+	var closest := INF
 	for i in tree_ids.size():
 		for j in range(i + 1, tree_ids.size()):
 			closest = minf(closest, (tree_nodes[tree_ids[i]]["pos"] as Vector2).distance_to(tree_nodes[tree_ids[j]]["pos"]))
-	_check(closest >= 34.0, "no two nodes of the tree overlap (closest pair %.0f px apart)" % closest)
+	_check(closest >= 50.0, "no two nodes of the tree overlap (closest pair %.0f px apart)" % closest)
 
-	# Level gates, sealed nodes, keystones and endless nodes (on a borrowed, richer character).
+	# Levels, gates, sealed nodes, keystones and the endless emblem (on a borrowed, richer character).
 	var keep_tree := SaveData.tree.duplicate()
 	var keep_points := SaveData.skill_points
 	SaveData.skill_points = 500
-	SaveData.learn_node("strength.1")
-	SaveData.learn_node("strength.2")
-	_check(SaveData.passive_rank("strength") == 2 * Config.TREE_SMALL_RANKS + Config.TREE_NOTABLE_RANKS, "a big node gives several ranks at once")
-	_check(SaveData.node_status("strength.3") == SkillTree.LEVEL and not SaveData.learn_node("strength.3"),
-			"the next ring needs a higher character level")
-	_check(SaveData.learn_node("strength-dexterity.a0.0") and SaveData.learn_node("dexterity.2") and SaveData.passive_rank("dexterity") > 0,
-			"an arc crosses over to the next branch")
+	SaveData.learn_node("grit.root")
+	SaveData.learn_node("grit.root")
+	_check(SaveData.node_count("grit.root") == Config.TREE_ROOT_LEVELS and SaveData.node_status("grit.root") == SkillTree.OWNED
+			and not SaveData.learn_node("grit.root"), "a node has several levels and stops at its last one")
+	SaveData.learn_node("vitality.1")
+	SaveData.learn_node("vitality.1")
+	_check(SaveData.passive_rank("vitality") == Config.TREE_ROOT_LEVELS + 2 and SaveData.node_status("vitality.2") == SkillTree.FAR,
+			"each level of a branch node is a rank; the next node is still closed")
+	SaveData.learn_node("vitality.1")
+	_check(SaveData.node_status("vitality.2") == SkillTree.LEVEL and not SaveData.learn_node("vitality.2"),
+			"%d levels open the next node, which also needs a higher character level" % Config.TREE_NEED_LEVELS)
+	SaveData.learn_node("instinct.root")
+	_check(SaveData.node_status("bond.1") == SkillTree.LEVEL, "the pet's branch needs level %d" % Config.PET_UNLOCK_LEVEL)
 	SaveData.level = 30
-	for id: String in ["vitality.1", "vitality.2", "vitality.3", "vitality.4", "vitality.t1.0"]:
-		SaveData.learn_node(id)
-	_check(SaveData.node_status("vitality.t1.1") == SkillTree.SEALED and not SaveData.learn_node("vitality.t1.1"),
+	_check(SaveData.learn_node("vitality.2"), "...and opens at that level")
+	_check(SaveData.node_status("vitality.seal") == SkillTree.SEALED and not SaveData.learn_node("vitality.seal"),
 			"a sealed node stays locked until its deed is done")
-	SaveData.map_best[0] = int(SkillTree.nodes()["vitality.t1.1"]["deed"]["value"])
-	_check(SaveData.learn_node("vitality.t1.1"), "...and opens once it is")
+	SaveData.map_best[0] = int(Config.TREE_SEAL_DEEDS["vitality"]["value"])
+	var sealed_before := SaveData.passive_rank("vitality")
+	_check(SaveData.learn_node("vitality.seal") and SaveData.passive_rank("vitality") == sealed_before + Config.TREE_SEALED_RANKS, "...and opens once it is")
 	SaveData.map_best[0] = 0
-	for k in range(3, 12):
-		SaveData.learn_node("strength.%d" % k)
-	_check(SaveData.node_count("strength.11") == 1 and SaveData.node_status("strength.key") == SkillTree.SEALED, "keystones are sealed too")
+	for k in range(1, 4):
+		for i in Config.TREE_NODE_LEVELS - (1 if k == 3 else 0):
+			SaveData.learn_node("strength.%d" % k)
+	_check(SaveData.node_status("strength.key") == SkillTree.FAR, "a keystone needs the last node of its branch at full level")
+	SaveData.learn_node("strength.3")
+	_check(SaveData.node_count("strength.3") == Config.TREE_NODE_LEVELS and SaveData.node_status("strength.key") == SkillTree.SEALED, "keystones are sealed too")
+	_check(SaveData.node_status("fury.cap") == SkillTree.FAR, "the family emblem needs a keystone")
 	SaveData.total_kills = 999999
 	_check(SaveData.learn_node("strength.key") and SaveData.has_keystone("strength") and PlayerStats.current().wounded_damage > 0.0,
 			"a keystone gives its special power")
 	SaveData.total_kills = 0
-	var endless_before := SaveData.passive_rank("strength")
-	for i in Config.TREE_MASTERY_COST_STEP + 1:
-		SaveData.learn_node("strength.mastery")
-	_check(SaveData.node_count("strength.mastery") == Config.TREE_MASTERY_COST_STEP + 1
-			and SaveData.passive_rank("strength") == endless_before + (Config.TREE_MASTERY_COST_STEP + 1) * Config.TREE_MASTERY_RANKS
-			and SaveData.node_cost("strength.mastery") > Config.TREE_MASTERY_COST, "an endless node can be learned again and again, at a rising price")
-	_check(SaveData.spent_points() == 500 - SaveData.skill_points + 2, "every point spent in the tree is accounted for")
+	var endless_before := SaveData.passive_rank("critical")
+	for i in Config.TREE_CAP_COST_STEP + 1:
+		SaveData.learn_node("fury.cap")
+	_check(SaveData.node_count("fury.cap") == Config.TREE_CAP_COST_STEP + 1
+			and SaveData.passive_rank("critical") == endless_before + Config.TREE_CAP_COST_STEP + 1
+			and SaveData.node_cost("fury.cap") > Config.TREE_CAP_COST, "the family emblem is endless: every level raises all three stats, at a rising price")
+	_check(SaveData.spent_points() == 500 - SaveData.skill_points + 2
+			and SaveData.family_points("grit") + SaveData.family_points("fury") + SaveData.family_points("instinct") == SaveData.spent_points(),
+			"every point spent in the tree is accounted for")
 	await _frames(3)
 	SaveData.tree = keep_tree
 	SaveData.call("_recount_tree")
@@ -490,7 +513,6 @@ func _run_autotest() -> void:
 	_check(not SaveData.pets_unlocked() and SaveData.pets_owned.is_empty() and SaveData.pet_status("scraps") == "locked",
 			"there are no pets before level %d" % Config.PET_UNLOCK_LEVEL)
 	_check(not SaveData.buy_pet("soot") and not SaveData.choose_pet("scraps"), "a locked pet cannot be bought or taken along")
-	_check(SaveData.node_status("bond.0") == SkillTree.LEVEL, "the pet's branch of the skill tree is locked until then")
 	var caps_ok := true
 	var last_cap := 0.0
 	for rarity: String in Config.PET_RARITY_ORDER:
@@ -528,11 +550,10 @@ func _run_autotest() -> void:
 			and SaveData.pets_owned.size() == 2, "buying a pet takes the coins and brings it along")
 	_check(PlayerStats.current().pet_damage > with_pet.pet_damage, "a rarer pet adds more damage")
 	SaveData.skill_points = 50
-	for k in 3:
-		SaveData.learn_node("bond.%d" % k)
+	SaveData.learn_node("instinct.root")
+	SaveData.learn_node("bond.1")
 	_check(SaveData.has_pet_trick(0) and PlayerStats.current().pet_fetch and not PlayerStats.current().pet_maul
-			and SaveData.passive_rank("bond") == 2 * Config.TREE_SMALL_RANKS + Config.TREE_NOTABLE_RANKS,
-			"the BOND branch raises the bonus and teaches the pet tricks")
+			and SaveData.passive_rank("bond") == 2, "BOND in the skill tree raises the pet's bonus and teaches it tricks")
 	await _frames(3)
 	SaveData.tree = pet_keep_tree
 	SaveData.call("_recount_tree")
@@ -545,18 +566,21 @@ func _run_autotest() -> void:
 	app.close_screen()
 	await _frames(2)
 
-	# --- gear: the bag, wearing, forging ---
-	app.open_screen("gear")
+	# --- character screen: the bag, wearing, forging, how the hero looks ---
+	app.open_screen("character")
 	await _frames(3)
-	var gear_screen: GearScreen = (app.get("_screens") as Dictionary)["gear"]
+	var sheet: CharacterScreen = (app.get("_screens") as Dictionary)["character"]
 	_check(SaveData.gear_bag.is_empty() and not SaveData.wear_gear("hard_hat:1"), "cannot wear a piece that is not in the bag")
 	SaveData.add_gear("hard_hat:1", 2)
 	_check(SaveData.gear_count("hard_hat:1") == 2 and SaveData.gear_new == 2, "found gear goes into the bag")
 	var defense_before := SaveData.passive_rank("defense")
-	gear_screen.call("_show_node", "hard_hat.1")
-	gear_screen.call("_on_node_activated", "hard_hat.1")
+	var bare_top := Art.t("player")
+	var bare_front := Art.t("hero_front")
+	sheet.call("_on_bag_pressed", "hard_hat:1")
 	_check(SaveData.gear_in_slot("helmet") == "hard_hat:1" and SaveData.gear_count("hard_hat:1") == 1
-			and SaveData.passive_rank("defense") == defense_before + 2, "clicking a piece wears it and adds its stat ranks")
+			and SaveData.passive_rank("defense") == defense_before + 2, "clicking a piece in the inventory wears it and adds its stat ranks")
+	_check(Art.t("player") != bare_top and Art.t("hero_front") != bare_front and Art.t("player_flash") != null,
+			"the hero is redrawn with what he wears, in the menu and in the game")
 	_check(PlayerStats.current().damage_taken_mult < 1.0, "gear reaches the numbers the game uses")
 	SaveData.add_gear("gas_mask:1")
 	SaveData.wear_gear("gas_mask:1")
@@ -570,8 +594,8 @@ func _run_autotest() -> void:
 	SaveData.wear_gear("lucky_ring:2")
 	_check(SaveData.gear_in_slot("ring1") == "lucky_ring:2" and SaveData.gear_count("iron_band:1") == 1, "a third ring replaces one of them")
 	_check(not SaveData.wear_gear("lucky_ring:2", "helmet") and not SaveData.wear_gear("gas_mask:1", "boots"), "a piece only fits its own slot")
-	_check(SaveData.take_off_gear("ring2") and SaveData.gear_in_slot("ring2") == "" and SaveData.gear_count("iron_band:1") == 2,
-			"a piece can be taken off again")
+	sheet.call("_on_slot_pressed", "ring2")
+	_check(SaveData.gear_in_slot("ring2") == "" and SaveData.gear_count("iron_band:1") == 2, "clicking a slot takes the piece off again")
 	# Forging, with the dice fixed.
 	var odds: Array = []
 	for tier in range(2, 6):
@@ -592,13 +616,19 @@ func _run_autotest() -> void:
 	_check(SaveData.forge_gear("hard_hat", 4, 0.3) == "success" and SaveData.gear_count("hard_hat:4") == 1 and SaveData.gear_count("hard_hat:3") == 0,
 			"SUPERIOR forges at 40%")
 	_check(not SaveData.can_forge("hard_hat", 6) and SaveData.gear_seen.has("hard_hat:4"), "LEGENDARY is the last tier; forged pieces are remembered")
-	# Through the screen: a forging that can fail asks first.
-	SaveData.add_gear("tool_belt:2", 2, false)
-	gear_screen.call("_show_node", "tool_belt.3")
-	gear_screen.call("_on_node_activated", "tool_belt.3")
-	_check(SaveData.gear_count("tool_belt:2") == 2, "a forging that can fail asks before it is done")
-	gear_screen.call("_on_node_activated", "tool_belt.3")
-	_check(SaveData.gear_count("tool_belt:2") < 2, "...and happens on the second press")
+	# Through the forge menu of the inventory.
+	SaveData.add_gear("tool_belt:1", 2, false)
+	SaveData.add_gear("work_gloves:2", 2, false)
+	sheet.call("_open_forge")
+	sheet.call("_choose_forge", "tool_belt:1")
+	sheet.call("_on_forge_pressed")
+	_check(SaveData.gear_count("tool_belt:2") == 1 and SaveData.gear_count("tool_belt:1") == 0, "the forge menu merges a pair that cannot fail at once")
+	sheet.call("_choose_forge", "work_gloves:2")
+	sheet.call("_on_forge_pressed")
+	_check(SaveData.gear_count("work_gloves:2") == 2, "a forging that can fail asks before it is done")
+	sheet.call("_on_forge_pressed")
+	_check(SaveData.gear_count("work_gloves:2") < 2, "...and happens on the second press")
+	sheet.call("_close_forge")
 	await _frames(3)
 	# The catalogue itself.
 	var gear_ok := Config.GEAR_ORDER.size() == Config.GEAR_ITEMS.size()
@@ -612,18 +642,12 @@ func _run_autotest() -> void:
 		var boss_only := String(gdef["from"]) == "bosses"
 		if boss_only != (String(gdef["type"]) == "ring" or String(gdef["type"]) == "amulet"):
 			gear_ok = false
+		if not (gdef["look"] as Dictionary).has("style") or not Art.tex.has("gear_" + String(gdef["type"])):
+			gear_ok = false
 	for type: String in Config.GEAR_TYPE_ORDER:
 		if int(per_type.get(type, 0)) < 3:
 			gear_ok = false
-	_check(gear_ok and GearTree.nodes().size() == 9 + 8 + Config.GEAR_ORDER.size() * 5,
-			"%d pieces of gear in 8 kinds; rings and amulets are boss-only (%d nodes on the gear screen)" % [
-			Config.GEAR_ORDER.size(), GearTree.nodes().size()])
-	var gear_closest := INF
-	var gear_ids := GearTree.order()
-	for i in gear_ids.size():
-		for j in range(i + 1, gear_ids.size()):
-			gear_closest = minf(gear_closest, (GearTree.nodes()[gear_ids[i]]["pos"] as Vector2).distance_to(GearTree.nodes()[gear_ids[j]]["pos"]))
-	_check(gear_closest >= 44.0, "nothing on the gear screen overlaps (closest pair %.0f px apart)" % gear_closest)
+	_check(gear_ok, "%d pieces of gear in 8 kinds, each with its own look; rings and amulets are boss-only" % Config.GEAR_ORDER.size())
 	# Start the fighting with nothing worn, so the stat checks below are exact.
 	SaveData.gear_bag.clear()
 	for slot: String in Config.GEAR_SLOTS:
@@ -646,7 +670,8 @@ func _run_autotest() -> void:
 	SaveData.bonus_ranks["defense"] = 50       # 50 ranks = 40% less damage
 	game.player.refresh_stats()
 	game.damage_player(10.0, game.player.pos + Vector2.RIGHT)
-	_check(is_equal_approx(hp_before - game.player.hp, 6.0), "defense reduces damage taken (10 -> %.1f)" % (hp_before - game.player.hp))
+	var taken := 10.0 * (1.0 - SaveData.passive_value("defense"))
+	_check(taken < 6.2 and is_equal_approx(hp_before - game.player.hp, taken), "defense reduces damage taken (10 -> %.1f)" % (hp_before - game.player.hp))
 	SaveData.bonus_ranks.erase("defense")
 	game.player.refresh_stats()
 	game.player.stats.evasion = 1.0
@@ -692,6 +717,7 @@ func _run_autotest() -> void:
 
 	# --- dual wielding ---
 	var pl := game.player
+	pl.give_weapon("rifle")       # (whatever the bot was holding: a shotgun already in hand would make the next one dual)
 	pl.give_weapon("shotgun")
 	_check(pl.weapon_id == "shotgun" and not pl.dual, "the first shotgun is held alone")
 	pl.give_weapon("shotgun")
@@ -788,16 +814,19 @@ func _run_autotest() -> void:
 	pl.refill_ammo()
 
 	# --- weapon crates can be shot to pieces ---
+	# (On a clear patch of ground with no zombies about, so nothing else can
+	# stop the test shots.)
 	game.pickups.crates.clear()
-	game.pickups.spawn_crate(game.arena.clamp_inside(pl.pos + Vector2(0.0, 260.0), 80.0), "shotgun")
+	game.enemies.clear_all()
+	game.pickups.spawn_crate(game.arena.random_free_point(110.0, 160.0), "shotgun")
 	var box: Pickups.Crate = game.pickups.crates[0]
 	_check(is_equal_approx(box.hp, Config.CRATE_HP), "a fresh crate is undamaged")
-	game.projectiles.spawn(box.pos + Vector2(-70.0, 0.0), Vector2.RIGHT, Config.WEAPONS["pistol"], "pistol", 9999.0, 0.0)
+	game.projectiles.spawn(box.pos + Vector2(-50.0, 0.0), Vector2.RIGHT, Config.WEAPONS["pistol"], "pistol", 9999.0, 0.0)
 	await _until(func() -> bool: return box.hp < Config.CRATE_HP, 30)
 	_check(is_equal_approx(box.hp, Config.CRATE_HP - float(Config.WEAPONS["pistol"]["damage"])),
 			"a bullet stops in a weapon crate and damages it (by the weapon's plain damage, not yours)")
 	var box_hp := box.hp
-	game.projectiles.spawn(box.pos + Vector2(-90.0, 0.0), Vector2.RIGHT, Config.WEAPONS["launcher"], "launcher", 1.0, 0.0)
+	game.projectiles.spawn(box.pos + Vector2(-50.0, 0.0), Vector2.RIGHT, Config.WEAPONS["launcher"], "launcher", 1.0, 0.0)
 	await _until(func() -> bool: return box.hp < box_hp, 60)
 	_check(box.hp <= 0.0, "a grenade blows a weapon crate apart")
 	await _until(func() -> bool: return not game.pickups.crates.has(box), 30)
@@ -1060,7 +1089,7 @@ func _run_autotest() -> void:
 	var unspent := SaveData.skill_points
 	_check(spent > 0 and SaveData.respec() and SaveData.skill_points == unspent + spent and SaveData.passive_rank("vitality") == 0
 			and SaveData.tree.is_empty(), "resetting gives every spent skill point back")
-	SaveData.learn_node("evasion.0")
+	SaveData.learn_node("grit.root")
 
 	# --- save file round trip ---
 	var coins_now := SaveData.coins
@@ -1082,7 +1111,7 @@ func _run_autotest() -> void:
 	_check(SaveData.pets_owned == ["scraps", "soot"] and SaveData.pet_active == "soot", "save file restores the pets")
 	_check(SaveData.coins == coins_now and SaveData.level == level_now and SaveData.xp == xp_now and SaveData.skill_points == points_now,
 			"save file restores coins, level, XP and skill points")
-	_check(SaveData.tree_rank("evasion") == 1 and SaveData.node_count("evasion.0") == 1
+	_check(SaveData.tree_rank("evasion") == 1 and SaveData.node_count("grit.root") == 1
 			and SaveData.weapon_rank("shotgun", "power") == shotgun_power
 			and SaveData.weapon_level("pistol") == pistol_level, "save file restores the skill tree and weapon levels")
 	_check(SaveData.maps_unlocked == 2 and SaveData.map_cleared(0) and SaveData.selected_map == 1,
@@ -1115,14 +1144,23 @@ func _run_autotest() -> void:
 	SaveData.load_game()
 	_check(SaveData.points_returned == 10 + 2 * 2 + 4 and SaveData.skill_points == 3 + SaveData.points_returned and SaveData.tree.is_empty(),
 			"a save from before the skill tree gets its spent points back (%d)" % SaveData.points_returned)
-	# ...and a tree whose learned nodes no longer join up is handed back whole.
-	SaveData.tree = {"vitality.0": 1, "vitality.5": 1}
+	# ...and so are the points in a skill tree of an older version (its nodes no longer exist),
+	SaveData.tree = {"vitality.0": 1, "strength.t0.0": 1, "vitality-strength.a0.0": 1}
+	SaveData.tree_spent = 7
 	SaveData.skill_points = 0
 	SaveData.save_game()
 	SaveData.call("_reset_to_defaults")
 	SaveData.load_game()
-	_check(SaveData.tree.is_empty() and SaveData.skill_points == SaveData.points_returned and SaveData.points_returned == 1 + 4,
-			"a broken tree is refunded instead of kept")
+	_check(SaveData.tree.is_empty() and SaveData.skill_points == 7 and SaveData.points_returned == 7,
+			"points spent in an older skill tree are handed back")
+	# ...or in a tree that does not hold together (a node without the levels before it).
+	SaveData.tree = {"vitality.2": 2}
+	SaveData.tree_spent = SaveData.spent_points()
+	SaveData.skill_points = 0
+	SaveData.save_game()
+	SaveData.call("_reset_to_defaults")
+	SaveData.load_game()
+	_check(SaveData.tree.is_empty() and SaveData.skill_points == 2 * int(Config.TREE_BRANCH[1]["cost"]), "a broken tree is refunded instead of kept")
 
 	# --- an old (version 1) save: coins and upgrades are wiped once, records kept ---
 	var old_file := FileAccess.open(SaveData.save_path, FileAccess.WRITE)
@@ -1340,45 +1378,48 @@ func _run_inputtest() -> void:
 	app.quit_to_menu()
 	await _frames(3)
 	SaveData.skill_points = 3
-	app.open_screen("character")
-	await _frames(4)
-	var tree: TreeView = ((app.get("_screens") as Dictionary)["character"] as CharacterScreen).get("_tree")
+	app.open_screen("skills")
+	await _frames(6)
+	var tree: TreeView = ((app.get("_screens") as Dictionary)["skills"] as SkillScreen).get("_tree")
 	_check(tree.has_focus() and tree.selected == "start", "the skill tree opens on the middle node")
 	_key(KEY_RIGHT, true)
 	await _frames(2)
 	_key(KEY_RIGHT, false)
 	await _frames(2)
-	_check(tree.selected == "dexterity.0", "the arrow keys walk from node to node (now on '%s')" % tree.selected)
+	_check(tree.selected == "fury.root", "the arrow keys walk from node to node (now on '%s')" % tree.selected)
 	_key(KEY_ENTER, true)
 	await _frames(2)
 	_key(KEY_ENTER, false)
 	await _frames(2)
-	_check(SaveData.node_count("dexterity.0") == 1 and SaveData.skill_points == 2, "Enter learns the highlighted node")
+	_check(SaveData.node_count("fury.root") == 1 and SaveData.skill_points == 2, "Enter buys a level of the highlighted node")
 	_pad_button(JOY_BUTTON_DPAD_RIGHT, true)
 	await _frames(2)
 	_pad_button(JOY_BUTTON_DPAD_RIGHT, false)
 	await _frames(2)
+	var walked_to := tree.selected
 	_pad_button(JOY_BUTTON_A, true)
 	await _frames(2)
 	_pad_button(JOY_BUTTON_A, false)
 	await _frames(2)
-	_check(tree.selected == "dexterity.1" and SaveData.node_count("dexterity.1") == 1, "the gamepad walks the tree and A learns")
+	_check(walked_to != "fury.root" and String(SkillTree.nodes()[walked_to]["family"]) == "fury" and SaveData.node_count(walked_to) == 1,
+			"the gamepad walks the tree and A buys a level (of '%s')" % walked_to)
 	await _frames(20)      # (let the view finish gliding to the node)
-	var cam: Vector2 = tree.get("_cam")
-	var node_pos: Vector2 = SkillTree.nodes()["vitality.0"]["pos"]
 	# (Fake mouse events are given in window pixels; without a real display
 	# the window is not the size of the game's canvas, so convert. The window
 	# also has to be told that the mouse is over it.)
-	var on_screen: Vector2 = get_viewport().get_final_transform() * (tree.global_position + tree.size * 0.5 + (node_pos - cam) * tree.zoom)
+	var cam: Vector2 = tree.get("_cam")
+	var to_window := get_viewport().get_final_transform()
+	var on_screen: Vector2 = to_window * (tree.global_position + tree.size * 0.5
+			+ ((SkillTree.nodes()["grit.root"]["pos"] as Vector2) - cam) * tree.zoom)
 	get_viewport().notification(NOTIFICATION_VP_MOUSE_ENTER)
 	_mouse_move(on_screen)
 	await _frames(2)
-	_check(tree.selected == "vitality.0", "pointing at a node highlights it")
+	_check(tree.selected == "grit.root", "pointing at a node highlights it")
 	_mouse_button(MOUSE_BUTTON_LEFT, true, on_screen)
 	await _frames(2)
 	_mouse_button(MOUSE_BUTTON_LEFT, false, on_screen)
 	await _frames(2)
-	_check(SaveData.node_count("vitality.0") == 1 and SaveData.skill_points == 0, "clicking a node learns it")
+	_check(SaveData.node_count("grit.root") == 1 and SaveData.skill_points == 0, "clicking a node buys a level")
 	var zoom_before := tree.zoom
 	_mouse_button(MOUSE_BUTTON_WHEEL_UP, true, on_screen)
 	await _frames(2)
@@ -1390,37 +1431,34 @@ func _run_inputtest() -> void:
 	await _frames(3)
 	_check(app.state == Main.State.MENU and tree.is_visible_in_tree() == false, "Esc leaves the skill tree")
 
-	# --- the gear screen: click a piece to wear it, click its slot to take it off ---
+	# --- the character screen: click a piece to wear it, click its slot to take it off ---
 	SaveData.add_gear("work_gloves:1")
-	app.open_screen("gear")
+	app.open_screen("character")
+	await _frames(6)
+	var sheet: CharacterScreen = (app.get("_screens") as Dictionary)["character"]
+	var bag_tile: Control = (sheet.get("_bag_grid") as Control).get_child(0)
+	var tile_at: Vector2 = to_window * (bag_tile.global_position + bag_tile.size * 0.5)
+	_mouse_move(tile_at)
+	await _frames(2)
+	_mouse_button(MOUSE_BUTTON_LEFT, true, tile_at)
+	await _frames(2)
+	_mouse_button(MOUSE_BUTTON_LEFT, false, tile_at)
 	await _frames(4)
-	var gear_tree: TreeView = ((app.get("_screens") as Dictionary)["gear"] as GearScreen).get("_tree")
-	var gear_cam: Vector2 = gear_tree.get("_cam")
-	var to_window := get_viewport().get_final_transform()
-	var piece_at: Vector2 = to_window * (gear_tree.global_position + gear_tree.size * 0.5
-			+ ((GearTree.nodes()["work_gloves.1"]["pos"] as Vector2) - gear_cam) * gear_tree.zoom)
-	_mouse_move(piece_at)
-	await _frames(2)
-	_check(gear_tree.selected == "work_gloves.1", "pointing at a piece of gear highlights it")
-	_mouse_button(MOUSE_BUTTON_LEFT, true, piece_at)
-	await _frames(2)
-	_mouse_button(MOUSE_BUTTON_LEFT, false, piece_at)
-	await _frames(2)
-	_check(SaveData.gear_in_slot("gloves") == "work_gloves:1" and SaveData.gear_count("work_gloves:1") == 0, "clicking a piece wears it")
-	var slot_at: Vector2 = to_window * (gear_tree.global_position + gear_tree.size * 0.5
-			+ ((GearTree.nodes()["slot.gloves"]["pos"] as Vector2) - gear_cam) * gear_tree.zoom)
+	_check(SaveData.gear_in_slot("gloves") == "work_gloves:1" and SaveData.gear_count("work_gloves:1") == 0, "clicking a piece in the inventory wears it")
+	var slot_tile: Control = ((sheet.get("_slot_boxes") as Dictionary)["gloves"] as Control).get_child(0)
+	var slot_at: Vector2 = to_window * (slot_tile.global_position + slot_tile.size * 0.5)
 	_mouse_move(slot_at)
 	await _frames(2)
 	_mouse_button(MOUSE_BUTTON_LEFT, true, slot_at)
 	await _frames(2)
 	_mouse_button(MOUSE_BUTTON_LEFT, false, slot_at)
-	await _frames(2)
+	await _frames(4)
 	_check(SaveData.gear_in_slot("gloves") == "" and SaveData.gear_count("work_gloves:1") == 1, "clicking the slot takes it off again")
 	_key(KEY_ESCAPE, true)
 	await _frames(2)
 	_key(KEY_ESCAPE, false)
 	await _frames(3)
-	_check(app.state == Main.State.MENU and not gear_tree.is_visible_in_tree(), "Esc leaves the gear screen")
+	_check(app.state == Main.State.MENU and not sheet.is_visible_in_tree(), "Esc leaves the character screen")
 
 	if _auto_failures.is_empty():
 		print("INPUTTEST PASSED")

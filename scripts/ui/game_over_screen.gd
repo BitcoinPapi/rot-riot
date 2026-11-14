@@ -18,7 +18,7 @@ var _coins: Label
 var _hint: Label
 var _character: Button
 var _armory: Button
-var _gear: Button
+var _skills: Button
 var _loot: Label                  # gear found in the run
 var _buttons: Array[Button] = []
 
@@ -74,13 +74,13 @@ func _init() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	_character = UiKit.button("CHARACTER", func() -> void: main.open_screen("character"), 176.0)
+	_character = UiKit.button("CHARACTER", func() -> void: main.open_screen("character"), 166.0)
 	row.add_child(_character)
-	_armory = UiKit.button("ARMORY", func() -> void: main.open_screen("armory"), 126.0)
+	_skills = UiKit.button("SKILLS", func() -> void: main.open_screen("skills"), 126.0)
+	row.add_child(_skills)
+	_armory = UiKit.button("ARMORY", func() -> void: main.open_screen("armory"), 136.0)
 	row.add_child(_armory)
-	_gear = UiKit.button("GEAR", func() -> void: main.open_screen("gear"), 126.0)
-	row.add_child(_gear)
-	for small: Button in [_character, _armory, _gear]:
+	for small: Button in [_character, _skills, _armory]:
 		small.add_theme_font_size_override("font_size", 18)
 	col.add_child(row)
 	var row2 := HBoxContainer.new()
@@ -91,7 +91,7 @@ func _init() -> void:
 	var menu := UiKit.button("MAIN MENU", func() -> void: main.quit_to_menu(), 220.0)
 	row2.add_child(menu)
 	col.add_child(row2)
-	_buttons = [_again, _onward, _character, _armory, _gear, maps, menu]
+	_buttons = [_again, _onward, _character, _skills, _armory, maps, menu]
 
 
 ## Fill in the numbers for the run that just ended.
@@ -163,9 +163,9 @@ func _put(stat: String, text: String) -> void:
 func _refresh_progress() -> void:
 	_coins.text = "+%d COINS   (you have %d)" % [int(_coins.get_meta("earned", 0)), SaveData.coins]
 	var weapon_points := SaveData.total_weapon_points()
-	_character.text = "CHARACTER" if SaveData.skill_points <= 0 else "CHARACTER  (%d)" % SaveData.skill_points
+	_character.text = "CHARACTER" if SaveData.gear_new <= 0 else "CHARACTER  (%d)" % SaveData.gear_new
+	_skills.text = "SKILLS" if SaveData.skill_points <= 0 else "SKILLS  (%d)" % SaveData.skill_points
 	_armory.text = "ARMORY" if weapon_points <= 0 else "ARMORY  (%d)" % weapon_points
-	_gear.text = "GEAR" if SaveData.gear_new <= 0 else "GEAR  (%d)" % SaveData.gear_new
 	var parts: Array[String] = []
 	if SaveData.skill_points > 0:
 		parts.append("%d skill point%s" % [SaveData.skill_points, "" if SaveData.skill_points == 1 else "s"])

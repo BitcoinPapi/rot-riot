@@ -11,7 +11,11 @@ extends Node
 ## ============================================================================
 
 const GAME_TITLE := "ROT RIOT"
-const GAME_VERSION := "0.4.0"
+const GAME_VERSION := "0.5.0"
+const HERO_NAME := "CLIFF"                    # the survivor you play
+# How he looks with nothing equipped (his gear is drawn over this, see scripts/autoload/art.gd).
+const HERO_LOOK := {"skin": "#dfae88", "skin_dark": "#b98660", "hair": "#3a2a1e", "shirt": "#23262b", "shirt_light": "#33373d",
+	"strap": "#6b4a2e", "pants": "#2c2f34", "pads": "#1a1c20", "boots": "#17181b", "belt": "#3a3d42", "pouch": "#3f4a2c", "metal": "#b9bec4"}
 
 # ----------------------------------------------------------------------------
 #  ARENA
@@ -470,87 +474,94 @@ const SKILL_POINT_COST_BASE := 120.0    # coins for the first bought skill point
 const SKILL_POINT_COST_GROWTH := 1.15   # ...each further one costs 15% more
 const RESPEC_COST_PER_LEVEL := 25       # coins to take all points back = this * character level
 
-# Passive stats. Their ranks come from the skill tree below.
+# Passive stats. Their ranks come from the skill tree below and from gear.
 #   "linear": each rank adds per_rank, forever.
 #   "curve":  approaches "max" but never reaches it; "half" is the rank at which
 #             you have half of max. (Stops speed/dodge from becoming silly.)
-#   "color"    the stat's colour in the skill tree
-#   "notables" names of the four big nodes along its branch, from the middle outwards
-#   "min_level" (optional) the whole branch needs at least this character level
-# The last one, BOND, is the pet's branch: see PETS further down.
-const PASSIVE_ORDER := ["vitality", "strength", "dexterity", "agility", "defense", "evasion", "critical", "luck", "bond"]
+#   "color"   the colour of the stat's family in the skill tree
+#   "nodes"   names of the three nodes along its branch, from the middle outwards
+#   "min_level" (optional) its branch needs at least this character level
+# The last one, BOND, is the pet's stat: see PETS further down.
+const PASSIVE_ORDER := ["vitality", "defense", "evasion", "strength", "dexterity", "critical", "agility", "luck", "bond"]
 const PASSIVES := {
 	"vitality": {"name": "VITALITY", "desc": "More maximum health", "kind": "linear", "per_rank": 8.0,
-		"color": Color("e5484d"), "notables": ["Thick Blood", "Iron Lungs", "Ox Heart", "Unkillable"]},
-	"strength": {"name": "STRENGTH", "desc": "More damage with every weapon", "kind": "linear", "per_rank": 0.03,
-		"color": Color("f08a3c"), "notables": ["Heavy Hands", "Bone Breaker", "Skull Splitter", "Juggernaut"]},
-	"dexterity": {"name": "DEXTERITY", "desc": "Shoot, swing and reload faster", "kind": "curve", "max": 1.5, "half": 60.0,
-		"color": Color("ff8fb1"), "notables": ["Loose Wrists", "Trigger Finger", "Hair Trigger", "Lead Storm"]},
-	"agility": {"name": "AGILITY", "desc": "Move faster", "kind": "curve", "max": 0.8, "half": 40.0,
-		"color": Color("7ed957"), "notables": ["Light Feet", "Sprinter", "Wind Runner", "Blur"]},
+		"color": Color("5aa9ff"), "nodes": ["Thick Blood", "Iron Lungs", "Ox Heart"]},
 	"defense": {"name": "DEFENSE", "desc": "Take less damage from every hit", "kind": "curve", "max": 0.8, "half": 50.0,
-		"color": Color("6aa7e8"), "notables": ["Tough Hide", "Scar Tissue", "Plated", "Walking Bunker"]},
+		"color": Color("5aa9ff"), "nodes": ["Tough Hide", "Scar Tissue", "Walking Bunker"]},
 	"evasion": {"name": "EVASION", "desc": "Chance to dodge a hit completely", "kind": "curve", "max": 0.6, "half": 40.0,
-		"color": Color("4fd8c9"), "notables": ["Sidestep", "Slippery", "Smoke", "Phantom"]},
+		"color": Color("5aa9ff"), "nodes": ["Sidestep", "Slippery", "Phantom"]},
+	"strength": {"name": "STRENGTH", "desc": "More damage with every weapon", "kind": "linear", "per_rank": 0.03,
+		"color": Color("ff6b3d"), "nodes": ["Heavy Hands", "Bone Breaker", "Juggernaut"]},
+	"dexterity": {"name": "DEXTERITY", "desc": "Shoot, swing and reload faster", "kind": "curve", "max": 1.5, "half": 60.0,
+		"color": Color("ff6b3d"), "nodes": ["Loose Wrists", "Trigger Finger", "Lead Storm"]},
 	"critical": {"name": "CRITICAL", "desc": "Chance for a shot to deal double damage", "kind": "curve", "max": 0.6, "half": 40.0,
-		"color": Color("c084fc"), "notables": ["Sharp Eye", "Weak Spots", "Headhunter", "Surgeon"]},
-	"luck": {"name": "LUCK", "desc": "Zombies drop coins more often", "kind": "linear", "per_rank": 0.03,
-		"color": Color("ffc531"), "notables": ["Loose Change", "Pickpocket", "Grave Robber", "Jackpot"]},
+		"color": Color("ff6b3d"), "nodes": ["Sharp Eye", "Weak Spots", "Surgeon"]},
+	"agility": {"name": "AGILITY", "desc": "Move faster", "kind": "curve", "max": 0.8, "half": 40.0,
+		"color": Color("b6e04a"), "nodes": ["Light Feet", "Sprinter", "Blur"]},
+	"luck": {"name": "LUCK", "desc": "Zombies drop coins and gear more often", "kind": "linear", "per_rank": 0.03,
+		"color": Color("b6e04a"), "nodes": ["Loose Change", "Grave Robber", "Jackpot"]},
 	# BOND: every rank brings your pet's damage bonus closer to the most its rarity
 	# allows (PET_BOND_FULL ranks = all of it) and makes its own bite stronger.
-	# The four big nodes of this branch also teach the pet a trick (PET_TRICKS).
+	# Its three nodes and its sealed node also teach the pet a trick (PET_TRICKS).
 	"bond": {"name": "BOND", "desc": "Your pet adds more to your damage and bites harder", "kind": "linear", "per_rank": 1.0,
-		"color": Color("d9a066"), "notables": ["Fetch", "Maul", "Guardian", "Frenzy"], "min_level": 18},
+		"color": Color("b6e04a"), "nodes": ["Fetch", "Maul", "Guardian"], "sealed_name": "Frenzy", "min_level": 18},
 }
 
 # ----------------------------------------------------------------------------
-#  SKILL TREE (Character screen) - built from these numbers by
-#  scripts/game/skill_tree.gd. A web with the survivor in the middle and one
-#  branch per passive stat. A node can be learned when it touches a node you
-#  already have, your character level is high enough for its ring, and (for
-#  sealed nodes) its deed is done.
-#
-#  Along each branch, per ring: small nodes, then one big node. Each ring
-#  also has a side twig, and an arc of nodes that links it to the branches
-#  next to it. At the tip: a keystone (special power) and an endless node.
+#  SKILL TREE (Skills screen) - built from these numbers by scripts/game/skill_tree.gd.
+#  Three families grow out of the survivor in the middle, each in its own colour:
+#    GRIT      staying alive    (vitality, defense, evasion)
+#    FURY      killing faster   (strength, dexterity, critical)
+#    INSTINCT  speed, luck, pet (agility, luck, bond)
+#  A family starts with one node that raises all three of its stats. From it
+#  three branches fan out, one per stat: three nodes, a sealed node on the side
+#  (opens after a deed) and a keystone (a special power) at the end. Every
+#  node has several levels. At the far end sits the family's emblem, an
+#  endless node. A node opens when the one before it has TREE_NEED_LEVELS levels.
 # ----------------------------------------------------------------------------
-const TREE_RINGS := [
-	# level = character level needed for this ring     cost = skill points for a small node
-	# twig  = nodes on the side twig                    arc  = nodes linking to the next branch
-	{"level": 1, "cost": 1, "twig": 1, "arc": 1},
-	{"level": 5, "cost": 2, "twig": 2, "arc": 2},
-	{"level": 12, "cost": 3, "twig": 2, "arc": 3},
-	{"level": 22, "cost": 4, "twig": 3, "arc": 4},
+const TREE_FAMILY_ORDER := ["grit", "fury", "instinct"]
+const TREE_FAMILIES := {
+	"grit": {"name": "GRIT", "desc": "Staying alive", "color": Color("5aa9ff"), "angle_deg": -90.0,
+		"stats": ["vitality", "defense", "evasion"]},
+	"fury": {"name": "FURY", "desc": "Killing faster", "color": Color("ff6b3d"), "angle_deg": 30.0,
+		"stats": ["strength", "dexterity", "critical"]},
+	"instinct": {"name": "INSTINCT", "desc": "Speed, luck and your pet", "color": Color("b6e04a"), "angle_deg": 150.0,
+		"stats": ["agility", "luck", "bond"]},
+}
+const TREE_ROOT_LEVELS := 3             # levels of a family's first node (each level: +1 rank of all three of its stats)
+const TREE_ROOT_COST := 1               # skill points per level of it
+const TREE_NODE_LEVELS := 5             # levels of every node along a stat's branch (each level: +1 rank of that stat)
+const TREE_BRANCH := [                  # the three nodes of a branch, from the middle outwards:
+	{"level": 1, "cost": 1},            #   level = character level needed, cost = skill points per level of the node
+	{"level": 8, "cost": 2},
+	{"level": 18, "cost": 3},
 ]
-const TREE_SPINE_PER_RING := 3          # nodes along the branch in each ring (the last one is the big node)
-const TREE_SMALL_RANKS := 1             # stat ranks from a small node
-const TREE_NOTABLE_RANKS := 3           # ...from the big node that ends each ring
-const TREE_NOTABLE_COST_MULT := 2       # big nodes cost this many times the ring's price
-const TREE_SEALED_RANKS := 3            # ...from the sealed node at the end of a twig
-const TREE_KEYSTONE_COST := 8
-const TREE_MASTERY_COST := 5            # skill points for the first rank of an endless node...
-const TREE_MASTERY_COST_STEP := 4       # ...and one more point every N ranks
-const TREE_MASTERY_RANKS := 1
-# Layout (pixels in tree space).
-const TREE_START_RADIUS := 84.0         # distance of the first node of a branch from the middle
-const TREE_STEP := 62.0                 # distance between nodes along a branch
-const TREE_TWIG_STEP := 52.0
-const TREE_TIP_DISTANCE := 96.0         # keystone and endless node sit this far beyond the last big node
-const TREE_TIP_SPREAD_DEG := 5.5
+const TREE_NEED_LEVELS := 3             # levels a node needs before the next one along its branch opens
+const TREE_SEALED_RANKS := 3            # ranks from a sealed node (one level, opens after its deed)
+const TREE_SEALED_COST := 4
+const TREE_KEYSTONE_COST := 8           # a keystone needs the last node of its branch at full level
+const TREE_CAP_LEVEL := 22              # the family emblem: needs this character level and one keystone of the family
+const TREE_CAP_COST := 5                # skill points for its first level (+1 rank of all three stats, endless)...
+const TREE_CAP_COST_STEP := 3           # ...and one more point every N levels
+# Layout (pixels in tree space, the survivor is at 0,0).
+const TREE_ROOT_DIST := 92.0            # distance of a family's first node from the middle
+const TREE_STEP := 78.0                 # distance between the nodes of a branch
+const TREE_FAN_DEG := 40.0              # angle between the three branches of a family
+const TREE_SEAL_OFFSET := 56.0          # how far a sealed node sits beside its branch
+const TREE_KEY_DIST := 74.0             # distance from a branch's last node to its keystone
+const TREE_CAP_DIST := 100.0            # distance from the middle branch's keystone to the family emblem
 # Sealed nodes stay locked until a deed is done (checked against the saved
 # records). Kinds: "wave" = clear that wave on any map, "kills" = zombies killed
 # in total, "weapon_level" = reach that level with any weapon, "runs" = runs
 # played, "score" = points in one run, "bought" = skill points bought with
 # coins, "map" = clear all waves of that map, "level" = character level,
 # "pets" = how many pets you own.
-# One row per ring (ring 0 has no sealed node); branches take them in turn.
-const TREE_SEAL_DEEDS := [
-	[],
-	[{"kind": "wave", "value": 5}, {"kind": "kills", "value": 300}, {"kind": "weapon_level", "value": 4}, {"kind": "runs", "value": 5}],
-	[{"kind": "wave", "value": 12}, {"kind": "kills", "value": 3000}, {"kind": "weapon_level", "value": 10}, {"kind": "score", "value": 40000}],
-	[{"kind": "wave", "value": 25}, {"kind": "kills", "value": 15000}, {"kind": "weapon_level", "value": 18}, {"kind": "bought", "value": 15}],
-]
-# Keystones: one special power at the tip of each branch. "value" (and the
+const TREE_SEAL_DEEDS := {
+	"vitality": {"kind": "wave", "value": 10}, "defense": {"kind": "kills", "value": 2000}, "evasion": {"kind": "runs", "value": 15},
+	"strength": {"kind": "kills", "value": 5000}, "dexterity": {"kind": "weapon_level", "value": 8}, "critical": {"kind": "score", "value": 40000},
+	"agility": {"kind": "wave", "value": 15}, "luck": {"kind": "bought", "value": 5}, "bond": {"kind": "pets", "value": 2},
+}
+# Keystones: one special power at the end of each stat's branch. "value" (and the
 # extra numbers) are what the power does; "desc" is filled in with them.
 const KEYSTONES := {
 	"vitality": {"name": "SECOND WIND", "value": 0.3, "deed": {"kind": "wave", "value": 20},
@@ -665,15 +676,14 @@ const WEAPON_PERKS := {
 #  and some pieces are only found from a certain map onwards. Nine slots:
 #  helmet, amulet, chest, gloves, two rings, belt, pants, boots.
 #  Two identical pieces of the same tier can be forged into one piece of the
-#  next tier (the Gear screen). Gear adds ranks to the passive stats, on top
+#  next tier (the forge on the Character screen). Gear adds ranks to the passive stats, on top
 #  of the skill tree (scripts/game/player_stats.gd).
 # ----------------------------------------------------------------------------
 const GEAR_SLOTS := ["helmet", "amulet", "chest", "gloves", "ring1", "ring2", "belt", "pants", "boots"]
-# What kind of piece each slot takes, and the kinds in the order they sit
-# around the Gear screen (clockwise from the top).
+# What kind of piece each slot takes, and all the kinds there are.
 const GEAR_SLOT_TYPE := {"helmet": "helmet", "amulet": "amulet", "chest": "chest", "gloves": "gloves",
 	"ring1": "ring", "ring2": "ring", "belt": "belt", "pants": "pants", "boots": "boots"}
-const GEAR_TYPE_ORDER := ["helmet", "amulet", "ring", "belt", "boots", "pants", "gloves", "chest"]
+const GEAR_TYPE_ORDER := ["helmet", "chest", "gloves", "pants", "boots", "belt", "amulet", "ring"]
 const GEAR_TYPE_NAMES := {"helmet": "HELMET", "amulet": "AMULET", "ring": "RING", "belt": "BELT", "boots": "BOOTS",
 	"pants": "PANTS", "gloves": "GLOVES", "chest": "CHEST"}
 
@@ -696,6 +706,8 @@ const GEAR_TIERS := [
 #   stats  passive stat ranks it gives at the first tier (times the tier's "mult")
 #   from   who drops it: "zombies" (anything), "brutes" (brutes and bosses) or "bosses" (bosses only)
 #   map    the first map it can be found on (1 = everywhere)
+#   look   how it looks on the hero, in the menus and in the game: a "style"
+#          (which shape scripts/autoload/art.gd draws) and two colours
 const GEAR_ORDER := [
 	"hard_hat", "gas_mask", "hunting_cap", "riot_helmet",
 	"dog_tags", "tooth_necklace", "old_medal", "gorger_fang",
@@ -707,45 +719,45 @@ const GEAR_ORDER := [
 	"leather_jacket", "padded_vest", "bandolier", "riot_armor",
 ]
 const GEAR_ITEMS := {
-	"hard_hat": {"name": "Hard Hat", "type": "helmet", "stats": {"defense": 2}, "from": "zombies", "map": 1},
-	"gas_mask": {"name": "Gas Mask", "type": "helmet", "stats": {"vitality": 2}, "from": "zombies", "map": 1},
-	"hunting_cap": {"name": "Hunting Cap", "type": "helmet", "stats": {"critical": 2}, "from": "brutes", "map": 1},
-	"riot_helmet": {"name": "Riot Helmet", "type": "helmet", "stats": {"defense": 2, "vitality": 1}, "from": "zombies", "map": 2},
+	"hard_hat": {"name": "Hard Hat", "type": "helmet", "stats": {"defense": 2}, "from": "zombies", "map": 1, "look": {"style": "hardhat", "color": "#e2b83a", "trim": "#8a6a12"}},
+	"gas_mask": {"name": "Gas Mask", "type": "helmet", "stats": {"vitality": 2}, "from": "zombies", "map": 1, "look": {"style": "mask", "color": "#5b6166", "trim": "#2c3033"}},
+	"hunting_cap": {"name": "Hunting Cap", "type": "helmet", "stats": {"critical": 2}, "from": "brutes", "map": 1, "look": {"style": "cap", "color": "#8a5a36", "trim": "#5a3a1e"}},
+	"riot_helmet": {"name": "Riot Helmet", "type": "helmet", "stats": {"defense": 2, "vitality": 1}, "from": "zombies", "map": 2, "look": {"style": "visor", "color": "#2f3f5c", "trim": "#8fb7d9"}},
 
-	"dog_tags": {"name": "Dog Tags", "type": "amulet", "stats": {"vitality": 3}, "from": "bosses", "map": 1},
-	"tooth_necklace": {"name": "Tooth Necklace", "type": "amulet", "stats": {"critical": 3}, "from": "bosses", "map": 1},
-	"old_medal": {"name": "Old Medal", "type": "amulet", "stats": {"defense": 3}, "from": "bosses", "map": 1},
-	"gorger_fang": {"name": "Gorger's Fang", "type": "amulet", "stats": {"strength": 2, "vitality": 2}, "from": "bosses", "map": 2},
+	"dog_tags": {"name": "Dog Tags", "type": "amulet", "stats": {"vitality": 3}, "from": "bosses", "map": 1, "look": {"style": "tags", "color": "#c9ced3", "trim": "#8a8f94"}},
+	"tooth_necklace": {"name": "Tooth Necklace", "type": "amulet", "stats": {"critical": 3}, "from": "bosses", "map": 1, "look": {"style": "tooth", "color": "#efe6cf", "trim": "#8a7f66"}},
+	"old_medal": {"name": "Old Medal", "type": "amulet", "stats": {"defense": 3}, "from": "bosses", "map": 1, "look": {"style": "medal", "color": "#d4a437", "trim": "#8a2f2f"}},
+	"gorger_fang": {"name": "Gorger's Fang", "type": "amulet", "stats": {"strength": 2, "vitality": 2}, "from": "bosses", "map": 2, "look": {"style": "tooth", "color": "#c8322b", "trim": "#5a1210"}},
 
-	"iron_band": {"name": "Iron Band", "type": "ring", "stats": {"strength": 3}, "from": "bosses", "map": 1},
-	"lucky_ring": {"name": "Lucky Ring", "type": "ring", "stats": {"luck": 3}, "from": "bosses", "map": 1},
-	"snake_ring": {"name": "Snake Ring", "type": "ring", "stats": {"evasion": 3}, "from": "bosses", "map": 1},
-	"blood_ring": {"name": "Blood Ring", "type": "ring", "stats": {"critical": 2, "strength": 2}, "from": "bosses", "map": 2},
+	"iron_band": {"name": "Iron Band", "type": "ring", "stats": {"strength": 3}, "from": "bosses", "map": 1, "look": {"style": "ring", "color": "#9aa0a6", "trim": "#5c6166"}},
+	"lucky_ring": {"name": "Lucky Ring", "type": "ring", "stats": {"luck": 3}, "from": "bosses", "map": 1, "look": {"style": "ring", "color": "#5fd068", "trim": "#2f7a36"}},
+	"snake_ring": {"name": "Snake Ring", "type": "ring", "stats": {"evasion": 3}, "from": "bosses", "map": 1, "look": {"style": "ring", "color": "#4fd8c9", "trim": "#237a70"}},
+	"blood_ring": {"name": "Blood Ring", "type": "ring", "stats": {"critical": 2, "strength": 2}, "from": "bosses", "map": 2, "look": {"style": "ring", "color": "#c8322b", "trim": "#6b1512"}},
 
-	"tool_belt": {"name": "Tool Belt", "type": "belt", "stats": {"strength": 2}, "from": "zombies", "map": 1},
-	"ammo_belt": {"name": "Ammo Belt", "type": "belt", "stats": {"dexterity": 2}, "from": "zombies", "map": 1},
-	"money_belt": {"name": "Money Belt", "type": "belt", "stats": {"luck": 2}, "from": "brutes", "map": 1},
-	"champion_belt": {"name": "Champion's Belt", "type": "belt", "stats": {"vitality": 2, "strength": 1}, "from": "zombies", "map": 2},
+	"tool_belt": {"name": "Tool Belt", "type": "belt", "stats": {"strength": 2}, "from": "zombies", "map": 1, "look": {"style": "belt", "color": "#8a5a36", "trim": "#c9a15a"}},
+	"ammo_belt": {"name": "Ammo Belt", "type": "belt", "stats": {"dexterity": 2}, "from": "zombies", "map": 1, "look": {"style": "belt", "color": "#4a5a2a", "trim": "#d4a437"}},
+	"money_belt": {"name": "Money Belt", "type": "belt", "stats": {"luck": 2}, "from": "brutes", "map": 1, "look": {"style": "belt", "color": "#b58a2a", "trim": "#f3d27a"}},
+	"champion_belt": {"name": "Champion's Belt", "type": "belt", "stats": {"vitality": 2, "strength": 1}, "from": "zombies", "map": 2, "look": {"style": "belt", "color": "#b9342b", "trim": "#f3d27a"}},
 
-	"running_shoes": {"name": "Running Shoes", "type": "boots", "stats": {"agility": 2}, "from": "zombies", "map": 1},
-	"steel_toecaps": {"name": "Steel Toecaps", "type": "boots", "stats": {"vitality": 2}, "from": "zombies", "map": 1},
-	"soft_soles": {"name": "Soft Soles", "type": "boots", "stats": {"evasion": 2}, "from": "brutes", "map": 1},
-	"combat_boots": {"name": "Combat Boots", "type": "boots", "stats": {"agility": 2, "defense": 1}, "from": "zombies", "map": 2},
+	"running_shoes": {"name": "Running Shoes", "type": "boots", "stats": {"agility": 2}, "from": "zombies", "map": 1, "look": {"style": "shoes", "color": "#d94a3a", "trim": "#f2efe6"}},
+	"steel_toecaps": {"name": "Steel Toecaps", "type": "boots", "stats": {"vitality": 2}, "from": "zombies", "map": 1, "look": {"style": "boots", "color": "#3a3d42", "trim": "#b0b6bc"}},
+	"soft_soles": {"name": "Soft Soles", "type": "boots", "stats": {"evasion": 2}, "from": "brutes", "map": 1, "look": {"style": "shoes", "color": "#6b5a4a", "trim": "#cdbb9c"}},
+	"combat_boots": {"name": "Combat Boots", "type": "boots", "stats": {"agility": 2, "defense": 1}, "from": "zombies", "map": 2, "look": {"style": "boots", "color": "#23262a", "trim": "#55595f"}},
 
-	"cargo_pants": {"name": "Cargo Pants", "type": "pants", "stats": {"luck": 2}, "from": "zombies", "map": 1},
-	"track_pants": {"name": "Track Pants", "type": "pants", "stats": {"agility": 2}, "from": "zombies", "map": 1},
-	"padded_trousers": {"name": "Padded Trousers", "type": "pants", "stats": {"defense": 2}, "from": "brutes", "map": 1},
-	"hunter_leggings": {"name": "Hunter's Leggings", "type": "pants", "stats": {"agility": 2, "evasion": 1}, "from": "zombies", "map": 2},
+	"cargo_pants": {"name": "Cargo Pants", "type": "pants", "stats": {"luck": 2}, "from": "zombies", "map": 1, "look": {"style": "pants", "color": "#6b6a45", "trim": "#4a4a30"}},
+	"track_pants": {"name": "Track Pants", "type": "pants", "stats": {"agility": 2}, "from": "zombies", "map": 1, "look": {"style": "pants", "color": "#2a3f7a", "trim": "#f2efe6"}},
+	"padded_trousers": {"name": "Padded Trousers", "type": "pants", "stats": {"defense": 2}, "from": "brutes", "map": 1, "look": {"style": "pants", "color": "#4a4038", "trim": "#2c2622"}},
+	"hunter_leggings": {"name": "Hunter's Leggings", "type": "pants", "stats": {"agility": 2, "evasion": 1}, "from": "zombies", "map": 2, "look": {"style": "pants", "color": "#3f5a35", "trim": "#2a3d24"}},
 
-	"work_gloves": {"name": "Work Gloves", "type": "gloves", "stats": {"strength": 2}, "from": "zombies", "map": 1},
-	"shooting_gloves": {"name": "Shooting Gloves", "type": "gloves", "stats": {"dexterity": 2}, "from": "zombies", "map": 1},
-	"knuckle_wraps": {"name": "Knuckle Wraps", "type": "gloves", "stats": {"critical": 2}, "from": "brutes", "map": 1},
-	"butcher_gloves": {"name": "Butcher's Gloves", "type": "gloves", "stats": {"strength": 2, "critical": 1}, "from": "zombies", "map": 2},
+	"work_gloves": {"name": "Work Gloves", "type": "gloves", "stats": {"strength": 2}, "from": "zombies", "map": 1, "look": {"style": "gloves", "color": "#c9a15a", "trim": "#8a6a36"}},
+	"shooting_gloves": {"name": "Shooting Gloves", "type": "gloves", "stats": {"dexterity": 2}, "from": "zombies", "map": 1, "look": {"style": "gloves", "color": "#2a2c30", "trim": "#55595f"}},
+	"knuckle_wraps": {"name": "Knuckle Wraps", "type": "gloves", "stats": {"critical": 2}, "from": "brutes", "map": 1, "look": {"style": "wraps", "color": "#e9e2d0", "trim": "#b7ae96"}},
+	"butcher_gloves": {"name": "Butcher's Gloves", "type": "gloves", "stats": {"strength": 2, "critical": 1}, "from": "zombies", "map": 2, "look": {"style": "gloves", "color": "#7a1f1f", "trim": "#451010"}},
 
-	"leather_jacket": {"name": "Leather Jacket", "type": "chest", "stats": {"vitality": 2}, "from": "zombies", "map": 1},
-	"padded_vest": {"name": "Padded Vest", "type": "chest", "stats": {"defense": 2}, "from": "zombies", "map": 1},
-	"bandolier": {"name": "Bandolier", "type": "chest", "stats": {"dexterity": 2}, "from": "brutes", "map": 1},
-	"riot_armor": {"name": "Riot Armor", "type": "chest", "stats": {"defense": 2, "vitality": 1}, "from": "zombies", "map": 2},
+	"leather_jacket": {"name": "Leather Jacket", "type": "chest", "stats": {"vitality": 2}, "from": "zombies", "map": 1, "look": {"style": "jacket", "color": "#6b4226", "trim": "#3f2716"}},
+	"padded_vest": {"name": "Padded Vest", "type": "chest", "stats": {"defense": 2}, "from": "zombies", "map": 1, "look": {"style": "vest", "color": "#5a6a3a", "trim": "#3a4526"}},
+	"bandolier": {"name": "Bandolier", "type": "chest", "stats": {"dexterity": 2}, "from": "brutes", "map": 1, "look": {"style": "bandolier", "color": "#7a5a36", "trim": "#d4a437"}},
+	"riot_armor": {"name": "Riot Armor", "type": "chest", "stats": {"defense": 2, "vitality": 1}, "from": "zombies", "map": 2, "look": {"style": "armor", "color": "#2f3f5c", "trim": "#8fb7d9"}},
 }
 
 # Drops. Chance per kill that the zombie leaves a piece of gear (before the
@@ -757,19 +769,9 @@ const GEAR_MAX_ON_FIELD := 4
 const GEAR_LIFETIME := 45.0             # seconds a dropped piece waits to be picked up
 const GEAR_PICKUP_RADIUS := 30.0
 const GEAR_PICKUP_SHAKE := 0.2
-# Layout of the Gear screen (pixels in tree space). In the middle the nine
-# slots are laid out like a body; around them every kind of piece has its own
-# sector, with a row of five tiers for each piece.
-const GEAR_SLOT_POS := {
-	"helmet": Vector2(0, -128), "amulet": Vector2(88, -98), "chest": Vector2(0, -50), "gloves": Vector2(-112, -34),
-	"ring1": Vector2(112, -10), "ring2": Vector2(112, 52), "belt": Vector2(0, 18), "pants": Vector2(0, 80), "boots": Vector2(0, 140),
-}
+# What the slots are called on the Character screen.
 const GEAR_SLOT_NAMES := {"helmet": "HELMET", "amulet": "AMULET", "chest": "CHEST", "gloves": "GLOVES", "ring1": "LEFT RING",
 	"ring2": "RIGHT RING", "belt": "BELT", "pants": "PANTS", "boots": "BOOTS"}
-const GEAR_TREE_HUB_RADIUS := 215.0     # where each kind's sector starts
-const GEAR_TREE_START_RADIUS := 292.0   # distance of the first tier of every piece from the middle
-const GEAR_TREE_STEP := 72.0            # ...and between tiers
-const GEAR_TREE_FAN_DEG := 11.0         # angle between the pieces of one kind
 
 # ----------------------------------------------------------------------------
 #  PETS - companions. The feature opens at character level PET_UNLOCK_LEVEL,
@@ -845,7 +847,8 @@ const PETS := {
 const PET_IGNITE_TIME := 2.0            # a pet with "ignite": its bites set zombies burning this long...
 const PET_IGNITE_DPS_MULT := 0.6        # ...for this much of the bite's damage per second
 
-# Tricks: the four big nodes of the BOND branch, from the middle outwards.
+# Tricks: taught by the first level of BOND's three nodes (in this order),
+# and the fourth by BOND's sealed node.
 const PET_TRICKS := [
 	{"id": "fetch", "desc": "Your pet picks up the coins it runs past and runs to fetch dropped gear."},
 	{"id": "maul", "desc": "Every few bites is a mauling: much more damage and a hard shove."},

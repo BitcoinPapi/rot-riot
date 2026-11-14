@@ -7,6 +7,12 @@ Target: PC (Windows + Mac) on Steam first, mobile later.
 The owner is a beginner who does not write code: Claude writes everything,
 the owner plays the result and gives feedback. Explain things in plain words.
 
+The hero is called **Cliff** (`Config.HERO_NAME`). The owner sends reference
+pictures from other games and artists for the LAYOUT or the GENERAL LOOK he
+wants (a skill tree in three families, an equipment screen with the character
+in the middle, a tactical-looking hero). Follow the structure and the mood;
+never copy the art, names, icons or exact look (rule 1).
+
 ## Rules (from the owner - always follow)
 
 1. **Everything is original.** No names, characters, art or sounds from any
@@ -49,10 +55,12 @@ godot --headless --export-release "macOS" build/mac/RotRiot.zip
 Other dev flags (all after `--`, see `scripts/dev/dev_tools.gd`): `--play`,
 `--god`, `--wave=N`, `--weapon=ID`, `--dual`, `--keep-weapon`, `--no-crates`, `--no-rage`,
 `--cycle`, `--level=N`, `--coins=N`, `--map=N` (with `--best=W` best wave cleared there and
-`--start=W` starting wave), `--screen=maps|character|armory|gear|settings|pause|gameover|victory`,
-`--armory-weapon=ID`, `--tree-node=ID --tree-zoom=N` (skill tree / gear screen: highlight a node, zoom;
-0 = whole tree), `--gear=N` (start with N random pieces), `--drop-gear` (drop a piece of every tier in a run),
-`--pets=N` (own the first N pets; needs `--level=18` or more), `--screen=pets`,
+`--start=W` starting wave), `--screen=maps|character|skills|armory|pets|settings|pause|gameover|victory`,
+`--forge` (with `--screen=character`: open the forge), `--armory-weapon=ID`,
+`--tree-node=ID --tree-zoom=N` (skill tree: highlight a node, zoom; 0 = whole tree),
+`--gear=N` (start with N random pieces, some worn), `--drop-gear` (drop a piece of every tier in a run),
+`--drop-crates` (drop four weapon crates, two of them damaged), `--pets=N` (own the first N pets;
+needs `--level=18` or more),
 `--shot=PATH --shot-frame=N` (screenshot; needs a real display, e.g. `xvfb-run`),
 `--dump-sfx=DIR` (writes every generated sound as .wav),
 `--gallery=PREFIX[,PREFIX] --gallery-scale=N` (shows generated sprites enlarged, e.g.
@@ -81,22 +89,21 @@ scripts/autoload/
   game_input.gd          all input, key bindings, device detection, virtual sticks (touch/bot)
   save_data.gd           coins, character level + skill points + learned tree nodes, weapon levels + weapon
                          trees, gear (bag, worn, seen), pets, map progress, bests, settings -> user://save.json
-  art.gd                 placeholder sprites generated from SVG shapes at startup
+  art.gd                 placeholder sprites generated from SVG shapes at startup; the hero's
+                         pictures (front view + top-down) are rebuilt from the gear he wears
   sfx.gd                 sounds synthesised at startup (worker thread) + pooled playback
 scripts/game/
   game.gd                one run: owns the world, runs the simulation loop, hit stop, slow-mo, rage, score
   player.gd              movement, aim, firing (bullets / grenade / melee), drawing
   player_stats.gd        THE stat pipeline: level + skill tree + gear + pet + keystones + weapon trees/perks
                          -> the numbers the game uses
-  skill_tree.gd          builds the character's skill tree (257 nodes) from Config; describes nodes only
-  weapon_tree.gd         builds each weapon's upgrade tree (63-93 nodes) from Config
-  gear_tree.gd           layout of the Gear screen: 9 body slots + every piece x 5 tiers (177 nodes)
+  skill_tree.gd          builds the skill tree (three families, 52 nodes) from Config; describes nodes only
   pet.gd                 the companion in a run: heel, bite, fetch, guard (numbers arrive via PlayerStats)
   enemy.gd               one zombie = data + Sprite2D (no logic)
   enemy_manager.gd       ALL zombie logic in one loop: spatial grid, separation, attacks, boss AI, damage, queries
   wave_director.gd       waves, packs, enemy mix, boss waves, map multipliers, end of the map
   projectiles.gd         bullets + grenades (plain data, swept hits, explosions)
-  pickups.gd             coins, weapon crates, medkits, gear drops
+  pickups.gd             coins, weapon crates (breakable), medkits, gear drops
   fx.gd                  particles, casings, corpses, muzzle flash, rings, floating text
   decals.gd              ground + permanent blood/bodies/casings (never-cleared SubViewport)
   arena.gd               bounds, obstacles, tree ring, collision helpers
@@ -104,8 +111,10 @@ scripts/game/
   hud.gd                 in-game overlay drawn in _draw
   draw_layer.gd          blank canvas whose _draw is forwarded to a manager
 scripts/ui/              ui_kit.gd (theme + helpers), menu_background, main_menu, map_screen (Play),
-                         tree_view (pannable/zoomable node web used by both trees),
-                         character_screen (skill tree), armory_screen (weapon trees), gear_screen, pet_screen,
+                         character_screen (the hero, his gear, inventory and forge),
+                         skill_screen + skill_tree_view (the skill tree; tree_view.gd is the
+                         pan / zoom / click base class it extends),
+                         armory_screen (plain weapon upgrade pages), pet_screen,
                          settings_screen, pause_menu, game_over_screen (also the victory screen)
 scripts/dev/dev_tools.gd bot, autotest, input test, benchmark, screenshots (only with CLI args)
 assets/sprites/, assets/sfx/   empty; drop-in overrides for generated art and sounds
@@ -117,9 +126,10 @@ Update Rot Riot.command  double-click updater for the owner's Mac (downloads mai
 
 **Loop:** main menu -> PLAY opens the map screen (choose map + starting wave)
 -> run -> death or map cleared -> results (coins banked) -> spend points in
-the skill tree (Character) and the weapon trees (Armory), wear and forge
-gear (Gear), choose a pet (Pets) -> next run. The main menu is PLAY on top,
-then two columns: CHARACTER, ARMORY, GEAR, PETS, SETTINGS, QUIT.
+the skill tree (Skills) and on weapon upgrades (Armory), wear and forge gear
+(Character), choose a pet (Pets) -> next run. The main menu is PLAY on top,
+then two columns: CHARACTER, SKILLS, ARMORY, PETS, SETTINGS, QUIT, with
+Cliff standing beside them in whatever he is wearing.
 Quitting a run from pause also banks its coins.
 
 **Maps** (`Config.MAPS`, five of them): every map has 100 waves
@@ -141,9 +151,16 @@ walk in. Camera zoom 1.2, may look 110 px past the edge.
 a hit plus a shove that pushes the crowd back. Zombies body-block the player.
 
 **Weapons** (`Config.WEAPONS`, nine of them). Crate weapons last about 20 s
-then revert to the pistol. Crates drop on a timer (max 2 on the field), show
-the weapon on the lid, and off-screen crates get an arrow on the HUD. Bosses
-drop a crate.
+then revert to the pistol. Crates drop on a timer (max 2 on the field) and
+bosses drop one. A crate shows the weapon's side-view picture large across it
+and its name underneath in the rarity colour (owner: the old small logo was
+too hard to read, and he did not want the coloured circles around crates -
+no glow, no rings). Off-screen crates get an arrow with the weapon picture.
+**Crates are breakable** (owner's request): the player's bullets, flames and
+blasts damage them (`CRATE_HP`; a bullet stops in the wood) and a destroyed
+crate takes its weapon with it. A hit counts the weapon's plain damage, not
+the player's upgraded damage; blasts count double. Cracks and a small bar
+show the damage.
 - *Common:* pistol (starter, unlimited), SMG (very fast, weak, faster
   movement), shotgun (9 pellets, piercing, big recoil).
 - *Uncommon:* machine gun (fast, wide spread, rattle), rifle (slow, 85 damage,
@@ -155,8 +172,8 @@ drop a crate.
   glow orange and leave charred bodies), chainsaw (melee held out in front,
   bites 13 times a second, extra blood).
 - *Rarity* (`Config.CRATE_RARITIES`): weights common 1.0 / uncommon 0.5 / rare
-  0.22, times the weapon's own spawn-rate upgrade. The crate's glow shows its
-  tier. The launcher must stay rarer than the machine gun (owner's request).
+  0.22, times the weapon's own spawn-rate upgrade. The colour of the name
+  under the crate shows its tier. The launcher must stay rarer than the machine gun (owner's request).
 - *Dual wielding:* picking up a crate of the weapon already held gives one in
   each hand if the weapon has `"dual": true` (pistol, SMG, shotgun, machine
   gun): about 1.8x fire rate, more spread and recoil. A pistol crate always
@@ -225,44 +242,53 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   roughly 2-4 thousand XP per run; later waves and later maps pay several
   times that - which is why the exponent went from 1.8 to 2.0 when maps
   were added). Re-check this pacing whenever XP sources change.
-- *Skill tree* (Character screen; built by `skill_tree.gd` from the SKILL
-  TREE section of config.gd): a web of 289 nodes around the survivor. Nine
-  branches, one per passive stat (vitality, strength, dexterity = fire rate,
-  agility = move speed, defense, evasion, critical, luck = coin drops, and
-  BOND = the pet's branch, which needs level 18; see Pets). Per
-  branch: four rings of small nodes (+1 rank) ending in a big node (+3), a
-  side twig per ring ending in a **sealed** node (opens after a deed such as
-  "clear wave 12" or "kill 3000 zombies", `TREE_SEAL_DEEDS`), arcs of nodes
-  that link neighbouring branches, and at the tip a **keystone** (a special
-  power, `Config.KEYSTONES`: second wind, executioner, adrenaline, breakaway,
-  thick skin, ghost, deadeye, scavenger, feral) and an **endless** node (repeatable,
-  rising price - this keeps progression endless). A node can be learned when
-  it touches a learned node, the character level is high enough for its ring
-  (1 / 5 / 12 / 22) and its deed is done. Rings cost 1 / 2 / 3 / 4 points per
-  small node. "linear" stats grow forever; "curve" stats approach a maximum.
+- *Skill tree* (Skills screen; built by `skill_tree.gd` from the SKILL TREE
+  section of config.gd; drawn by `skill_tree_view.gd`). The owner asked for
+  a tree with **three distinct families, where it is clear what you invest
+  in, and several levels per node** - and found the first version (a 289-node
+  web) "super messy and complex". So: three families grow out of Cliff in
+  the middle, each in its own colour: **GRIT** (vitality, defense, evasion),
+  **FURY** (strength, dexterity = fire rate, critical) and **INSTINCT**
+  (agility = move speed, luck, BOND = the pet). A family starts with a root
+  node (3 levels, each +1 rank of all three stats). From it three branches
+  fan out, one per stat: three nodes of 5 levels each (+1 rank per level;
+  costs 1 / 2 / 3 points per level; character level 1 / 8 / 18), a **sealed**
+  node beside the second one (+3 ranks, opens after a deed, `TREE_SEAL_DEEDS`)
+  and a **keystone** at the end (special power, `Config.KEYSTONES`, needs the
+  third node full and a deed). At the far end sits the family emblem: an
+  **endless** node (+1 rank of all three stats per level, rising price; needs
+  one keystone of the family) - this keeps progression endless. A node opens
+  when the one before it has `TREE_NEED_LEVELS` (3) levels. 52 nodes in all.
+  Levels show as dots under each node, invested lines are lit, and each
+  family's name carries "N points invested". Keep it this simple: do not add
+  nodes or links without the owner asking.
   More skill points can be bought with coins (price x1.15 each time); a paid
-  reset returns all spent points. Stat ranks = the sum of learned nodes
-  (`SaveData.passive_rank`), plus `SaveData.bonus_ranks` (hook for gear).
-- *Weapon levels and weapon trees* (Armory; built by `weapon_tree.gd` from
-  the WEAPON TREES section): each weapon earns XP from kills made with it
-  (kills carry a `source` weapon id through `EnemyManager.damage`). Each
-  weapon level gives a point for that weapon only, spent in that weapon's
-  own tree: one branch per upgrade track (power, shooting speed, stability =
-  spread + recoil, reload speed, spawn rate = crate share, duration), three
-  tiers per branch that need weapon level 1 / 6 / 14, arcs between the
-  branches, an endless node at each tip (weapon level 20) and **three perks
-  per weapon** (`Config.WEAPON_PERKS`) that change the weapon's own numbers
-  (bigger magazine, piercing, more pellets, wider swing, bigger blast...).
-  Perks are applied by `PlayerStats.weapon_def(id)`, which the player uses
-  instead of `Config.WEAPONS[id]`. Which tracks a weapon has is decided by
-  `"needs"` in `Config.WEAPON_TRACKS` (`Config.weapon_tracks(id)`): the
-  pistol has no crate tracks, melee weapons have no stability or reload, the
-  launcher has no shooting speed (its rate of fire is its reload). A weapon's
-  tree can be reset for coins.
-- *Gear* (Gear screen; everything in the GEAR section of config.gd): nine
-  slots (helmet, amulet, chest, gloves, two rings, belt, pants, boots) and
-  32 pieces, four per kind. A piece gives ranks of one or two passive stats
-  (`SaveData.gear_rank`, added to `passive_rank` on top of the skill tree).
+  reset returns all spent points. Stat ranks = levels bought in the tree +
+  gear (`SaveData.passive_rank`); `SaveData.bonus_ranks` is a hook for tests.
+  Node ids are stored in the save: never rename them. If a saved tree does
+  not fit the current one, all its points are handed back on load.
+- *Weapon levels and upgrades* (Armory): each weapon earns XP from kills
+  made with it (kills carry a `source` weapon id through
+  `EnemyManager.damage`). Each weapon level gives a point for that weapon
+  only. The owner did not like weapon trees ("simpler, more straightforward,
+  cleaner, no tree"), so the Armory is one plain page per weapon: a row per
+  upgrade (power, shooting speed, stability = spread + recoil, reload speed,
+  spawn rate = crate share, duration) with pips, what it gives now and next,
+  and a "+1" button - ranks are unlimited, one more point per rank every 5
+  ranks (`WEAPON_RANK_COST_STEP`) - and three **perk** cards per weapon
+  (`Config.WEAPON_PERKS`, open at weapon level 5 / 12 / 20, cost 2 / 4 / 6)
+  that change the weapon's own numbers (bigger magazine, piercing, more
+  pellets, wider swing, bigger blast...). Perks are applied by
+  `PlayerStats.weapon_def(id)`, which the player uses instead of
+  `Config.WEAPONS[id]`. Which upgrades a weapon has is decided by `"needs"`
+  in `Config.WEAPON_TRACKS` (`Config.weapon_tracks(id)`): the pistol has no
+  crate upgrades, melee weapons have no stability or reload, the launcher
+  has no shooting speed (its rate of fire is its reload). A weapon's points
+  can be taken back for coins.
+- *Gear* (Character screen; everything in the GEAR section of config.gd):
+  nine slots (helmet, amulet, chest, gloves, two rings, belt, pants, boots)
+  and 32 pieces, four per kind. A piece gives ranks of one or two passive
+  stats (`SaveData.gear_rank`, added to `passive_rank` on top of the tree).
   **Drops** are deliberately rare (owner: "should not be overload"): about
   0.4% per shambler, 4% per brute, times the map's `gear` multiplier and half
   of the LUCK bonus; the bot finds 0-4 pieces per run as a new character.
@@ -278,12 +304,24 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   and LEGENDARY there is also a 35% / 50% chance (`break`) that the other is
   destroyed too. A piece is stored as "item:tier" (`Config.gear_key`) with a
   count; worn pieces are not counted in the bag. Never rename item ids.
-  The **Gear screen** follows the owner's wish for an "intimidating tree":
-  the nine slots are laid out like a body in the middle (the paper doll) and
-  around it every piece has a row of five tier nodes (177 nodes). Owned =
-  lit, never found = padlock, glowing = two of the tier below are in the bag
-  and can be forged. Click a piece to wear it, a worn slot to take it off, a
-  glowing node to forge (anything that can fail asks twice).
+  The **Character screen** is laid out the way the owner asked (no tree
+  here): Cliff stands in the middle, five slots on his left and four on his
+  right, his stats under him; the inventory is on the right; a strip along
+  the bottom describes whatever is pointed at. Click a piece in the
+  inventory to wear it, click a slot to take it off. **FORGE** in the
+  inventory opens the forge menu: pick a pair, see "piece + piece = result"
+  with the chance, press FORGE (anything that can fail asks twice).
+- *Cliff's look*: `Config.HERO_LOOK` (short dark hair, black shirt, brown
+  harness straps, dark cargo trousers with knee pads, boots, a pistol) plus
+  the `"look"` of every piece he wears (`"style"` + two colours in
+  `Config.GEAR_ITEMS`). `Art.refresh_hero()` rebuilds the front view
+  (`hero_front`, Character screen and main menu) and the top-down game sprite
+  (`player`, `player_hurt`, `player_flash`) whenever `SaveData.gear_changed`
+  fires - the owner wants the top-down Cliff to match his current gear. From
+  above only helmet, chest, gloves and belt pouches can be seen. A new piece
+  of gear needs a `"look"`; a new style needs drawing code in both
+  `_hero_top_svg` and `_hero_front_svg`. A PNG `assets/sprites/player.png`
+  or `hero_front.png` still replaces the generated picture.
 - *Pets* (Pets screen; PETS section of config.gd). The feature opens at
   character level 18 (`PET_UNLOCK_LEVEL`): the first pet, SCRAPS the stray
   dog, joins by itself (mid-run if that is where the level is reached). Five
@@ -293,27 +331,24 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   (legendary, clear map 2 + 60,000; its bites ignite). One comes along at a
   time (`SaveData.pet_active`). **Owner's rules:** a pet adds to the
   character's damage, at most its rarity's cap - 3 / 6 / 9 / 12 / **15%**
-  for legendary (`PET_RARITIES`, "lower rarity = less damage") - and the pet
-  has **its own branch of the skill tree**: BOND, the ninth branch. With no
-  BOND a pet gives 30% of its cap, at 30 BOND ranks all of it
+  for legendary (`PET_RARITIES`, "lower rarity = less damage") - and pet
+  damage and perks have **their own skill tree branch**: BOND, one of the
+  three branches of the INSTINCT family (needs level 18). With no BOND a pet
+  gives 30% of its cap, at 30 BOND ranks all of it
   (`Config.pet_damage_bonus`); never more. BOND also makes the pet's own
-  bite stronger without limit, and the four big nodes of the branch teach
-  tricks (`PET_TRICKS`: fetch coins and gear, maul, guardian, frenzy); the
-  keystone is FERAL. In a run the pet (`scripts/game/pet.gd`) walks at heel,
-  bites zombies that come within `PET_GUARD_RANGE` of the player (bite =
-  `PET_BITE_DAMAGE` x rarity x BOND x the character's damage bonuses) and
-  cannot be hurt (zombies ignore it), so pets need no `_hurt` sprite. Pet
-  pictures are generated from the colours in `Config.PETS[...]["look"]`.
-- All three screens are shown by `scripts/ui/tree_view.gd` (drag / scroll / pinch,
-  arrow keys or stick to walk the nodes, Enter / A to learn, gamepad Y or Tab
-  to reach the buttons beside it). Tree node ids are stored in the save:
-  never rename them. If a saved tree no longer fits the layout (unknown or
-  disconnected nodes) all its points are handed back on load, as were the
-  points spent in the old flat stat list and old weapon ranks.
-- Weapon levels have no cap (only the character level is capped).
+  bite stronger without limit. The first level of BOND's three nodes teaches
+  the tricks fetch, maul and guardian, BOND's sealed node teaches frenzy
+  (`PET_TRICKS`, `SkillTree.trick_node`); the keystone is FERAL. In a run the
+  pet (`scripts/game/pet.gd`) walks at heel, bites zombies that come within
+  `PET_GUARD_RANGE` of the player (bite = `PET_BITE_DAMAGE` x rarity x BOND x
+  the character's damage bonuses) and cannot be hurt (zombies ignore it), so
+  pets need no `_hurt` sprite. Pet pictures are generated from the colours in
+  `Config.PETS[...]["look"]`.
 - Save format version 2 (new fields are simply added with defaults). Version 1
   saves keep records and settings but coins and the old upgrades are wiped
-  once (agreed with the owner).
+  once (agreed with the owner). Points spent in upgrade screens that have
+  since been redesigned (the old stat list, the first skill tree, the weapon
+  trees) are handed back on load.
 
 **Settings:** master volume, SFX volume, screen shake strength, fullscreen
 (also F11). The game auto-pauses when the window loses focus.
@@ -368,8 +403,10 @@ effects were ~280 draw calls. Not yet measured on the owner's hardware.
 - The balance of the 100-wave maps, the tree prices, the keystones, the
   perks, gear drop rates and gear stats, pet prices and pet strength: all
   first guesses, only checked with the bot and the tests.
-- The tree screens with a real mouse / trackpad / gamepad (only simulated
-  input was tested).
+- The skill tree and the Character screen with a real mouse / trackpad /
+  gamepad (only simulated input was tested).
+- How Cliff looks to a human eye: he is simple shapes in the general style
+  the owner asked for, to be replaced by real art one day.
 - How the synthesised sounds sound; Claude can only check them numerically
   (length, loudness, brightness, how tonal they are), never listen. Owner
   feedback on v1: guns "sounded like lasers" (cause: fast high-to-low pitch
@@ -408,12 +445,23 @@ effects were ~280 draw calls. Not yet measured on the owner's hardware.
   upgrades and upgrades that need to be unlocked" -> skill tree and weapon
   trees (done, awaiting feedback). The gear screen (roadmap 3) must follow
   the same style.
+  (Superseded by the third playtest, see below: he wants clean screens.)
 - "Each weapon sound should be different and satisfying" -> v3 gun sounds
   (done, awaiting feedback).
 - Gear (the owner's design: slots like an action-RPG character sheet, rare
   drops, boss-only pieces, merging two identical pieces of the same colour,
   five tiers with 100/90/40/10% odds and a chance to destroy at tiers 4-5)
   -> built (awaiting feedback).
+- Third playtest (v0.4): weapon logo on crates too small, no coloured
+  circles around crates, crates should be breakable by bullets and blasts
+  (done). "I really don't like the tree look in the weapon upgrade screen":
+  plain list now (done). The skill tree "looks super messy and complex":
+  rebuilt as three families with multi-level nodes (done). The character
+  screen should be an equipment page with the hero in the middle and a forge
+  menu in the inventory, no tree (done). The hero is Cliff, with a tactical
+  look, and the top-down sprite must match his gear (done). LESSON: this
+  owner wants clean, readable, modern screens - not big intimidating webs,
+  even though he asked for "intimidating" once. Show less, bigger.
 - Pets (the owner's design: unlock at level 18; several pets of different
   rarity; each adds to the character's damage with a cap by rarity, legendary
   at most 15%; pet damage and perks in their own skill tree branch) -> built
@@ -433,7 +481,7 @@ Build one stage at a time; the owner plays each before the next starts.
 2. **Weapons. DONE (awaiting the owner's playtest).** Four new weapons (SMG,
    rifle, flamethrower, chainsaw), three crate rarity tiers, dual wielding.
    See "Weapons" above. More weapons can be added the same way later.
-2b. **100-wave maps, skill tree, weapon trees. DONE (awaiting the owner's
+2b. **100-wave maps, skill tree, weapon upgrades. DONE (awaiting the owner's
    playtest).** See "Maps" and "Progression" above.
 3. **Gear. DONE (awaiting the owner's playtest).** See "Gear" under
    Progression. Still open from the owner's wishes: treasure chests that give
