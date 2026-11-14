@@ -63,6 +63,8 @@ func spit(from: Vector2, dir: Vector2, c: Dictionary, damage: float) -> void:
 	s.damage = damage
 	spits.append(s)
 	Sfx.play("spit", -3.0, 0.15)
+	if game.coop != null and not game.is_client:
+		game.coop.send([Coop.E_SPIT, from.x, from.y, dir.x, dir.y, damage])
 
 
 ## A lump of rubble from `from`, to land on `target`. `c` is the thrower's config.
@@ -77,6 +79,8 @@ func lob(from: Vector2, target: Vector2, c: Dictionary, damage: float) -> void:
 	l.spin = randf_range(-9.0, 9.0)
 	lobs.append(l)
 	Sfx.play("lob_throw", -2.0, 0.12)
+	if game.coop != null and not game.is_client:
+		game.coop.send([Coop.E_LOB, from.x, from.y, l.target.x, l.target.y, damage])
 
 
 # ----------------------------------------------------------------------------
@@ -112,7 +116,7 @@ func tick(dt: float) -> void:
 			done = true
 		elif stop_t <= 1.0:
 			to = from.lerp(to, stop_t)
-			if crate != null:
+			if crate != null and not game.is_client:
 				game.pickups.damage_crate(crate, Config.ENEMY_SHOT_CRATE_DAMAGE, s.dir)
 			done = true
 
@@ -177,7 +181,8 @@ func _land(l: Lob) -> void:
 	var player := game.player
 	if player.alive and player.pos.distance_to(l.target) < l.radius + player.radius:
 		game.damage_player(l.damage, l.target)
-	game.pickups.blast_crates(l.target, l.radius, Config.LOB_CRATE_DAMAGE / Config.CRATE_BLAST_MULT, 0.5)
+	if not game.is_client:
+		game.pickups.blast_crates(l.target, l.radius, Config.LOB_CRATE_DAMAGE / Config.CRATE_BLAST_MULT, 0.5)
 	game.fx.dust(l.target, 14)
 	game.fx.cloud(l.target, 6, 26.0, Color(0.5, 0.47, 0.42, 0.45), 110.0)
 	game.fx.ring(l.target, 12.0, l.radius, 0.3, Color(0.85, 0.8, 0.7, 0.7))

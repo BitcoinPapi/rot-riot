@@ -26,6 +26,7 @@ SaveData="*res://scripts/autoload/save_data.gd"
 GameInput="*res://scripts/autoload/game_input.gd"
 Art="*res://scripts/autoload/art.gd"
 Sfx="*res://scripts/autoload/sfx.gd"
+Net="*res://scripts/autoload/net.gd"
 
 [display]
 

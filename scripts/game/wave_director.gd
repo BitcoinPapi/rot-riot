@@ -66,12 +66,13 @@ func _start_wave() -> void:
 	wave += 1
 	in_wave = true
 	wave_total = Config.wave_enemy_count(wave)
+	wave_total = int(round(float(wave_total) * game.strength_count()))      # more players: more of them...
 	to_spawn = wave_total
-	# Zombie strength = the map's multiplier times this wave's.
+	# Zombie strength = the map's multiplier times this wave's (...and tougher ones).
 	var map: Dictionary = game.map
-	game.enemy_hp_mult = float(map["hp"]) * Config.wave_hp_mult(wave)
+	game.enemy_hp_mult = float(map["hp"]) * Config.wave_hp_mult(wave) * game.strength_hp()
 	game.enemy_speed_mult = float(map["speed"]) * Config.wave_speed_mult(wave)
-	game.enemy_damage_mult = float(map["damage"]) * Config.wave_damage_mult(wave)
+	game.enemy_damage_mult = float(map["damage"]) * Config.wave_damage_mult(wave) * game.strength_damage()
 	game.enemy_xp_mult = float(map["xp"]) * Config.wave_xp_mult(wave)
 	_pack_timer = 0.4
 	var is_boss := Config.is_boss_wave(wave)

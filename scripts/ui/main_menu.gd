@@ -6,6 +6,7 @@ extends Control
 
 var main: Main
 var _first: Button
+var _coop: Button
 var _character: Button
 var _armory: Button
 var _skills: Button
@@ -34,6 +35,9 @@ func _init() -> void:
 
 	_first = _add_button(col, "PLAY", func() -> void: main.open_screen("maps"), 510.0)
 	_first.custom_minimum_size.y = 58
+	_coop = _add_button(col, "PLAY WITH FRIENDS", func() -> void: main.open_screen("coop"), 510.0)
+	_coop.custom_minimum_size.y = 46
+	_coop.add_theme_font_size_override("font_size", 20)
 	var grid := GridContainer.new()
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 10)
@@ -97,6 +101,7 @@ func opened() -> void:
 		_pets.text = "PETS  (LEVEL %d)" % Config.PET_UNLOCK_LEVEL
 	else:
 		_pets.text = "PETS" if SaveData.pet_seen else "PETS  (NEW)"
+	_coop.text = "PLAY WITH FRIENDS" if not Net.playing_together() else "PLAYING WITH %s" % Net.mate_names()
 	_progress.text = "%s   -   LEVEL %d      COINS: %d" % [Config.HERO_NAME, SaveData.level, SaveData.coins]
 	if SaveData.runs_played > 0:
 		var map_index := SaveData.maps_unlocked - 1

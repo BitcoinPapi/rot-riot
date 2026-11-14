@@ -21,6 +21,8 @@ var _armory: Button
 var _skills: Button
 var _loot: Label                  # gear found in the run
 var _buttons: Array[Button] = []
+var _maps: Button
+var _guest := false               # a co-op run as the joiner: the host starts the next one
 
 
 func _init() -> void:
@@ -87,6 +89,7 @@ func _init() -> void:
 	row2.add_theme_constant_override("separation", 12)
 	row2.alignment = BoxContainer.ALIGNMENT_CENTER
 	var maps := UiKit.button("MAPS", func() -> void: main.open_screen("maps"), 220.0)
+	_maps = maps
 	row2.add_child(maps)
 	var menu := UiKit.button("MAIN MENU", func() -> void: main.quit_to_menu(), 220.0)
 	row2.add_child(menu)
@@ -105,6 +108,11 @@ func show_results(stats: Dictionary, is_best: bool) -> void:
 	_title.text = "MAP CLEARED!" if won else "YOU GOT EATEN"
 	_title.add_theme_color_override("font_color", UiKit.GOLD if won else UiKit.RED)
 	_map.text = "MAP %d  -  %s" % [map_index + 1, String(map_def["name"])]
+	# A run with a friend: all gold was shared, and the host starts the next one.
+	var together := bool(stats.get("coop", false))
+	_guest = together and Net.playing_together() and not Net.is_host()
+	if together:
+		_map.text += "   -   with %s (all gold shared)" % String(stats.get("mate", "a friend"))
 	if unlocked >= 0:
 		_news.text = "NEW MAP UNLOCKED:  %s" % String(Config.MAPS[unlocked]["name"])
 	elif checkpoint > 0:
@@ -144,6 +152,9 @@ func show_results(stats: Dictionary, is_best: bool) -> void:
 		lines.append("GEAR FOUND:  %s" % ",  ".join(found))
 	_loot.text = "\n".join(lines)
 	_loot.visible = not lines.is_empty()
+	if _guest:
+		_again.text = "%s STARTS THE NEXT RUN" % Net.name_of(0)
+		_onward.visible = false
 
 	_put("SCORE", "%d" % int(stats.get("score", 0)))
 	_put("WAVE REACHED", "%d / %d" % [int(stats.get("wave", 0)), Config.WAVES_PER_MAP])
@@ -184,9 +195,9 @@ func _refresh_progress() -> void:
 
 func _unlock() -> void:
 	for b: Button in _buttons:
-		b.disabled = false
+		b.disabled = _guest and (b == _again or b == _maps)
 	if visible:
-		_buttons[0].grab_focus()
+		(_buttons[2] if _guest else _buttons[0]).grab_focus()
 
 
 func opened() -> void:

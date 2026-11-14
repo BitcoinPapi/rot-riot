@@ -24,25 +24,32 @@ var tree_tint := Color(1, 1, 1)   # the map's colour for the tree tops
 var _trees: Array = []         # [pos, scale, rotation, tint]
 
 
-func _init(size: Vector2 = Config.ARENA_SIZE) -> void:
+## `layout_seed` decides where the rocks are (0 = different every time). In
+## co-op both computers build the map from the same number.
+func _init(size: Vector2 = Config.ARENA_SIZE, layout_seed: int = 0) -> void:
 	rect = Rect2(Vector2.ZERO, size)
-	_generate_obstacles()
+	_generate_obstacles(layout_seed)
 	_build_buckets()
 	_generate_trees()
 	canopy = DrawLayer.new()
 	canopy.painter = _paint_canopy
 
 
-func _generate_obstacles() -> void:
+func _generate_obstacles(layout_seed: int) -> void:
+	var rng := RandomNumberGenerator.new()
+	if layout_seed != 0:
+		rng.seed = layout_seed
+	else:
+		rng.randomize()
 	var center := rect.get_center()
 	var wanted := int(round(rect.get_area() / 1000000.0 * Config.OBSTACLES_PER_MILLION))
 	var tries := 0
 	while obs_pos.size() < wanted and tries < wanted * 80:
 		tries += 1
-		var radius := randf_range(Config.OBSTACLE_RADIUS_MIN, Config.OBSTACLE_RADIUS_MAX)
+		var radius := rng.randf_range(Config.OBSTACLE_RADIUS_MIN, Config.OBSTACLE_RADIUS_MAX)
 		var pos := Vector2(
-			randf_range(rect.position.x + 190.0, rect.end.x - 190.0),
-			randf_range(rect.position.y + 190.0, rect.end.y - 190.0))
+			rng.randf_range(rect.position.x + 190.0, rect.end.x - 190.0),
+			rng.randf_range(rect.position.y + 190.0, rect.end.y - 190.0))
 		if pos.distance_to(center) < Config.OBSTACLE_START_CLEAR:
 			continue   # keep the player's starting spot open
 		var ok := true
@@ -55,8 +62,8 @@ func _generate_obstacles() -> void:
 			continue
 		obs_pos.append(pos)
 		obs_radius.append(radius)
-		_obs_sprite.append("rock" if randf() < 0.65 else "stump")
-		_obs_rot.append(randf() * TAU)
+		_obs_sprite.append("rock" if rng.randf() < 0.65 else "stump")
+		_obs_rot.append(rng.randf() * TAU)
 
 
 ## Sort the obstacles into squares, so nobody has to check all of them.

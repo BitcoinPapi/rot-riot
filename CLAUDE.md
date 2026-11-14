@@ -48,6 +48,7 @@ godot --headless -d --fixed-fps 60 -- --autotest           # full playthrough te
 godot --headless -d --fixed-fps 60 -- --inputtest          # fake keyboard/mouse/gamepad events through GameInput
 godot --headless --fixed-fps 60 -- --bench=250             # hold 250 zombies, report simulation ms per frame
 godot --headless --fixed-fps 60 -- --bot --frames=6000     # bot plays 100 s, prints a SUMMARY line
+tools/cooptest.sh 3                                        # co-op test: 3 copies of the game play together (2 = two copies)
 godot --headless --export-release "Windows Desktop" build/windows/RotRiot.exe
 godot --headless --export-release "macOS" build/mac/RotRiot.zip
 ```
@@ -65,12 +66,16 @@ needs `--level=18` or more),
 uncovered), `--show-chests` (a closed chest beside the player and an opened one),
 `--horde=KIND:N,KIND:N` (put zombies around the player: shambler, runner, brute, boss, gobber,
 chucker, gasbag, lunger - e.g. `--horde=gobber:3,gasbag:2`),
+`--coop=host [--players=N]` / `--coop=join[:ADDRESS]` (co-op between copies on this computer: run
+them WITHOUT `--fixed-fps`, end them with `--seconds=N`, name them with `--name=X`), `--cooptest`,
 `--shot=PATH --shot-frame=N` (screenshot; needs a real display, e.g. `xvfb-run`),
 `--dump-sfx=DIR` (writes every generated sound as .wav),
 `--gallery=PREFIX[,PREFIX] --gallery-scale=N` (shows generated sprites enlarged, e.g.
 `--gallery=icon_` or `--gallery=boss_0,player`; combine with `--shot` to review art).
 
-Definition of done for any change: `--autotest` and `--inputtest` pass, and
+Definition of done for any change: `--autotest` and `--inputtest` pass,
+`tools/cooptest.sh 2` and `tools/cooptest.sh 3` pass (anything that touches
+the run, zombies, pickups or the HUD can break co-op), and
 the `-d` run prints zero `WARNING` / `SCRIPT ERROR` lines. **Drawing code
 does not run headless**: after touching anything that draws (a screen, the
 HUD, a sprite name) also open it once with a real renderer
@@ -84,7 +89,7 @@ set up the state a check needs directly instead of hoping the bot creates it.
 ## File map
 
 ```
-project.godot            settings + autoloads (Config, SaveData, GameInput, Art, Sfx)
+project.godot            settings + autoloads (Config, SaveData, GameInput, Art, Sfx, Net)
 export_presets.cfg       "Windows Desktop" (single .exe) and "macOS" (universal .zip)
 scenes/main.tscn         one node with scripts/main.gd - everything else is built in code
 scripts/config.gd        ALL balance + feel numbers, plus the wave/shop formulas
@@ -96,6 +101,7 @@ scripts/autoload/
   art.gd                 placeholder sprites generated from SVG shapes at startup; the hero's
                          pictures (front view + top-down) are rebuilt from the gear he wears
   sfx.gd                 sounds synthesised at startup (worker thread) + pooled playback
+  net.gd                 online co-op: hosting, joining, who is in the game (slots), delivering messages
 scripts/game/
   game.gd                one run: owns the world, runs the simulation loop, hit stop, slow-mo, score
   player.gd              movement, aim, firing (bullets / grenade / melee), drawing
@@ -118,10 +124,14 @@ scripts/game/
                          helpers, "a free spot near the player", "a spawn spot out of sight"
   fog.gd                 fog of war: which squares of the map have been seen this run, the misty
                          overlay (a small shader), the picture the minimap draws
+  coop.gd                the co-op part of a run: what the computers tell each other (events,
+                         player states, zombie snapshots), picking up fallen players, the shared ending
+  mate.gd                another player as shown on this computer (a figure that glides to where they are)
   game_camera.gd         follow, aim lead, trauma shake, recoil kick
   hud.gd                 in-game overlay drawn in _draw (bars, weapon panel, minimap, arrows)
   draw_layer.gd          blank canvas whose _draw is forwarded to a manager
 scripts/ui/              ui_kit.gd (theme + helpers), menu_background, main_menu, map_screen (Play),
+                         coop_screen (PLAY WITH FRIENDS: host a game / join with a code),
                          character_screen (the hero, his gear, inventory and forge),
                          skill_screen + skill_tree_view (the skill tree; tree_view.gd is the
                          pan / zoom / click base class it extends),
@@ -129,6 +139,7 @@ scripts/ui/              ui_kit.gd (theme + helpers), menu_background, main_menu
                          settings_screen, pause_menu, game_over_screen (also the victory screen)
 scripts/dev/dev_tools.gd bot, autotest, input test, benchmark, screenshots (only with CLI args)
 assets/sprites/, assets/sfx/   empty; drop-in overrides for generated art and sounds
+tools/cooptest.sh        runs the co-op test with 2 or 3 copies of the game on one computer
 Update Rot Riot.command  double-click updater for the owner's Mac (downloads main from GitHub,
                          replaces the project folder; the save file lives elsewhere)
 ```
@@ -142,6 +153,41 @@ the skill tree (Skills) and on weapon upgrades (Armory), wear and forge gear
 then two columns: CHARACTER, SKILLS, ARMORY, PETS, SETTINGS, QUIT, with
 Cliff standing beside them in whatever he is wearing.
 Quitting a run from pause also banks its coins.
+
+**Co-op** (owner: "a multiplayer option so I can play with T. All gold will
+be shared, enemies will be stronger"; then "up to 3 players"). Online, each
+player on their own computer (the owner did not answer whether same-screen
+was wanted; T has their own copy, so online was built). Main menu ->
+PLAY WITH FRIENDS: one player presses HOST A GAME and tells the others the
+code shown (their internet address; the game asks the router to open UDP
+port 24565 by UPnP, and says so plainly if the router refuses - then only
+players in the same house can join, or the port must be forwarded by hand).
+The others type the code and press JOIN. The host chooses map and wave and
+starts; everybody's game starts the same run. Everybody must have the same
+version (checked on joining). Rules, all in the CO-OP section of config.gd:
+- **All gold is shared** (owner's rule): one count, kept by the host; a coin
+  picked up by anyone counts for everybody, and at the end every player
+  banks the whole amount. Score, combo, kills and XP from kills are shared
+  too; a weapon's own XP goes to whoever made the kill.
+- **Gear is shared as well** (Claude's choice, to match): a piece any player
+  picks up, and the piece in a chest anybody opens, goes into every bag.
+- **Zombies are stronger** (owner's rule), by the number of players (1/2/3):
+  health x1 / 1.6 / 2.2, damage x1 / 1.15 / 1.3, wave size x1 / 1.3 / 1.6.
+  If somebody leaves, the next wave is sized for whoever is left.
+- Each player plays their **own character**: own level, skills, gear (shown
+  on their figure), weapons, pet. Other players are drawn with a coloured
+  ring and their name (slot colours `COOP_COLORS`), and appear on the HUD
+  (name + health bar), the minimap and as an arrow at the screen edge.
+- **Falling**: out of health with others still up, a player lies down
+  instead of dying; zombies leave them alone. Another player standing
+  beside them for 3 s picks them up (40% health, 2 s of safety); a cleared
+  wave does the same. The run is lost when everybody is down.
+- **Pausing** pauses everybody. No auto-pause on losing focus in co-op. No
+  slow motion in co-op. Only the host starts, restarts or chooses runs.
+- After a run everybody is back on the co-op screen, still connected. A
+  player who quits a run early keeps their share; the rest play on. If the
+  HOST quits or drops, the run ends for everybody (the world was theirs).
+  A player who joins while a run is on waits for the next one.
 
 **Maps** (`Config.MAPS`, five of them): every map has 100 waves
 (`WAVES_PER_MAP`). Clearing wave 100 ends the run as a victory, pays a bonus
@@ -445,6 +491,35 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   frame. Bosses are too big for the grid and live in `bigs`, checked directly.
 - **Crowding:** zombies touching more than `ENEMY_CROWD_FREE` neighbours slow
   down, so hordes surround the player instead of stacking into a blob.
+- **Co-op: who decides what.** Each computer runs its OWN player for real
+  (movement, shooting, health, reloading), so your character always reacts
+  instantly. The HOST runs the world (zombies, waves, pickups, gold). On a
+  joiner's computer `Game.is_client` is true: the wave director does not
+  run, `EnemyManager.tick_remote` moves COPIES of the host's zombies
+  (`remote`), and `Pickups.remote` only shows what the host says exists.
+  What travels (`net.gd` delivers, `coop.gd` decides):
+  - *player states* 30 times a second each way (position, aim, weapon,
+    health, down, who they are picking up); the host passes each joiner's
+    state on to the other joiner;
+  - *snapshots* 15 times a second from the host: the run's numbers (wave,
+    score, coins, kills...) and every living zombie in 10 bytes (number,
+    kind, position, facing, flags, health), cut into pieces of 120 zombies
+    so each fits one packet; a zombie missing from a complete snapshot is
+    gone; copies glide between snapshots;
+  - *events* that must arrive (reliable): kills, hits on players, pickups
+    appearing and going, chests, spit and rubble, wave starts, the ending.
+  A joiner's bullets are real on the joiner's own screen: they hit the
+  copies, and `EnemyManager.damage` on a joiner shows the hit and sends it
+  to the host (`C_HITS`), who applies it (`apply_mate_hit`) - so what you
+  see is what you hit. Zombie attacks on a joiner are decided by the host
+  and sent as `E_HURT`; the joiner's own computer applies defense, evasion
+  and safety time. Spit and rubble fly on every computer and each one only
+  checks its own player. Other players' shots are shown as look-alikes
+  (`Shot.cosmetic`). Players are numbered by **slot** (0 = host, 1 and 2 =
+  joiners); joiners only talk to the host. Zombies chase the nearest player
+  who is up; packs rise out of sight of every player. Never make a joiner
+  decide anything about the world, and never trust message contents
+  (`Coop.SIZES`, `Net._clean_info`).
 - **One simulation loop.** `Game._process` computes `dt` once and ticks
   player -> director -> enemies -> projectiles -> pickups -> fx. Hit stop sets
   `dt = 0` for a few hundredths of a second (rate-limited by
@@ -505,6 +580,12 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
 - The balance of the 100-wave maps, the tree prices, the keystones, the
   perks, gear drop rates and gear stats, pet prices and pet strength: all
   first guesses, only checked with the bot and the tests.
+- Co-op over the real internet. It is tested with two and three copies of
+  the game on ONE computer (`tools/cooptest.sh`), which proves the game logic
+  but not: whether the router door opens (UPnP), how it feels with real
+  delay between homes, whether a slow connection copes (the host sends up to
+  ~40 KB a second per joiner in the biggest fights), Windows/Mac firewalls
+  asking for permission. Co-op difficulty numbers are first guesses.
 - The new enemies: whether their warnings are long enough to react to,
   whether ranged zombies are fair or annoying, how often each should appear
   (first guesses; the bot gets about as far as before, wave 5-11 as a new
@@ -590,6 +671,13 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   shoot from range. put working on the new maps last." -> Gobber, Chucker,
   Gasbag, Lunger (built, awaiting feedback); themed maps moved to the end of
   the roadmap.
+- "Add a multiplayer option so I can play with T. All gold will be shared,
+  enemies will be stronger", then "coop should work with up to 3 players"
+  -> online co-op for up to three (built, awaiting feedback). Asked whether
+  they would sit at one computer or each at their own: no answer, so online
+  only; same-screen co-op is not built. T needs the same version of the
+  game: send T new builds after every update (Claude cannot publish GitHub
+  releases from a session; builds are handed to the owner as files).
 - The owner's Mac: browser downloads do not work there, so updates go through
   Terminal (curl) or the double-click updater. Always give the full update
   command and say plainly that Return must be pressed.

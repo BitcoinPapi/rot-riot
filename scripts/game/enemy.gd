@@ -8,6 +8,17 @@ var kind := 0
 var variant := 0
 var alive := false
 
+# Co-op: the host numbers every zombie; the other player's computer shows a
+# copy ("puppet") that glides to wherever the host says it is.
+var net_id := 0
+var net_from := Vector2.ZERO    # where the copy was when the last message arrived...
+var net_to := Vector2.ZERO      # ...where that message says it is...
+var net_t := 0.0                # ...and how far along it has glided (0..1)
+var net_face := 0.0
+var net_seen := 0               # the last message that mentioned it
+var net_hit := false            # (host) it was hit since the last message
+var burn_slot := -1             # (host) the slot of the joiner who set it on fire (-1 = the player here, or nobody)
+
 # Simulation
 var pos := Vector2.ZERO
 var kb := Vector2.ZERO          # knockback velocity

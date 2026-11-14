@@ -208,6 +208,11 @@ func _update_mouse_mode() -> void:
 # ----------------------------------------------------------------------------
 func _input(event: InputEvent) -> void:
 	_detect_device(event)
+	# While a text box is being typed in (a name, a co-op code), letters are
+	# letters: P does not pause, R does not reload. Escape still goes back.
+	if event is InputEventKey and (event as InputEventKey).keycode != KEY_ESCAPE \
+			and get_viewport().gui_get_focus_owner() is LineEdit:
+		return
 	if event.is_action_pressed("toggle_fullscreen"):
 		SaveData.set_setting("fullscreen", not bool(SaveData.get_setting("fullscreen")))
 		get_viewport().set_input_as_handled()

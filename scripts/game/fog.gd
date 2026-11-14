@@ -41,7 +41,7 @@ var _cols := 1
 var _rows := 1
 var _image: Image
 var _thick := PackedByteArray()    # 255 = full fog, 0 = clear
-var _last := Vector2(INF, INF)
+var _last: Array[Vector2] = []     # where each player (by slot) last cleared from
 var _map_cells := 0                # squares inside the playable map
 var _clear_cells := 0
 
@@ -87,13 +87,17 @@ func _cell_center(ix: int, iy: int) -> Vector2:
 	return rect.position + (Vector2(ix, iy) + Vector2(0.5, 0.5)) * Config.FOG_CELL
 
 
-## Clear the fog around `center` (the player). `size_mult` widens it.
-func reveal(center: Vector2, size_mult: float = 1.0) -> void:
+## Clear the fog around `center` (a player). `size_mult` widens it; `who` is
+## that player's slot (alone, the player is 0).
+func reveal(center: Vector2, size_mult: float = 1.0, who: int = 0) -> void:
 	var cell: float = Config.FOG_CELL
-	# Only worth doing again once the player has moved a little.
-	if size_mult == 1.0 and center.distance_squared_to(_last) < cell * cell * 0.16:
-		return
-	_last = center
+	while _last.size() <= who:
+		_last.append(Vector2(INF, INF))
+	# Only worth doing again once that player has moved a little.
+	if size_mult == 1.0:
+		if center.distance_squared_to(_last[who]) < cell * cell * 0.16:
+			return
+		_last[who] = center
 	var inner: float = Config.FOG_CLEAR_RADIUS * size_mult
 	var outer: float = Config.FOG_EDGE_RADIUS * size_mult
 	var x0 := clampi(int((center.x - outer - rect.position.x) / cell), 0, _cols - 1)

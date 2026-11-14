@@ -51,6 +51,25 @@ works on 4.5 and later.
   **Every boss you beat is a checkpoint**: next time you can start that map
   from the wave after it (choose it on the map screen), with a weapon crate
   waiting beside you.
+- **Play with friends (up to 3 players, online).** On the main menu choose
+  **PLAY WITH FRIENDS**. One of you presses **HOST A GAME**; a code appears
+  (it looks like 84.25.133.7). Tell it to the others: they type it in on the
+  same screen and press **JOIN**. Then the host chooses the map and starts,
+  and everybody's game begins together.
+  - **All gold is shared:** every coin anybody picks up counts for all of
+    you, and each of you keeps the whole amount. Gear is shared the same way.
+  - **Zombies are tougher** and there are more of them, the more players
+    there are.
+  - Everybody plays their own character, with their own level, skills, gear
+    and pet. The others have a coloured ring and their name.
+  - If you run out of health you fall instead of dying. Another player can
+    **pick you up by standing beside you** for 3 seconds. The run is lost
+    when everybody is down.
+  - Everybody needs the **same version** of the game.
+  - If the code does not appear ("Your router did not open the way in"),
+    friends in the same house can still join with the second code shown.
+    For friends elsewhere the host's router needs "port forwarding" for UDP
+    port 24565 - ask someone who knows routers, or let another player host.
 - **Know your zombies.** Besides the plain Shambler, the fast Runner and the
   big Brute there are four with a trick of their own. Each one **warns you
   first**: it stops, swells up and changes colour for a moment. The first
@@ -133,7 +152,7 @@ Close Godot, then double-click **Update Rot Riot.command** inside the project
 folder. A Terminal window opens, downloads the latest version and replaces the
 folder. Your coins, level and upgrades are stored elsewhere and are kept.
 Then open the project in Godot again. The version number is shown in the
-bottom right corner of the main menu (now v0.7.1).
+bottom right corner of the main menu (now v0.8.0).
 
 After an update that changes the upgrade screens, points you had already
 spent are handed back so you can place them again in the new trees.

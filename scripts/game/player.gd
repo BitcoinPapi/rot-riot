@@ -11,6 +11,7 @@ var radius: float = Config.PLAYER_RADIUS
 var hp: float = Config.PLAYER_MAX_HP
 var max_hp: float = Config.PLAYER_MAX_HP
 var alive := true
+var down := false               # co-op: out of health, lying down until the partner picks you up
 
 var aim := Vector2.RIGHT
 var move_input := Vector2.ZERO
@@ -78,6 +79,8 @@ func place(at: Vector2) -> void:
 func tick(delta: float) -> void:
 	_time += delta
 	if not alive:
+		if down:
+			queue_redraw()
 		return
 
 	# --- move: instant, no acceleration ---
@@ -192,6 +195,8 @@ func _fire() -> void:
 	game.cam.kick(-dir, float(w["kick"]) * recoil_mult)
 	game.hud.fired(float(w["recoil_gun"]))
 	Sfx.play(String(w["sound"]))
+	if game.coop != null:
+		game.coop.send_fire(weapon_id, pos + hand, dir, dual)      # so the other player sees it
 
 	# Magazine: when the last round is gone the reload starts by itself.
 	if mag_size > 0:
@@ -374,6 +379,19 @@ func hurt_flash() -> void:
 #  Drawing (the node is rotated to face the aim direction, so +X is "forward")
 # ----------------------------------------------------------------------------
 func _draw() -> void:
+	if down:
+		# Fallen: lying still. The ring fills while your partner stands beside you.
+		var pulse := 0.5 + 0.5 * sin(_time * 6.0)
+		var reach: float = Config.COOP_REVIVE_RADIUS
+		draw_set_transform(Vector2.ZERO, -rotation, Vector2.ONE)
+		draw_arc(Vector2.ZERO, reach, 0.0, TAU, 48, Color(1.0, 0.3, 0.25, 0.3 + 0.3 * pulse), 3.0)
+		var progress := game.coop.helped if game.coop != null else 0.0
+		if progress > 0.0:
+			draw_arc(Vector2.ZERO, reach, -PI * 0.5, -PI * 0.5 + TAU * progress, 48, Color(0.5, 1.0, 0.55), 6.0)
+		draw_set_transform(Vector2.ZERO, 1.3, Vector2(1.0, 0.86))
+		Art.draw(self, "player_hurt", Vector2.ZERO, 1.0, Color(0.6, 0.5, 0.5))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		return
 	if not alive:
 		return
 	var alpha := 1.0

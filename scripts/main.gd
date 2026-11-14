@@ -11,6 +11,9 @@ extends Node
 ## Menus are Control screens on a CanvasLayer above the game. Sub-screens
 ## (Upgrades, Settings) are pushed on a small stack so "Back" always returns
 ## to wherever you came from.
+##
+## CO-OP (up to three players online, see scripts/autoload/net.gd): the host
+## starts runs; the joiners' games follow. Pausing pauses everybody.
 
 enum State { MENU, PLAYING, PAUSED, GAME_OVER }
 
@@ -32,6 +35,7 @@ func _ready() -> void:
 	_build_ui()
 	GameInput.pause_pressed.connect(_on_pause_pressed)
 	GameInput.back_pressed.connect(_on_back_pressed)
+	Net.run_started.connect(_on_net_run_started)
 	_enter_menu()
 
 	# Developer / test helpers (only with extra command-line arguments).
@@ -61,6 +65,7 @@ func _build_ui() -> void:
 	_ui_root.add_child(_dim)
 
 	_add_screen("main", MainMenu.new())
+	_add_screen("coop", CoopScreen.new())
 	_add_screen("maps", MapScreen.new())
 	_add_screen("character", CharacterScreen.new())
 	_add_screen("skills", SkillScreen.new())
@@ -125,20 +130,48 @@ func _enter_menu() -> void:
 	get_tree().paused = false
 	GameInput.set_gameplay_mode(false)
 	_show_only("main")
+	# Still connected to a friend: back to the co-op screen, ready for the next run.
+	if Net.role != Net.Role.NONE:
+		open_screen("coop")
 
 
 ## Start a run on a map, from one of its unlocked starting waves. Without
 ## arguments it repeats the last choice (see the Play screen).
+## Together with a friend, only the host starts runs: the friend's game is
+## told and starts the same one.
 func start_run(map_index: int = -1, start_wave: int = -1) -> void:
+	if Net.playing_together() and not Net.is_host():
+		return
 	if map_index >= 0:
 		if not SaveData.select_map(map_index, maxi(start_wave, 1)):
 			SaveData.select_map(0, 1)
+	var net := {}
+	if Net.playing_together():
+		var slots: Array = [0]
+		slots.append_array(Net.mates.keys())
+		net = {"host": true, "seed": randi() % 2000000000 + 1, "slots": slots}
+	_begin_run(SaveData.selected_map, SaveData.selected_start, net)
+	if not net.is_empty():
+		Net.announce_run({"map": game.map_index, "wave": game.start_wave, "seed": net["seed"], "slots": net["slots"],
+				"chests": game.pickups.chest_positions()})
+
+
+## (joiner) The host has started a run: start the same one here.
+func _on_net_run_started(settings: Dictionary) -> void:
+	_bank_current_run()
+	_begin_run(int(settings.get("map", 0)), int(settings.get("wave", 1)),
+			{"host": false, "seed": int(settings.get("seed", 1)), "chests": settings.get("chests", []),
+			"slots": settings.get("slots", [0, Net.slot])})
+
+
+func _begin_run(map_index: int, start_wave: int, net: Dictionary) -> void:
 	_free_game()
 	get_tree().paused = false
 	state = State.PLAYING
 	game = Game.new()
-	game.map_index = SaveData.selected_map
-	game.start_wave = SaveData.selected_start
+	game.map_index = clampi(map_index, 0, Config.MAPS.size() - 1)
+	game.start_wave = clampi(start_wave, 1, Config.WAVES_PER_MAP)
+	game.net = net
 	game.run_ended.connect(_on_run_ended)
 	add_child(game)
 	move_child(game, 0)
@@ -152,18 +185,23 @@ func restart_run() -> void:
 	start_run()
 
 
-func pause_game() -> void:
+## `from_mate` = the other player paused (so do not tell them again).
+func pause_game(from_mate: bool = false) -> void:
 	if state != State.PLAYING or game == null or game.state != Game.State.PLAYING:
 		return
 	state = State.PAUSED
 	get_tree().paused = true
 	GameInput.set_gameplay_mode(false)
 	_show_only("pause")
+	if game.coop != null and not from_mate:
+		game.coop.send_now([Coop.E_PAUSE, true])
 
 
-func resume_game() -> void:
+func resume_game(from_mate: bool = false) -> void:
 	if state != State.PAUSED:
 		return
+	if game != null and game.coop != null and not from_mate:
+		game.coop.send_now([Coop.E_PAUSE, false])
 	state = State.PLAYING
 	get_tree().paused = false
 	_stack.clear()
@@ -173,8 +211,18 @@ func resume_game() -> void:
 		game.player.hold_fire(0.2)
 
 
+## Together: pausing and resuming happens on both computers.
+func mate_paused(paused: bool) -> void:
+	if paused:
+		pause_game(true)
+	else:
+		resume_game(true)
+
+
 func quit_to_menu() -> void:
 	_bank_current_run()
+	if game != null and is_instance_valid(game) and game.coop != null:
+		game.coop.send_now([Coop.E_LEFT, Net.slot])      # (the others are told; the connection stays for the next run)
 	_free_game()
 	_enter_menu()
 
@@ -185,6 +233,7 @@ func quit_game(exit_code: int = 0) -> void:
 		return
 	_quitting = true
 	_bank_current_run()
+	Net.leave()
 	# Give the audio thread a moment to let go of the sounds that were still
 	# playing, otherwise Godot prints "leaked instance" warnings on exit.
 	get_tree().paused = true
@@ -247,7 +296,8 @@ func _notification(what: int) -> void:
 	match what:
 		NOTIFICATION_APPLICATION_FOCUS_OUT:
 			# Alt-tabbing away pauses the game instead of getting you killed.
-			if not _dev_mode:
+			# (Not together with a friend: it would freeze their game too.)
+			if not _dev_mode and not Net.playing_together():
 				pause_game()
 		NOTIFICATION_WM_CLOSE_REQUEST:
 			quit_game()

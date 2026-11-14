@@ -11,7 +11,7 @@ extends Node
 ## ============================================================================
 
 const GAME_TITLE := "ROT RIOT"
-const GAME_VERSION := "0.7.1"
+const GAME_VERSION := "0.8.0"
 const HERO_NAME := "CLIFF"                    # the survivor you play
 # How he looks with nothing equipped (his gear is drawn over this, see scripts/autoload/art.gd).
 const HERO_LOOK := {"skin": "#dfae88", "skin_dark": "#b98660", "hair": "#3a2a1e", "shirt": "#23262b", "shirt_light": "#33373d",
@@ -536,6 +536,29 @@ const WAVE_CLEAR_COINS_PER_WAVE := 1    # ...plus this per wave number
 const COMBO_WINDOW := 2.5               # seconds between kills to keep a combo alive
 const COMBO_MULT_PER_KILL := 0.04       # each combo kill adds 4% score
 const COMBO_MULT_MAX := 3.0
+
+# ----------------------------------------------------------------------------
+#  CO-OP - up to three players over the internet, each on their own
+#  computer. One hosts (their computer runs the zombies), the others join.
+#  All gold is shared: every coin any player picks up counts for everybody.
+# ----------------------------------------------------------------------------
+const NET_PORT := 24565                 # the door the host's computer opens for the other player (UDP)
+const NET_CONNECT_TIMEOUT := 8.0        # seconds a JOIN attempt may take before it gives up
+const NET_PLAYER_RATE := 30.0           # how many times a second each player's position is sent
+const NET_SNAPSHOT_RATE := 15.0         # how many times a second the host sends where every zombie is
+const COOP_MAX_PLAYERS := 3              # the host and up to two friends
+# How much tougher the zombies are, by the number of players (1, 2, 3).
+const COOP_ENEMY_HP := [1.0, 1.6, 2.2]          # their health...
+const COOP_ENEMY_DAMAGE := [1.0, 1.15, 1.3]     # ...how hard they hit...
+const COOP_WAVE_COUNT := [1.0, 1.3, 1.6]        # ...and how many of them are in a wave
+const COOP_REVIVE_RADIUS := 62.0        # stand this close to a fallen partner...
+const COOP_REVIVE_TIME := 3.0           # ...for this long to get them back on their feet
+const COOP_REVIVE_HP := 0.4             # ...with this share of their health
+const COOP_REVIVE_INVULN := 2.0         # ...and this many seconds of safety
+const COOP_NAME_MAX := 12               # letters in a player's name
+# The colour of everything that points at another player (their ring, name, arrow, dot on the minimap), by their slot.
+const COOP_COLORS := [Color(0.45, 0.75, 1.0), Color(0.55, 0.95, 0.55), Color(1.0, 0.72, 0.38)]
+const COOP_START_SPOTS := [Vector2(-46.0, 0.0), Vector2(46.0, 0.0), Vector2(0.0, 62.0)]   # where each slot starts, from the middle of the map
 
 # ----------------------------------------------------------------------------
 #  SECOND WIND (the VITALITY keystone): the blast that throws the horde back

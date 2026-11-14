@@ -13,6 +13,14 @@ var map_index := 0              # which entry of Config.MAPS
 var start_wave := 1             # the first wave of this run (a checkpoint)
 var map: Dictionary = Config.MAPS[0]
 
+# Co-op (see scripts/game/coop.gd). `net` is empty for a run alone; for a
+# run together it holds what both computers must agree on:
+# {"host": am I the host, "seed": where the rocks are, "chests": [[x, y], ...],
+#  "slots": the numbers of the players in it}.
+var net: Dictionary = {}
+var coop: Coop                  # null when playing alone
+var is_client := false          # true on the joiner's computer: the world is the host's, shown here
+
 var arena: Arena
 var decals: Decals
 var enemies: EnemyManager
@@ -67,13 +75,14 @@ func _ready() -> void:
 	map_index = clampi(map_index, 0, Config.MAPS.size() - 1)
 	map = Config.MAPS[map_index]
 	coin_value = Config.COIN_VALUE * int(map["coins"])
-	enemy_hp_mult = float(map["hp"])
+	is_client = not net.is_empty() and not bool(net.get("host", true))
+	enemy_hp_mult = float(map["hp"]) * strength_hp()
 	enemy_speed_mult = float(map["speed"])
-	enemy_damage_mult = float(map["damage"])
+	enemy_damage_mult = float(map["damage"]) * strength_damage()
 	enemy_xp_mult = float(map["xp"])
 
 	# Children are added bottom layer first.
-	arena = Arena.new(map.get("size", Config.ARENA_SIZE))
+	arena = Arena.new(map.get("size", Config.ARENA_SIZE), int(net.get("seed", 0)))
 	arena.tree_tint = map["trees"]
 	decals = Decals.new()
 	decals.ground_tint = map["ground"]
@@ -94,6 +103,15 @@ func _ready() -> void:
 
 	add_child(player)
 	player.place(arena.rect.get_center())
+	if not net.is_empty():
+		# Together: everybody starts in the middle, each on their own spot.
+		player.place(arena.rect.get_center() + Config.COOP_START_SPOTS[Net.slot % Config.COOP_START_SPOTS.size()])
+		coop = Coop.new()
+		coop.setup(self, not is_client)
+		add_child(coop)
+		coop.add_mates(net.get("slots", []))
+		enemies.remote = is_client
+		pickups.remote = is_client
 	if player.stats.pet != "":
 		_spawn_pet()
 
@@ -116,7 +134,10 @@ func _ready() -> void:
 	fog.setup(arena.rect)
 	add_child(fog)
 	fog.reveal(player.pos, Config.FOG_START_MULT)
-	pickups.place_chests()
+	if is_client:
+		pickups.set_chests(net.get("chests", []))
+	else:
+		pickups.place_chests()
 
 	cam = GameCamera.new()
 	cam.bounds = arena.rect
@@ -143,8 +164,38 @@ func _ready() -> void:
 	GameInput.reload_pressed.connect(_on_reload_pressed)
 
 	# Starting deep into a map: a weapon is waiting beside you.
-	if start_wave > 1 and Config.CHECKPOINT_START_CRATE:
+	if start_wave > 1 and Config.CHECKPOINT_START_CRATE and not is_client:
 		pickups.spawn_crate(player.pos + Vector2(0.0, 80.0))
+		if coop != null:
+			for other: int in coop.mates.keys():
+				pickups.spawn_crate((coop.mates[other] as Mate).pos + Vector2(0.0, 80.0))
+
+
+## How many players are in this run right now.
+func players_now() -> int:
+	if net.is_empty():
+		return 1
+	if coop == null:
+		return maxi((net.get("slots", []) as Array).size(), 1)      # (still being set up)
+	return 1 + coop.mates.size()
+
+
+## How much tougher zombies are than normal: more with every extra player.
+func strength_hp() -> float:
+	return Config.COOP_ENEMY_HP[clampi(players_now() - 1, 0, Config.COOP_ENEMY_HP.size() - 1)]
+
+
+func strength_damage() -> float:
+	return Config.COOP_ENEMY_DAMAGE[clampi(players_now() - 1, 0, Config.COOP_ENEMY_DAMAGE.size() - 1)]
+
+
+func strength_count() -> float:
+	return Config.COOP_WAVE_COUNT[clampi(players_now() - 1, 0, Config.COOP_WAVE_COUNT.size() - 1)]
+
+
+## True while at least one other player is in this run.
+func together() -> bool:
+	return players_now() > 1
 
 
 func _process(delta: float) -> void:
@@ -181,6 +232,8 @@ func _process(delta: float) -> void:
 	if player.alive:
 		lead = player.aim * Config.CAM_AIM_LEAD_MAX * GameInput.get_aim_distance_factor(player)
 	cam.tick(real_dt, player.pos, lead)
+	if coop != null:
+		coop.tick(real_dt, dt)
 	_measure_view()
 	# Ground is made as the screen comes near it (one new piece per frame at most).
 	decals.show_area(cam.view_rect().grow(Config.DECAL_CHUNK_AHEAD), 1)
@@ -203,7 +256,26 @@ func _measure_view() -> void:
 ## `extra` pushes it further out (for the middle of a pack); `edge` keeps it
 ## off the map's edge.
 func spawn_point(angle: float, extra: float = 0.0, edge: float = 40.0) -> Vector2:
-	return arena.spawn_point_around(cam.center_for(player.pos), spawn_min + extra, spawn_max + extra, angle, edge)
+	# Together: around one of the players who is on their feet, and out of
+	# sight of the others too.
+	var screens: Array[Vector2] = []
+	var others: Array[Mate] = coop.mates_up() if coop != null else ([] as Array[Mate])
+	if player.alive or others.is_empty():
+		screens.append(cam.center_for(player.pos))
+	for other: Mate in others:
+		screens.append(cam.center_for(other.pos))
+	var around: Vector2 = screens[randi() % screens.size()]
+	var spot := arena.spawn_point_around(around, spawn_min + extra, spawn_max + extra, angle, edge)
+	if screens.size() > 1:
+		for _try in 10:
+			var out_of_sight := true
+			for screen: Vector2 in screens:
+				if spot.distance_to(screen) < spawn_min - 1.0:
+					out_of_sight = false
+			if out_of_sight:
+				break
+			spot = arena.spawn_point_around(around, spawn_min + extra, spawn_max + extra, randf() * TAU, edge)
+	return spot
 
 
 func _simulate(dt: float) -> void:
@@ -212,11 +284,19 @@ func _simulate(dt: float) -> void:
 		_tick_combo(dt)
 	player.tick(dt)
 	if player.alive:
-		fog.reveal(player.pos)
+		fog.reveal(player.pos, 1.0, coop.my_slot if coop != null else 0)
+	if coop != null:
+		for other: int in coop.mates.keys():      # what the others uncover is uncovered for you too
+			var mate: Mate = coop.mates[other]
+			if mate.has_state:
+				fog.reveal(mate.pos, 1.0, other)
 	if pet != null:
 		pet.tick(dt)
-	director.tick(dt)
-	enemies.tick(dt)
+	if is_client:
+		enemies.tick_remote(dt)                  # the zombies are the host's: here they are copies
+	else:
+		director.tick(dt)
+		enemies.tick(dt)
 	projectiles.tick(dt)
 	enemy_shots.tick(dt)
 	pickups.tick(dt)
@@ -231,16 +311,25 @@ func _tick_combo(dt: float) -> void:
 
 
 func get_stats() -> Dictionary:
-	return {"score": score, "wave": director.wave, "kills": kills, "coins": coins_run, "time": time_alive,
+	var stats := {"score": score, "wave": director.wave, "kills": kills, "coins": coins_run, "time": time_alive,
 			"xp": xp_run, "levels": levels_run, "map": map_index, "start": start_wave, "cleared": director.cleared,
 			"victory": victory, "checkpoint": new_checkpoint, "unlocked": unlocked_map, "gear": gear_run,
-			"chests": chests_run, "chests_total": pickups.chests.size(), "explored": fog.explored}
+			"chests": chests_run, "chests_total": pickups.chests.size(), "explored": fog.explored,
+			"coop": not net.is_empty(), "mate": Net.mate_names() if not net.is_empty() else ""}
+	# Together, the run's numbers are the host's count - the same for both, so
+	# that all gold really is shared.
+	if coop != null:
+		for key: String in coop.shared.keys():
+			stats[key] = coop.shared[key]
+	return stats
 
 
 # ----------------------------------------------------------------------------
 #  Events
 # ----------------------------------------------------------------------------
 func _on_wave_started(wave: int, is_boss: bool) -> void:
+	if coop != null and not is_client:
+		coop.send([Coop.E_WAVE_START, wave, is_boss])
 	if is_boss:
 		hud.announce("BOSS WAVE", "wave %d - something big is coming" % wave, Color(1.0, 0.3, 0.2), 3.0)
 	else:
@@ -248,6 +337,11 @@ func _on_wave_started(wave: int, is_boss: bool) -> void:
 
 
 func _on_wave_cleared(wave: int, coin_bonus: int) -> void:
+	if coop != null:
+		if not is_client:
+			coop.send([Coop.E_WAVE_CLEAR, wave, coin_bonus])
+		# A cleared wave puts a fallen player back on their feet.
+		revive_local()
 	var xp_bonus := int(round(float(Config.WAVE_CLEAR_XP_BASE + Config.WAVE_CLEAR_XP_PER_WAVE * wave) * float(map["xp"])))
 	var opened := SaveData.note_wave_cleared(map_index, wave)
 	if int(opened["unlocked"]) >= 0:
@@ -283,36 +377,68 @@ func _map_cleared() -> void:
 	fx.light(player.pos, 900.0, 0.6, Color(1.0, 0.8, 0.3, 0.7))
 	shake(Config.BOSS_DEATH_SHAKE)
 	Sfx.play("level_up")
+	if coop != null and not is_client:
+		coop.send_over(true)
 
 
 func _on_boss_spawned(_boss: Enemy) -> void:
+	if coop != null and not is_client:
+		coop.send([Coop.E_BOSS])
 	var boss_name: String = Config.ENEMIES[Config.BOSS]["name"]
 	hud.announce(boss_name, "", Color(1.0, 0.25, 0.2), 2.6)
 
 
-func on_enemy_killed(e: Enemy, dir: Vector2, kill_hitstop: float, source: String = "") -> void:
+## A zombie died (on the computer that runs the zombies). `killer` = the slot
+## of the player who killed it (-1 = the player here). Everybody gets the XP;
+## the weapon's own XP goes to whoever made the kill.
+func on_enemy_killed(e: Enemy, dir: Vector2, kill_hitstop: float, source: String = "", killer: int = -1) -> void:
+	var my_slot := coop.my_slot if coop != null else 0
+	if killer < 0:
+		killer = my_slot
+	var by_mate := killer != my_slot
 	kills += 1
-	gain_xp(e.xp, source)
-	# Gore: the body tumbles away, blood sprays and pools.
-	if not bool(e.cfg.get("no_corpse", false)):
-		fx.corpse(e, dir)
-	fx.blood_burst(e.pos, int(Config.BLOOD_PER_KILL * e.blood), 1.0)
-	fx.blood_spray(e.pos, dir, int(Config.BLOOD_PER_KILL * e.blood * 0.5), 1.4)
-	decals.blood_splat(e.pos, 34.0 * sqrt(e.blood), dir)
-	# Feel: freeze frame + shake, bigger for bigger zombies.
-	hitstop(kill_hitstop * e.hitstop_mult)
-	shake(Config.KILL_SHAKE * e.shake_mult)
-	Sfx.play("zombie_die")
+	gain_xp(e.xp, "" if by_mate else source)
+	_kill_feel(e, dir, 0.0 if by_mate else kill_hitstop, not by_mate)
 
 	# Score with a combo multiplier for fast kills.
 	combo += 1
 	combo_timer = Config.COMBO_WINDOW
 	score += int(round(e.score * Config.combo_multiplier(combo)))
 
+	if coop != null:
+		coop.send_kill(e, dir, kill_hitstop, source, killer)
 	pickups.drop_from_enemy(e)
 	director.on_enemy_killed(e)
 	if e.kind == Config.BOSS:
 		_boss_killed(e)
+
+
+## (joiner) The host says a zombie died. `mine` = I killed it.
+func on_remote_kill(id: int, at: Vector2, dir: Vector2, kind: int, variant: int, flags: int, xp: int, mine: bool,
+		source: String, kill_hitstop: float) -> void:
+	var e := enemies.remote_kill(id, at, kind, variant, flags)
+	gain_xp(xp, source if mine else "")
+	_kill_feel(e, dir, kill_hitstop if mine else 0.0, mine)
+	if kind == Config.BOSS:
+		_boss_killed(e)
+
+
+## The gore and the jolt of a kill.
+func _kill_feel(e: Enemy, dir: Vector2, kill_hitstop: float, mine: bool) -> void:
+	# Gore: the body tumbles away, blood sprays and pools.
+	if not bool(e.cfg.get("no_corpse", false)):
+		fx.corpse(e, dir)
+	fx.blood_burst(e.pos, int(Config.BLOOD_PER_KILL * e.blood), 1.0)
+	fx.blood_spray(e.pos, dir, int(Config.BLOOD_PER_KILL * e.blood * 0.5), 1.4)
+	decals.blood_splat(e.pos, 34.0 * sqrt(e.blood), dir)
+	# Feel: freeze frame + shake, bigger for bigger zombies. (A partner's kill
+	# far away does not shake your screen.)
+	hitstop(kill_hitstop * e.hitstop_mult)
+	if mine or e.pos.distance_to(player.pos) < 420.0:
+		shake(Config.KILL_SHAKE * e.shake_mult * (1.0 if mine else 0.5))
+		Sfx.play("zombie_die")
+	else:
+		Sfx.play("zombie_die", -10.0)
 
 
 func _boss_killed(e: Enemy) -> void:
@@ -325,7 +451,8 @@ func _boss_killed(e: Enemy) -> void:
 	fx.ring(e.pos, 20.0, 260.0, 0.45, Color(1.0, 0.9, 0.6, 0.9))
 	fx.light(e.pos, 700.0, 0.4, Color(1.0, 0.5, 0.3, 0.8))
 	fx.text(e.pos + Vector2(0, -70), "BOSS DOWN!", Color(1.0, 0.85, 0.3), 34, 1.8)
-	pickups.spawn_crate(e.pos)
+	if not is_client:
+		pickups.spawn_crate(e.pos)
 	shake(Config.BOSS_DEATH_SHAKE)
 	hitstop(Config.BOSS_DEATH_HITSTOP, true)
 	slow_motion(Config.BOSS_DEATH_SLOWMO, Config.BOSS_DEATH_SLOWMO_TIME)
@@ -382,7 +509,8 @@ func _on_reload_pressed() -> void:
 #  Pickups
 # ----------------------------------------------------------------------------
 func collect_coin(at: Vector2, with_feedback: bool) -> void:
-	coins_run += coin_value
+	if not is_client:
+		coins_run += coin_value      # (the joiner's count comes from the host: all gold is shared)
 	if with_feedback:
 		fx.sparks(at, Vector2.UP, 2)
 		Sfx.play_pitched("coin", pickups.next_coin_pitch(), -8.0)
@@ -417,15 +545,20 @@ func collect_gear(piece: Pickups.Loot) -> void:
 
 ## A treasure chest is opened: a piece of gear (straight into the bag, kept
 ## even if you die) and a fountain of coins.
-func open_chest(chest: Pickups.Chest) -> void:
+## (Together, whoever opens it, BOTH players get the piece: `key` is the piece
+## the host rolled, handed to the joiner.)
+func open_chest(chest: Pickups.Chest, key: String = "") -> void:
 	chest.opened = true
 	chest.found = true
 	chests_run += 1
 	SaveData.chests_opened += 1
-	var key := pickups.roll_chest_gear()
+	if key == "":
+		key = pickups.roll_chest_gear()
+		pickups.spawn_coins(chest.pos, randi_range(Config.CHEST_COINS_MIN, Config.CHEST_COINS_MAX))
+		if coop != null:
+			coop.send([Coop.E_CHEST, pickups.chests.find(chest), key])
 	SaveData.add_gear(key)
 	gear_run.append(key)
-	pickups.spawn_coins(chest.pos, randi_range(Config.CHEST_COINS_MIN, Config.CHEST_COINS_MAX))
 	var color: Color = Config.gear_tier_def(Config.gear_tier_of(key))["color"]
 	fx.text(player.pos + Vector2(0, -72), "TREASURE!", Color(1.0, 0.85, 0.3), 18, 2.2)
 	fx.text(player.pos + Vector2(0, -46), Config.gear_name(key), color, 26, 2.2)
@@ -475,7 +608,10 @@ func damage_player(amount: float, from: Vector2) -> void:
 			_second_wind()
 			return
 		player.hp = 0.0
-		_player_died()
+		if coop != null and not coop.mates.is_empty():
+			_player_down()        # together: you fall, and another player can pick you up
+		else:
+			_player_died()
 
 
 ## SECOND WIND keystone: the blow that should have killed you does not.
@@ -489,6 +625,91 @@ func _second_wind() -> void:
 	fx.text(player.pos + Vector2(0, -48), "SECOND WIND!", Color(1.0, 0.45, 0.45), 28, 1.4)
 	slow_motion(Config.BOSS_DEATH_SLOWMO, 0.6)
 	Sfx.play("second_wind")
+
+
+# ----------------------------------------------------------------------------
+#  Co-op: falling, being picked up, the end of a shared run
+# ----------------------------------------------------------------------------
+## Out of health with other players still in the game: you lie where you fell
+## until one of them picks you up (or the wave is cleared). Zombies leave you alone.
+func _player_down() -> void:
+	player.alive = false
+	player.down = true
+	player.reloading = false
+	fx.blood_burst(player.pos, 30, 1.5)
+	decals.blood_splat(player.pos, 80.0)
+	fx.ring(player.pos, 10.0, 200.0, 0.5, Color(1.0, 0.2, 0.15, 0.8))
+	shake(Config.DEATH_SHAKE * 0.6)
+	hitstop(Config.DEATH_HITSTOP, true)
+	hud.announce("YOU ARE DOWN", "%s can pick you up by standing beside you" % coop.names(), Color(1.0, 0.3, 0.25), 4.0)
+	Sfx.play("player_die")
+
+
+## Back on your feet (another player picked you up, or the wave was cleared).
+func revive_local() -> void:
+	if not player.down or state != State.PLAYING:
+		return
+	player.down = false
+	player.alive = true
+	player.hp = player.max_hp * Config.COOP_REVIVE_HP
+	player.invuln = Config.COOP_REVIVE_INVULN
+	player.hold_fire(0.2)
+	fx.ring(player.pos, 12.0, 170.0, 0.45, Color(0.5, 1.0, 0.55, 0.9))
+	fx.light(player.pos, 300.0, 0.3, Color(0.5, 1.0, 0.55, 0.6))
+	hud.announce("BACK ON YOUR FEET", "", Color(0.5, 1.0, 0.55), 1.8)
+	Sfx.play("medkit")
+
+
+## (host) Every player is down: the run is lost. Everybody gets the same numbers.
+func wipe() -> void:
+	coop.send_over(false)
+	_player_died()
+
+
+## (joiner) The host says the run has ended.
+func finish_from_host(shared: Dictionary) -> void:
+	if not bool(shared.get("victory", false)) and state == State.PLAYING:
+		_player_died()
+
+
+## (joiner) Messages from the host about the waves.
+func remote_wave_started(wave: int, is_boss: bool) -> void:
+	director.wave = wave
+	_on_wave_started(wave, is_boss)
+	Sfx.play("wave_start")
+
+
+func remote_wave_cleared(wave: int, coin_bonus: int) -> void:
+	director.cleared = wave
+	_on_wave_cleared(wave, coin_bonus)
+	Sfx.play("wave_clear")
+
+
+func remote_boss_spawned() -> void:
+	_on_boss_spawned(null)
+	Sfx.play("boss_roar")
+
+
+## A player has gone from the run. If it was the host, the world was theirs,
+## so the run ends here for everybody else (with everything earned so far).
+## Otherwise the rest play on.
+func mate_left(who: String, world_gone: bool) -> void:
+	if state != State.PLAYING:
+		return
+	if is_client and world_gone:
+		hud.announce("%s HAS LEFT" % who, "the run ends here - you keep what you earned", Color(1.0, 0.6, 0.4), 3.0)
+		_player_died()
+		return
+	hud.announce("%s HAS LEFT" % who, "" if together() else "you are on your own now", Color(1.0, 0.6, 0.4), 3.0)
+	if not is_client and player.down and coop.mates.is_empty():
+		_player_died()
+
+
+## The other player paused or resumed: do the same here.
+func main_paused_by_mate(paused: bool) -> void:
+	var app := get_parent() as Main
+	if app != null:
+		app.mate_paused(paused)
 
 
 func _player_died() -> void:
@@ -514,8 +735,8 @@ func shake(amount: float) -> void:
 
 ## Run the world at `speed` (1 = normal) for `duration` real seconds.
 func slow_motion(speed: float, duration: float) -> void:
-	if state != State.PLAYING:
-		return
+	if state != State.PLAYING or coop != null:
+		return        # (together there is no slow motion: it would slow the world for one player only)
 	_time_scale = speed
 	_slowmo_timer = duration
 

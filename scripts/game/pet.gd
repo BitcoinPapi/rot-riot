@@ -66,7 +66,7 @@ func tick(dt: float) -> void:
 	if _think <= 0.0:
 		_think = 0.15
 		_loot = null
-		if fetches():
+		if fetches() and not game.is_client:      # (on the joiner's computer the host decides who picks gear up)
 			for piece: Pickups.Loot in game.pickups.loot:
 				if _loot == null or piece.pos.distance_squared_to(pos) < _loot.pos.distance_squared_to(pos):
 					_loot = piece

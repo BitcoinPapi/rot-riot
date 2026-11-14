@@ -91,6 +91,7 @@ func _reset_to_defaults() -> void:
 		"sfx_volume": Config.DEFAULT_SFX_VOLUME,
 		"fullscreen": Config.DEFAULT_FULLSCREEN,
 		"screen_shake": Config.DEFAULT_SCREEN_SHAKE,
+		"player_name": Config.HERO_NAME,     # what your partner sees over your head in co-op
 	}
 
 
@@ -161,6 +162,10 @@ func load_game() -> void:
 				var value: Variant = (saved_settings as Dictionary)[key]
 				if typeof(settings[key]) == TYPE_BOOL:
 					settings[key] = bool(value)
+				elif typeof(settings[key]) == TYPE_STRING:
+					var text := String(value).strip_edges().substr(0, Config.COOP_NAME_MAX)
+					if text != "":
+						settings[key] = text
 				else:
 					settings[key] = clampf(float(value), 0.0, 1.0)
 

@@ -147,6 +147,22 @@ func _draw_health(p: Player) -> void:
 		_text(Vector2(x, y + bar_h + 24.0), "%s   +%s%% damage" % [String(pet_def["name"]), String.num(p.stats.pet_damage * 100.0, 1)], 13,
 				Color(pet_color.r, pet_color.g, pet_color.b, 0.9), 0, 4)
 
+	# Co-op: the other players' names and health.
+	if game.coop != null:
+		var my := y + bar_h + (40.0 if game.pet != null else 24.0)
+		var mw := 190.0
+		for other: int in game.coop.mates.keys():
+			var mate: Mate = game.coop.mates[other]
+			_text(Vector2(x, my + 10.0), mate.shown_name, 14, mate.color, 0, 4)
+			var name_w := maxf(_font.get_string_size(mate.shown_name, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 10.0, 64.0)
+			draw_rect(Rect2(x + name_w - 2.0, my - 2.0, mw + 4.0, 14.0), Color(0, 0, 0, 0.65))
+			if mate.down:
+				var blink := 0.55 + 0.45 * sin(_time * 8.0)
+				_text(Vector2(x + name_w + 4.0, my + 10.0), "DOWN - GO AND PICK THEM UP", 12, Color(1.0, 0.4, 0.35, blink), 0, 4)
+			else:
+				draw_rect(Rect2(x + name_w, my, mw, 10.0), Color(0.08, 0.12, 0.18))
+				draw_rect(Rect2(x + name_w, my, mw * mate.hp_frac, 10.0), mate.color.darkened(0.15) if mate.hp_frac > 0.3 else Color(0.9, 0.3, 0.25))
+			my += 20.0
 
 func _draw_weapon(p: Player, h: float) -> void:
 	var w: Dictionary = p.weapon
@@ -313,6 +329,22 @@ func _draw_minimap(w: float, h: float) -> void:
 		if boss.alive:
 			var pulse := 4.0 + 1.5 * sin(_time * 8.0)
 			_map_mark(from + boss.pos * k, pulse, Color(1.0, 0.15, 0.1))
+	# Co-op: the other players (each in their colour; red and blinking when down).
+	if game.coop != null:
+		for other: int in game.coop.mates.keys():
+			var mate: Mate = game.coop.mates[other]
+			if not mate.has_state:
+				continue
+			var mate_at := from + mate.pos * k
+			if mate.down:
+				_map_mark(mate_at, 3.5 + 1.2 * sin(_time * 9.0), Color(1.0, 0.3, 0.25))
+			else:
+				var facing := mate.aim
+				var across := Vector2(-facing.y, facing.x)
+				draw_colored_polygon(PackedVector2Array([mate_at + facing * 7.0, mate_at - facing * 4.0 + across * 4.5,
+						mate_at - facing * 4.0 - across * 4.5]), Color(0, 0, 0, 0.9))
+				draw_colored_polygon(PackedVector2Array([mate_at + facing * 5.5, mate_at - facing * 3.0 + across * 3.2,
+						mate_at - facing * 3.0 - across * 3.2]), mate.color)
 	# What the screen shows, and the player in the middle of it.
 	var view := game.cam.view_rect()
 	var seen := Rect2(from + view.position * k, view.size * k).intersection(box)
@@ -341,6 +373,13 @@ func _map_mark(at: Vector2, half: float, color: Color) -> void:
 
 
 func _draw_announcement(w: float, h: float) -> void:
+	# Co-op: lying on the ground, waiting for your partner.
+	if game.player.down and game.coop != null and game.state == Game.State.PLAYING:
+		var helping := game.coop.helped
+		_text(Vector2(w * 0.5, h * 0.62), "YOU ARE DOWN", 38, Color(1.0, 0.35, 0.3, 0.75 + 0.25 * sin(_time * 5.0)), 1, 10)
+		_text(Vector2(w * 0.5, h * 0.62 + 30.0),
+				("You are being picked up...  %d%%" % int(helping * 100.0)) if helping > 0.0 else
+				("%s can pick you up by standing beside you  -  or clear the wave" % game.coop.names()), 18, Color(1, 1, 1, 0.9), 1)
 	if _announce_t <= 0.0:
 		return
 	var age := _announce_len - _announce_t
@@ -415,6 +454,12 @@ func _draw_crosshair(p: Player) -> void:
 ## Arrows at the screen edge pointing to weapon crates, dropped gear and
 ## treasure chests you have seen but not opened, when they are out of view.
 func _draw_crate_arrows() -> void:
+	# Co-op: where the other players are (red when one is down and needs you).
+	if game.coop != null:
+		for other: int in game.coop.mates.keys():
+			var mate: Mate = game.coop.mates[other]
+			if mate.has_state:
+				_edge_arrow(mate.pos, Color(1.0, 0.35, 0.3) if mate.down else mate.color, Art.t("mate%d" % other), Color.WHITE)
 	for chest: Pickups.Chest in game.pickups.chests:
 		if chest.found and not chest.opened:
 			_edge_arrow(chest.pos, Color(1.0, 0.82, 0.3), Art.t("chest"), Color.WHITE)

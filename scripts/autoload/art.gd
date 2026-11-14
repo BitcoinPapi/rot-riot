@@ -294,6 +294,17 @@ func refresh_hero() -> void:
 		_images.erase(sprite)
 
 
+## Another co-op player seen from above, wearing their own gear. `sprite` is
+## the name the pictures get: "mate1" also makes "mate1_hurt" and "mate1_flash".
+func build_mate(worn: Dictionary, sprite: String) -> void:
+	var top := _hero_top_svg(worn)
+	_svg(sprite, 56, 56, top)
+	_svg(sprite + "_hurt", 56, 56, top + WOUNDS_PLAYER)
+	_flash(sprite)
+	for built: String in [sprite, sprite + "_hurt"]:
+		_images.erase(built)
+
+
 ## The "look" of the piece worn in a slot ({} = nothing there).
 func _worn_look(worn: Dictionary, slot: String) -> Dictionary:
 	var key := String(worn.get(slot, ""))

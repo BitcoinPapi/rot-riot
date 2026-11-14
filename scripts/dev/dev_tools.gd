@@ -22,6 +22,13 @@ extends Node
 ##   --at=X,Y           start the run at this spot of the map (the middle is 3000,2000)
 ##   --no-fog           the whole map is uncovered from the start
 ##   --show-chests      one second into a run, put a closed treasure chest beside the player and open another
+##   --coop=host        host a co-op game on this computer and start a run as soon as the other copies have joined
+##                      (--players=N: how many copies in all, 2 or 3; default 2)
+##   --coop=join        ...and the other copies: join the game hosted on this same computer (or --coop=join:ADDRESS)
+##                      Run both WITHOUT --fixed-fps (the two copies must share real time) and end
+##                      them with --seconds=N instead of --frames=N. Combine with --bot / --god.
+##   --cooptest         with --coop=host on one copy and --coop=join on one or two others: all play through
+##                      a scripted co-op session (about 45 s) and each prints COOPTEST PASSED / FAILED
 ##   --horde=K:N,K:N    one second into a run, put N zombies of kind K around the player
 ##                      (shambler, runner, brute, boss, gobber, chucker, gasbag, lunger), e.g. --horde=gobber:3,gasbag:2
 ##   --god              the player cannot die
@@ -43,6 +50,11 @@ var main: Node
 var _args := {}
 var _frame := 0
 var _bench_samples := PackedInt32Array()
+var _coop_started := false
+var _wave_set := false
+var _coop_t0 := 0                # (co-op test) when this copy's first run began, in milliseconds
+var _coop_testing := false
+var _keep_alive := false
 var _auto_bot := false
 var _auto_failures: Array[String] = []
 
@@ -55,10 +67,16 @@ func _ready() -> void:
 	# Developer runs never touch the player's real save file.
 	if not _args.has("real-save"):
 		SaveData.save_path = "user://dev_save.json"
+		if String(_args.get("coop", "")).begins_with("join"):
+			SaveData.save_path = "user://dev_save_join.json"      # (two copies on one computer: one save file each)
 		if FileAccess.file_exists(SaveData.save_path):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(SaveData.save_path))
 		SaveData.call("_reset_to_defaults")
 		SaveData.apply_settings()
+		if _args.has("coop"):
+			Engine.max_fps = 60          # (headless would otherwise spin as fast as it can)
+			Net.use_upnp = false
+			SaveData.settings["player_name"] = String(_args.get("name", "HOSTY" if String(_args["coop"]) == "host" else "JOINY"))
 		if _args.has("coins"):
 			SaveData.add_coins(int(_args["coins"]))
 		if _args.has("level"):
@@ -109,7 +127,9 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	_frame += 1
 	var app: Main = main
-	if _frame == 1 and (_args.has("bot") or _args.has("play") or _args.has("bench")):
+	if _args.has("coop"):
+		_coop_connect(app)
+	elif _frame == 1 and (_args.has("bot") or _args.has("play") or _args.has("bench")):
 		app.start_run()
 	if _args.has("screen") and _frame == int(_args.get("screen-frame", "10")):
 		_open_screen(app, String(_args["screen"]))
@@ -124,7 +144,8 @@ func _process(_delta: float) -> void:
 		return
 	var game: Game = app.game
 	if game != null and is_instance_valid(game):
-		if _args.has("wave") and _frame == 2:
+		if _args.has("wave") and not _wave_set and not game.is_client and (_frame == 2 or game.coop != null):
+			_wave_set = true
 			game.director.wave = int(_args["wave"]) - 1
 			game.director.intermission = 0.1
 		if _args.has("at") and _frame == 2:
@@ -157,8 +178,12 @@ func _process(_delta: float) -> void:
 				game.pickups.spawn_crate(game.player.pos + Vector2.from_angle(-2.6 + 0.9 * i) * 200.0, boxes[i])
 			game.pickups.damage_crate(game.pickups.crates[1], Config.CRATE_HP * 0.45, Vector2.RIGHT)
 			game.pickups.damage_crate(game.pickups.crates[2], Config.CRATE_HP * 0.75, Vector2.RIGHT)
-		if _args.has("god"):
+		if _args.has("god") or _keep_alive:
 			game.player.hp = game.player.max_hp
+		if _args.has("cooptest") and not _coop_testing and game.coop != null:
+			_coop_testing = true
+			_coop_t0 = Time.get_ticks_msec()
+			_run_cooptest.call_deferred()
 		if _args.has("bot") or _auto_bot:
 			_bot(game)
 		if _args.has("bench"):
@@ -169,8 +194,17 @@ func _process(_delta: float) -> void:
 		img.save_png(String(_args["shot"]))
 		print("screenshot saved: ", _args["shot"], " ", img.get_size())
 		_quit(0)
-	if _args.has("frames") and _frame >= int(_args["frames"]):
+	if (_args.has("frames") and _frame >= int(_args["frames"])) \
+			or (_args.has("seconds") and Time.get_ticks_msec() >= int(float(_args["seconds"]) * 1000.0)):
 		if game != null and is_instance_valid(game):
+			if game.coop != null:
+				var others: Array[String] = []
+				for other: int in game.coop.mates.keys():
+					var mate: Mate = game.coop.mates[other]
+					others.append("%d:%s@%s%s" % [other, mate.shown_name, str(Vector2i(mate.pos)), " DOWN" if mate.down else ""])
+				print("COOP slot=%d me_at=%s others=[%s] zombies=%d crates=%d xp=%d gear=%d down=%s" % [
+					game.coop.my_slot, str(Vector2i(game.player.pos)), ", ".join(others), game.enemies.alive_count,
+					game.pickups.crates.size(), game.xp_run, game.gear_run.size(), str(game.player.down)])
 			print("SUMMARY frames=%d time=%.0fs wave=%d kills=%d score=%d coins=%d alive=%d left=%d hp=%.0f weapon=%s boss=%s state=%d" % [
 				_frame, game.time_alive, game.director.wave, game.kills, game.score, game.coins_run, game.enemies.alive_count,
 				game.director.remaining(), game.player.hp, game.player.weapon_id,
@@ -182,6 +216,261 @@ func _process(_delta: float) -> void:
 				game.xp_run, SaveData.level, SaveData.skill_points, ", ".join(weapon_levels)])
 			print("GEAR found=%d [%s]" % [game.gear_run.size(), ", ".join(game.gear_run)])
 		_quit(0)
+
+
+# ----------------------------------------------------------------------------
+#  The co-op test: two copies of the game (one --coop=host, one --coop=join)
+#  each run this script. The steps are timed in real seconds from the start
+#  of the run, so both copies do their part of each step at the same moment.
+# ----------------------------------------------------------------------------
+## Wait until `seconds` after the run began.
+func _at(seconds: float) -> void:
+	while float(Time.get_ticks_msec() - _coop_t0) / 1000.0 < seconds:
+		await get_tree().process_frame
+
+
+func _run_cooptest() -> void:
+	var app: Main = main
+	var game := app.game
+	var host := not game.is_client
+	var slot := game.coop.my_slot                 # 0 = the host, 1 and 2 = the joiners
+	var count := game.players_now()               # 2 or 3 copies are playing
+	var three := count >= 3
+	var me := game.player
+	var middle := game.arena.rect.get_center()
+	var spots: Array = Config.COOP_START_SPOTS
+	print("COOPTEST start (slot %d of %d players)" % [slot, count])
+	game.director.intermission = 99999.0
+	game.pickups.set("_crate_timer", 99999.0)
+	GameInput.set_virtual_input(Vector2.ZERO, Vector2.RIGHT, false)
+
+	# --- everybody is in the same world ---
+	await _at(1.0)
+	var mates := game.coop.mates
+	var all_here := mates.size() == count - 1
+	var in_place := me.pos.distance_to(middle + spots[slot]) < 6.0
+	for other: int in mates.keys():
+		var mate: Mate = mates[other]
+		if not mate.has_state:
+			all_here = false
+		if mate.pos.distance_to(middle + spots[other]) > 6.0:
+			in_place = false
+	_check(all_here, "the other %d player(s) are here" % (count - 1))
+	_check(in_place, "everybody starts on their own spot in the middle")
+	if not all_here:
+		_cooptest_done()
+		return
+	var first: Mate = mates.get(1)                # (for everybody but slot 1) the first joiner's figure
+	var names_ok := true
+	for other: int in mates.keys():
+		if (mates[other] as Mate).shown_name != ("HOSTY" if other == 0 else "JOIN%d" % other):
+			names_ok = false
+	_check(names_ok, "everybody's name arrives (%s)" % game.coop.names())
+	var rocks := 0
+	for i in game.arena.obs_pos.size():
+		rocks = (rocks * 31 + int(game.arena.obs_pos[i].x) * 7 + int(game.arena.obs_pos[i].y) + int(game.arena.obs_radius[i])) % 1000000007
+	var chest_sum := 0
+	for chest: Pickups.Chest in game.pickups.chests:
+		chest_sum += int(chest.pos.x) * 3 + int(chest.pos.y)
+	print("SAME world rocks=%d chests=%d count=%d" % [rocks, chest_sum, game.pickups.chests.size()])
+	_check(is_equal_approx(game.strength_hp(), Config.COOP_ENEMY_HP[count - 1]) and game.strength_hp() > 1.0,
+			"zombies are tougher with %d players (health x%.2f)" % [count, game.strength_hp()])
+
+	# --- the host's zombies show on every screen; the first joiner's bullets kill them ---
+	await _at(2.0)
+	if host:
+		for i in 6:
+			# (Weak ones, so that the test does not depend on how well the bot shoots.)
+			game.enemies.spawn(Config.SHAMBLER, middle + Vector2(-100.0 + 40.0 * i, -260.0), 0.4, game.enemy_speed_mult)
+	await _at(3.0)
+	_check(game.enemies.alive_count == 6, "six zombies on every computer (%d here)" % game.enemies.alive_count)
+	if not host:
+		var near_right_place := true
+		for e: Enemy in game.enemies.active:
+			if e.alive and e.pos.distance_to(middle + Vector2(0.0, -230.0)) > 220.0:
+				near_right_place = false
+		_check(near_right_place, "...and the copies are where the host put them")
+	_keep_alive = true
+	if slot == 1:
+		_auto_bot = true          # the first joiner does the shooting
+	await _at(10.2)
+	_auto_bot = false
+	_keep_alive = false
+	GameInput.set_virtual_input(Vector2.ZERO, Vector2.RIGHT, false)
+	await _at(11.0)        # (a moment for the last counts to arrive everywhere)
+	_check(game.kills == 6 and game.enemies.alive_count == 0, "the first joiner's bullets killed all six (%d kills counted here)" % game.kills)
+	_check(game.xp_run > 0, "every player gets the XP (%d)" % game.xp_run)
+	if slot == 1:
+		_check(SaveData.weapon_xp("pistol") > 0 or SaveData.weapon_level("pistol") > 1, "...and the weapon's own XP goes to whoever fired")
+	else:
+		_check(SaveData.weapon_xp("pistol") == 0 and SaveData.weapon_level("pistol") == 1, "...but the weapon's own XP goes only to whoever fired")
+	print("SAME after the fight kills=%d score=%d xp=%d" % [game.kills, game.score, game.xp_run])
+
+	# --- all gold is shared ---
+	# (Each step below starts a moment after the check before it, so that one
+	# copy never acts at the very instant another one is checking.)
+	var coins_before := game.coins_run
+	await _at(11.4)
+	if host:
+		me.place(middle + Vector2(-500.0, 0.0))       # (out of the way: the first joiner picks these up)
+		game.pickups.spawn_coins(first.pos, 10)
+	elif slot == 2:
+		me.place(middle + Vector2(500.0, 300.0))
+	await _at(13.5)
+	_check(game.coins_run >= coins_before + 10 * game.coin_value, "coins one player picks up count for everybody (%d -> %d)" % [coins_before, game.coins_run])
+	print("SAME coins=%d" % game.coins_run)
+
+	# --- a weapon crate goes to whoever walks into it ---
+	await _at(13.9)
+	if host:
+		game.pickups.spawn_crate(first.pos + Vector2(26.0, 0.0), "shotgun")
+		if three:
+			game.pickups.spawn_crate((mates[2] as Mate).pos + Vector2(26.0, 0.0), "rifle")
+	await _at(15.0)
+	var holds := "shotgun" if slot == 1 else ("rifle" if slot == 2 else "pistol")
+	_check(game.pickups.crates.is_empty() and me.weapon_id == holds, "each crate went to the player who walked into it (I hold the %s)" % me.weapon_id)
+
+	# --- the host's zombies hurt a joiner; everybody sees it ---
+	await _at(15.4)
+	if host:
+		game.enemies.spawn(Config.BRUTE, first.pos + Vector2(70.0, 0.0), game.enemy_hp_mult, game.enemy_speed_mult)
+	await _at(18.0)
+	if slot == 1:
+		_check(me.hp < me.max_hp, "a zombie on the host's computer hurt the first joiner (%d of %d health left)" % [int(me.hp), int(me.max_hp)])
+	else:
+		_check(first.hp_frac < 0.999, "everybody else sees the first joiner's health go down (%d%%)" % int(first.hp_frac * 100.0))
+	if host:
+		game.enemies.clear_all()
+
+	# --- falling, and being picked up (with three players: by the other joiner, through the host) ---
+	await _at(18.6)
+	if slot == 1:
+		me.invuln = 0.0
+		game.damage_player(99999.0, me.pos + Vector2.RIGHT)
+		_check(me.down and not me.alive and game.state == Game.State.PLAYING, "out of health with others still up: the first joiner falls, the run goes on")
+	await _at(19.6)
+	var helper := 2 if three else 0
+	if slot != 1:
+		_check(first.down, "everybody sees that the first joiner is down")
+		if slot == helper:
+			me.place(first.pos + Vector2(24.0, 0.0))        # stand beside them
+	await _at(24.0)
+	if slot == 1:
+		_check(not me.down and me.alive and is_equal_approx(me.hp, me.max_hp * Config.COOP_REVIVE_HP),
+				"the first joiner is back up with %d%% health (picked up by player %d)" % [int(Config.COOP_REVIVE_HP * 100.0), helper])
+	else:
+		_check(not first.down, "standing beside them picked the first joiner up")
+
+	# --- gear: a piece any player picks up goes to everybody ---
+	var gear_before := game.gear_run.size()
+	await _at(24.4)
+	if host:
+		game.pickups.spawn_gear(me.pos + Vector2(6.0, 0.0), "hard_hat:1")
+	await _at(25.2)
+	_check(game.gear_run.size() == gear_before + 1 and game.gear_run.has("hard_hat:1") and SaveData.gear_count("hard_hat:1") >= 1,
+			"a piece of gear the host picks up goes into everybody's bag")
+
+	# --- treasure chests: whoever opens it, everybody gets the piece ---
+	await _at(25.6)
+	if host and not game.pickups.chests.is_empty():
+		me.place(game.pickups.chests[0].pos + Vector2(8.0, 0.0))
+	await _at(27.0)
+	_check(game.chests_run == 1 and game.gear_run.size() == gear_before + 2 and game.pickups.chests[0].opened,
+			"a chest the host opens gives everybody the piece (%s; chests %d, gear %d -> %d, open %s)" % [
+			game.gear_run[-1] if not game.gear_run.is_empty() else "-", game.chests_run, gear_before, game.gear_run.size(),
+			str(game.pickups.chests[0].opened)])
+	print("SAME gear=%s" % ",".join(game.gear_run))
+
+	# --- pausing pauses everybody ---
+	await _at(27.4)
+	if slot == 1:
+		app.pause_game()
+	await _at(28.2)
+	_check(app.state == Main.State.PAUSED and get_tree().paused, "when one player pauses, every game pauses")
+	await _at(28.6)
+	if host:
+		app.resume_game()
+	await _at(29.2)
+	_check(app.state == Main.State.PLAYING and not get_tree().paused, "...and when one resumes, all go on")
+
+	# --- everybody down: the run is over, with the same numbers for all ---
+	var bank_before := SaveData.coins
+	await _at(29.6 + 0.7 * slot)
+	if slot == count - 1:
+		var others_down := true
+		for other: int in mates.keys():
+			if not (mates[other] as Mate).down:
+				others_down = false
+		_check(others_down, "the last one standing sees that the others are down")
+	me.invuln = 0.0
+	game.damage_player(99999.0, me.pos + Vector2.RIGHT)
+	if slot < count - 1:
+		_check(me.down and game.state == Game.State.PLAYING, "I fall; the run goes on while somebody stands")
+	await _at(37.0)
+	_check(app.state == Main.State.GAME_OVER, "everybody down: the run ends for all")
+	var final_coins := int(game.get_stats()["coins"])
+	_check(SaveData.coins == bank_before + final_coins and final_coins >= 10, "each player banks all the gold of the run (%d)" % final_coins)
+	print("SAME final coins=%d score=%d kills=%d wave=%d" % [final_coins, int(game.get_stats()["score"]), int(game.get_stats()["kills"]),
+			int(game.get_stats()["wave"])])
+
+	# --- the host starts the next run for everybody ---
+	var old_game := app.game
+	if not host:
+		app.start_run()        # (a joiner cannot start one: this must do nothing)
+		_check(app.state == Main.State.GAME_OVER, "only the host can start the next run")
+	await _at(37.6)
+	if host:
+		app.start_run()
+	await _at(39.5)
+	_check(app.state == Main.State.PLAYING and app.game != old_game and app.game.coop != null and app.game.coop.mates.size() == count - 1,
+			"the host starts the next run and everybody is in it")
+	await _at(40.5)
+	var see_all := app.game != null and app.game.coop != null
+	if see_all:
+		for other: int in app.game.coop.mates.keys():
+			if not (app.game.coop.mates[other] as Mate).has_state:
+				see_all = false
+	_check(see_all, "...and they all see each other again")
+
+	# --- one player leaves the run: the others play on ---
+	await _at(40.9)
+	if slot == 1:
+		app.quit_to_menu()
+	await _at(42.0)
+	if slot == 1:
+		_check(app.state == Main.State.MENU and Net.playing_together(), "the first joiner is back in the menu, still connected")
+	else:
+		_check(app.state == Main.State.PLAYING and app.game.coop.mates.size() == count - 2 and not app.game.coop.mates.has(1),
+				"when the first joiner leaves the run, the others play on (%d left with me)" % app.game.coop.mates.size())
+		_check(Net.mates.size() == count - 1, "...and everybody stays connected for the next run")
+		if host:
+			_check(is_equal_approx(app.game.strength_hp(), Config.COOP_ENEMY_HP[count - 2]), "...and the zombies are sized for the players who are left")
+	_cooptest_done()
+
+
+func _cooptest_done() -> void:
+	if _auto_failures.is_empty():
+		print("COOPTEST PASSED")
+	else:
+		print("COOPTEST FAILED: %d problem(s)" % _auto_failures.size())
+	await _frames(20)
+	_quit(0 if _auto_failures.is_empty() else 1)
+
+
+## --coop: host or join, and (as host) start a run once the other copy is in.
+func _coop_connect(app: Main) -> void:
+	var what := String(_args["coop"])
+	if _frame == 3:
+		Net.use_upnp = false
+		if what == "host":
+			Net.host()
+		else:
+			Net.join(what.get_slice(":", 1) if what.contains(":") else "127.0.0.1")
+	elif what == "host" and Net.mates.size() >= int(_args.get("players", "2")) - 1 and app.game == null and not _coop_started and _frame > 20:
+		_coop_started = true
+		if _args.has("map"):
+			SaveData.maps_unlocked = Config.MAPS.size()
+		app.start_run(int(_args.get("map", "1")) - 1, int(_args.get("start", "1")))
 
 
 func _quit(code: int) -> void:

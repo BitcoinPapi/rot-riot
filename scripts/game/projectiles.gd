@@ -22,6 +22,7 @@ class Shot:
 	var range0 := 1.0            # the range it started with (for fading)
 	var burn_dps := 0.0
 	var grenade := false
+	var cosmetic := false        # co-op: the other player's shot, shown here but hurting nothing (their computer decides)
 	var hit: Array = []          # zombies already hit (piercing shots)
 
 var game: Game
@@ -40,9 +41,11 @@ func _ready() -> void:
 	material = mat
 
 
-func spawn(from: Vector2, dir: Vector2, w: Dictionary, weapon_id: String, damage: float, knockback: float, crit: bool = false) -> void:
+func spawn(from: Vector2, dir: Vector2, w: Dictionary, weapon_id: String, damage: float, knockback: float, crit: bool = false,
+		cosmetic: bool = false) -> void:
 	spawned_total += 1
 	var s := Shot.new()
+	s.cosmetic = cosmetic
 	var speed_var: float = w["speed_var"]
 	s.pos = from
 	s.dir = dir
@@ -94,7 +97,7 @@ func tick(dt: float) -> void:
 			var crate_at := from.lerp(to, crate_t)
 			if s.grenade:
 				explode(crate_at, s)
-			else:
+			elif not s.cosmetic:
 				game.pickups.damage_crate(crate, float(s.w["damage"]), s.dir)
 			to = crate_at
 			done = true
@@ -102,14 +105,16 @@ func tick(dt: float) -> void:
 			# Fire licks at a crate once per puff and carries on.
 			if crate != null and crate_t <= wall_t:
 				s.hit.append(crate)
-				game.pickups.damage_crate(crate, float(s.w["damage"]), s.dir)
+				if not s.cosmetic:
+					game.pickups.damage_crate(crate, float(s.w["damage"]), s.dir)
 			# Fire washes over everything in its path; each puff burns a zombie once.
 			var guard := 0
 			while e != null and enemies.hit_t <= wall_t and guard < 8:
 				guard += 1
 				s.hit.append(e)
-				enemies.damage(e, s.damage, s.dir, s.knockback, s.stagger, 0.0, s.wid, s.crit)
-				enemies.ignite(e, float(s.w["burn_time"]), s.burn_dps, s.wid)
+				if not s.cosmetic:
+					enemies.damage(e, s.damage, s.dir, s.knockback, s.stagger, 0.0, s.wid, s.crit)
+					enemies.ignite(e, float(s.w["burn_time"]), s.burn_dps, s.wid)
 				e = enemies.segment_hit(from, to, s.radius, s.hit)
 			if wall_t <= 1.0:
 				to = from.lerp(to, wall_t)
@@ -120,7 +125,8 @@ func tick(dt: float) -> void:
 				explode(at, s)
 				done = true
 			else:
-				enemies.damage(e, s.damage, s.dir, s.knockback, s.stagger, float(s.w["hitstop_kill"]), s.wid, s.crit)
+				if not s.cosmetic:
+					enemies.damage(e, s.damage, s.dir, s.knockback, s.stagger, float(s.w["hitstop_kill"]), s.wid, s.crit)
 				if s.pierce > 0:
 					s.pierce -= 1
 					s.damage *= s.keep
@@ -165,6 +171,14 @@ func explode(at: Vector2, s: Shot) -> void:
 	var edge: float = w["blast_edge_damage"]
 	var force: float = w["blast_knockback"]
 	var stagger: float = w["blast_stagger"]
+	if s.cosmetic:
+		# The other player's grenade: the bang, without the damage.
+		game.fx.explosion(at, radius)
+		game.decals.scorch(at, radius * 0.75)
+		if at.distance_to(game.player.pos) < 700.0:
+			game.shake(float(w["blast_shake"]) * 0.5)
+		Sfx.play("explosion", -4.0)
+		return
 	for e: Enemy in game.enemies.in_radius(at, radius):
 		var away := e.pos - at
 		var d := away.length()

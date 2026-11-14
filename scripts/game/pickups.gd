@@ -11,6 +11,7 @@ extends Node2D
 ## by this one node.
 
 class Crate:
+	var id := 0                         # (co-op) the number both computers know it by
 	var pos := Vector2.ZERO
 	var weapon := ""
 	var life := 0.0
@@ -19,11 +20,13 @@ class Crate:
 	var flash := 0.0                    # white flash after a hit
 
 class Medkit:
+	var id := 0
 	var pos := Vector2.ZERO
 	var life := 0.0
 	var age := 0.0
 
 class Loot:
+	var id := 0
 	var pos := Vector2.ZERO
 	var key := ""              # which piece and tier (Config.gear_key)
 	var life := 0.0
@@ -36,6 +39,11 @@ class Chest:
 	var age := 0.0             # seconds since it was opened
 
 var game: Game
+# Co-op: on the joiner's computer everything here is only shown - the host
+# decides what appears, who picked it up and when it is gone (the net_...
+# functions at the end are the host's messages arriving).
+var remote := false
+var _next_id := 1
 var chests: Array[Chest] = []
 var crates: Array[Crate] = []
 var medkits: Array[Medkit] = []
@@ -131,6 +139,26 @@ func place_chests() -> void:
 		chests.append(chest)
 
 
+## (co-op) Where this run's chests are, to tell the joiner...
+func chest_positions() -> Array:
+	var list: Array = []
+	for chest: Chest in chests:
+		list.append([chest.pos.x, chest.pos.y])
+	return list
+
+
+## ...and the joiner putting them in the same places.
+func set_chests(list: Variant) -> void:
+	chests.clear()
+	if typeof(list) != TYPE_ARRAY:
+		return
+	for spot: Variant in (list as Array):
+		if typeof(spot) == TYPE_ARRAY and (spot as Array).size() >= 2:
+			var chest := Chest.new()
+			chest.pos = game.arena.clamp_inside(Vector2(float((spot as Array)[0]), float((spot as Array)[1])), 40.0)
+			chests.append(chest)
+
+
 ## What a treasure chest holds: any piece that zombies or brutes drop on this
 ## map (rings and amulets stay with the bosses) - usually COMMON, sometimes better.
 func roll_chest_gear() -> String:
@@ -172,7 +200,20 @@ func spawn_gear(at: Vector2, key: String) -> void:
 	l.pos = game.arena.resolve(game.arena.clamp_inside(at, 30.0), 16.0)
 	l.key = key
 	l.life = Config.GEAR_LIFETIME
+	l.id = _new_id()
 	loot.append(l)
+	if game.coop != null:
+		game.coop.send([Coop.E_LOOT_ADD, l.id, l.pos.x, l.pos.y, key])
+	_show_new_loot(l)
+
+
+func _new_id() -> int:
+	_next_id += 1
+	return _next_id
+
+
+func _show_new_loot(l: Loot) -> void:
+	var key := l.key
 	game.fog.reveal(l.pos, Config.FOG_DROP_MULT)      # its light burns a hole in the fog
 	var color: Color = Config.gear_tier_def(Config.gear_tier_of(key))["color"]
 	game.fx.ring(l.pos, 8.0, 110.0, 0.5, Color(color.r, color.g, color.b, 0.9))
@@ -181,6 +222,8 @@ func spawn_gear(at: Vector2, key: String) -> void:
 
 
 func spawn_coins(at: Vector2, count: int) -> void:
+	if game.coop != null and not remote:
+		game.coop.send([Coop.E_COINS, at.x, at.y, count])
 	for k in count:
 		if coin_count >= _coin_pos.size():
 			# Field is full: hand the coin over directly so nothing is lost.
@@ -198,7 +241,10 @@ func spawn_crate(at: Vector2, weapon: String = "") -> void:
 	c.pos = game.arena.resolve(at, 20.0)
 	c.weapon = weapon if weapon != "" else _pick_crate_weapon()
 	c.life = Config.CRATE_LIFETIME
+	c.id = _new_id()
 	crates.append(c)
+	if game.coop != null:
+		game.coop.send([Coop.E_CRATE_ADD, c.id, c.pos.x, c.pos.y, Config.WEAPON_ORDER.find(c.weapon)])
 	game.fog.reveal(c.pos, Config.FOG_DROP_MULT)
 	game.fx.dust(c.pos, 8)
 	Sfx.play("crate_spawn")
@@ -244,13 +290,26 @@ func crate_on_segment(a: Vector2, b: Vector2, shot_radius: float, ignore: Array)
 func damage_crate(c: Crate, amount: float, dir: Vector2) -> void:
 	if Config.CRATE_HP <= 0.0 or c.hp <= 0.0 or amount <= 0.0:
 		return
+	if remote:
+		# (joiner) Show the hit; the host's computer counts it.
+		c.flash = Config.CRATE_FLASH_TIME
+		game.fx.dust(c.pos - dir * 14.0, 2)
+		Sfx.play("crate_hit", 0.0, 0.15)
+		game.coop.send_crate_hit(c.id, amount, dir)
+		return
 	c.hp -= amount
 	c.flash = Config.CRATE_FLASH_TIME
 	game.fx.dust(c.pos - dir * 14.0, 2)
 	if c.hp > 0.0:
 		Sfx.play("crate_hit", 0.0, 0.15)
+		if game.coop != null:
+			game.coop.send([Coop.E_CRATE_HP, c.id, c.hp])
 		return
 	c.life = 0.0                      # (tick() takes it off the field)
+	_show_crate_broken(c, dir)
+
+
+func _show_crate_broken(c: Crate, dir: Vector2) -> void:
 	game.fx.dust(c.pos, 16)
 	game.fx.sparks(c.pos, dir, 6)
 	game.fx.text(c.pos + Vector2(0, -34), "%s CRATE DESTROYED" % String(Config.WEAPONS[c.weapon]["name"]), Color(1.0, 0.45, 0.35), 17, 1.3)
@@ -272,7 +331,10 @@ func spawn_medkit(at: Vector2) -> void:
 	var m := Medkit.new()
 	m.pos = game.arena.resolve(at, 14.0)
 	m.life = Config.MEDKIT_LIFETIME
+	m.id = _new_id()
 	medkits.append(m)
+	if game.coop != null:
+		game.coop.send([Coop.E_MEDKIT_ADD, m.id, m.pos.x, m.pos.y])
 
 
 func _pick_crate_weapon() -> String:
@@ -324,13 +386,17 @@ func tick(dt: float) -> void:
 	var player := game.player
 	var ppos := player.pos
 	var can_collect := player.alive
+	# Co-op: the other players pick things up too.
+	var ups: Array[Mate] = game.coop.mates_up() if game.coop != null else ([] as Array[Mate])
+	var me: int = game.coop.my_slot if game.coop != null else 0
 
-	# --- coins ---
+	# --- coins (on the joiner's computer they are only for show: the count is the host's) ---
 	_coin_streak_t -= dt
 	if _coin_streak_t <= 0.0:
 		_coin_streak = 0
 	var magnet: float = Config.COIN_MAGNET_RADIUS * player.stats.magnet_mult
 	var magnet2 := magnet * magnet
+	var mate_magnet2: float = Config.COIN_MAGNET_RADIUS * Config.COIN_MAGNET_RADIUS
 	var pick2: float = Config.COIN_PICKUP_RADIUS * Config.COIN_PICKUP_RADIUS
 	var magnet_speed: float = Config.COIN_MAGNET_SPEED
 	var keep := maxf(1.0 - 5.0 * dt, 0.0)
@@ -348,14 +414,24 @@ func tick(dt: float) -> void:
 			var v := _coin_vel[i]
 			p += v * dt
 			_coin_vel[i] = v * keep
-			if can_collect:
-				var to := ppos - p
-				var d2 := to.length_squared()
-				if d2 < pick2 or (pet_fetches and p.distance_squared_to(pet_pos) < pet_pick2):
-					gone = true
-					game.collect_coin(p, true)
-				elif d2 < magnet2:
-					p += to * (magnet_speed * dt / sqrt(d2))
+			# It flies to whichever player is nearer.
+			var to := ppos - p
+			var d2 := to.length_squared() if can_collect else 1.0e12
+			var pull2 := magnet2
+			var mine := true
+			for other: Mate in ups:
+				var to_mate := other.pos - p
+				var m2 := to_mate.length_squared()
+				if m2 < d2:
+					to = to_mate
+					d2 = m2
+					pull2 = mate_magnet2
+					mine = false
+			if d2 < pick2 or (pet_fetches and p.distance_squared_to(pet_pos) < pet_pick2):
+				gone = true
+				game.collect_coin(p, mine)
+			elif d2 < pull2:
+				p += to * (magnet_speed * dt / sqrt(d2))
 			_coin_pos[i] = p
 			_coin_life[i] = life
 		if gone:
@@ -368,7 +444,7 @@ func tick(dt: float) -> void:
 			i += 1
 
 	# --- crates ---
-	if game.state == Game.State.PLAYING:
+	if game.state == Game.State.PLAYING and not remote:
 		_crate_timer -= dt
 		if _crate_timer <= 0.0:
 			_crate_timer = randf_range(Config.CRATE_INTERVAL_MIN, Config.CRATE_INTERVAL_MAX) / (1.0 + game.player.stats.crate_rate)
@@ -380,10 +456,17 @@ func tick(dt: float) -> void:
 		c.life -= dt
 		c.age += dt
 		c.flash = maxf(c.flash - dt, 0.0)
-		var taken := can_collect and c.hp > 0.0 and c.pos.distance_to(ppos) < Config.CRATE_PICKUP_RADIUS + player.radius
-		if taken:
+		if remote:
+			i += 1
+			continue
+		var who := _toucher(c.pos, Config.CRATE_PICKUP_RADIUS) if c.hp > 0.0 else -1
+		if who == me:
 			game.collect_crate(c)
-		if taken or c.life <= 0.0:
+		if who >= 0 or c.life <= 0.0:
+			if game.coop != null:
+				game.coop.send([Coop.E_CRATE_GONE, c.id, 1 if who >= 0 else (2 if c.hp <= 0.0 else 0), who])
+				if who >= 0 and who != me:
+					game.fx.ring(c.pos, 16.0, 110.0, 0.35, Config.COOP_COLORS[who % Config.COOP_COLORS.size()])
 			crates[i] = crates[crates.size() - 1]
 			crates.pop_back()
 		else:
@@ -395,11 +478,19 @@ func tick(dt: float) -> void:
 		var m := medkits[i]
 		m.life -= dt
 		m.age += dt
-		var used := can_collect and player.hp < player.max_hp \
-				and m.pos.distance_to(ppos) < Config.MEDKIT_PICKUP_RADIUS + player.radius
-		if used:
+		if remote:
+			i += 1
+			continue
+		var healed := _toucher(m.pos, Config.MEDKIT_PICKUP_RADIUS)
+		if healed == me and player.hp >= player.max_hp:
+			healed = -1       # (nobody picks one up at full health)
+		elif healed >= 0 and healed != me and (game.coop.mates[healed] as Mate).hp_frac >= 0.999:
+			healed = -1
+		if healed == me:
 			game.collect_medkit(m.pos)
-		if used or m.life <= 0.0:
+		if healed >= 0 or m.life <= 0.0:
+			if game.coop != null:
+				game.coop.send([Coop.E_MEDKIT_GONE, m.id, healed])
 			medkits[i] = medkits[medkits.size() - 1]
 			medkits.pop_back()
 		else:
@@ -414,26 +505,133 @@ func tick(dt: float) -> void:
 			chest.found = true
 			game.fx.text(chest.pos + Vector2(0, -46), "TREASURE CHEST", Color(1.0, 0.85, 0.3), 18, 1.8)
 			Sfx.play_pitched("gear_drop", 0.8, -5.0)
-		if can_collect and chest.pos.distance_to(ppos) < Config.CHEST_OPEN_RADIUS + player.radius:
+		if not remote and _toucher(chest.pos, Config.CHEST_OPEN_RADIUS) >= 0:
 			game.open_chest(chest)
 
-	# --- gear ---
+	# --- gear (together, a piece that either player picks up goes to both) ---
 	i = 0
 	while i < loot.size():
 		var l := loot[i]
 		l.life -= dt
 		l.age += dt
-		var grabbed := can_collect and (l.pos.distance_to(ppos) < Config.GEAR_PICKUP_RADIUS + player.radius
-				or (pet_fetches and l.pos.distance_to(pet_pos) < Config.PET_FETCH_RADIUS + pet.radius))
+		if remote:
+			i += 1
+			continue
+		var grabbed := _toucher(l.pos, Config.GEAR_PICKUP_RADIUS) >= 0 \
+				or (pet_fetches and l.pos.distance_to(pet_pos) < Config.PET_FETCH_RADIUS + pet.radius)
 		if grabbed:
 			game.collect_gear(l)
 		if grabbed or l.life <= 0.0:
+			if game.coop != null:
+				game.coop.send([Coop.E_LOOT_GONE, l.id, grabbed])
 			loot[i] = loot[loot.size() - 1]
 			loot.pop_back()
 		else:
 			i += 1
 
 	queue_redraw()
+
+
+## Who is standing on something: the slot of that player (alone, the player
+## here is 0), or -1 if nobody is.
+func _toucher(at: Vector2, reach: float) -> int:
+	var player := game.player
+	if player.alive and at.distance_to(player.pos) < reach + player.radius:
+		return game.coop.my_slot if game.coop != null else 0
+	if game.coop != null:
+		for other: Mate in game.coop.mates_up():
+			if at.distance_to(other.pos) < reach + other.radius:
+				return other.slot
+	return -1
+
+
+# ----------------------------------------------------------------------------
+#  Co-op: the host's messages arriving on the joiner's computer
+# ----------------------------------------------------------------------------
+func crate_by_id(id: int) -> Crate:
+	for c: Crate in crates:
+		if c.id == id:
+			return c
+	return null
+
+
+func net_add_crate(id: int, at: Vector2, weapon: String) -> void:
+	if not Config.WEAPONS.has(weapon):
+		return
+	var c := Crate.new()
+	c.id = id
+	c.pos = at
+	c.weapon = weapon
+	c.life = Config.CRATE_LIFETIME
+	crates.append(c)
+	game.fog.reveal(c.pos, Config.FOG_DROP_MULT)
+	game.fx.dust(c.pos, 8)
+	Sfx.play("crate_spawn")
+
+
+func net_crate_hp(id: int, hp: float) -> void:
+	var c := crate_by_id(id)
+	if c != null:
+		c.hp = hp
+		c.flash = Config.CRATE_FLASH_TIME
+
+
+## why: 0 = its time ran out, 1 = picked up, 2 = shot to pieces.
+func net_crate_gone(id: int, why: int, by_me: bool) -> void:
+	var c := crate_by_id(id)
+	if c == null:
+		return
+	crates.erase(c)
+	if by_me:
+		game.collect_crate(c)
+	elif why == 1:
+		game.fx.ring(c.pos, 16.0, 110.0, 0.35, Color(1, 1, 1, 0.8))
+	elif why == 2:
+		_show_crate_broken(c, Vector2.RIGHT)
+
+
+func net_add_medkit(id: int, at: Vector2) -> void:
+	var m := Medkit.new()
+	m.id = id
+	m.pos = at
+	m.life = Config.MEDKIT_LIFETIME
+	medkits.append(m)
+
+
+func net_medkit_gone(id: int, by_me: bool) -> void:
+	for m: Medkit in medkits:
+		if m.id == id:
+			medkits.erase(m)
+			if by_me:
+				game.collect_medkit(m.pos)
+			return
+
+
+func net_add_loot(id: int, at: Vector2, key: String) -> void:
+	if not Config.GEAR_ITEMS.has(Config.gear_item_of(key)):
+		return
+	var l := Loot.new()
+	l.id = id
+	l.pos = at
+	l.key = key
+	l.life = Config.GEAR_LIFETIME
+	loot.append(l)
+	_show_new_loot(l)
+
+
+func net_loot_gone(id: int, picked_up: bool) -> void:
+	for l: Loot in loot:
+		if l.id == id:
+			loot.erase(l)
+			if picked_up:
+				game.collect_gear(l)      # all loot is shared: I get the piece too
+			return
+
+
+func net_chest_opened(index: int, key: String) -> void:
+	if index < 0 or index >= chests.size() or chests[index].opened or not Config.GEAR_ITEMS.has(Config.gear_item_of(key)):
+		return
+	game.open_chest(chests[index], key)
 
 
 ## Each coin grabbed in quick succession plays a slightly higher note.
