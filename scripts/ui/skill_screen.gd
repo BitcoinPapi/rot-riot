@@ -2,7 +2,7 @@ class_name SkillScreen
 extends Control
 ## The Skills screen: the skill tree. Skill points (one per character level,
 ## more for coins) buy levels of its nodes. The tree has three families -
-## GRIT, FURY and INSTINCT - each in its own colour, so it is always clear
+## VITALITY, STRENGTH and INSTINCT - each in its own colour, so it is always clear
 ## where the points have gone. The tree itself is described in
 ## scripts/game/skill_tree.gd, its numbers are in Config (SKILL TREE), what
 ## has been bought lives in SaveData.
@@ -351,7 +351,7 @@ func _show_node(id: String) -> void:
 	if kind == "keystone":
 		effects.append(SkillTree.keystone_text(String(n["stat"])))
 	elif id == "start":
-		effects.append("Three families: GRIT keeps you alive, FURY kills faster, INSTINCT is speed, luck and your pet.")
+		effects.append("Three families: VITALITY keeps you alive, STRENGTH kills faster, INSTINCT is speed, luck and your pet.")
 		details.append("Start a family with its first node. Put %d levels into a node and the next one along its branch opens." % Config.TREE_NEED_LEVELS)
 	_effect.text = "\n".join(effects)
 	_detail.text = "\n".join(details)

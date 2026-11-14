@@ -400,7 +400,7 @@ func learn_node(id: String) -> bool:
 	return true
 
 
-## Skill points put into one family of the tree (GRIT, FURY, INSTINCT).
+## Skill points put into one family of the tree ("grit", "fury" or "instinct").
 func family_points(family: String) -> int:
 	var total := 0
 	for id: String in tree.keys():

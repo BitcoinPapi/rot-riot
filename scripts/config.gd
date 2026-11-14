@@ -481,16 +481,19 @@ const RESPEC_COST_PER_LEVEL := 25       # coins to take all points back = this *
 #   "color"   the colour of the stat's family in the skill tree
 #   "nodes"   names of the three nodes along its branch, from the middle outwards
 #   "min_level" (optional) its branch needs at least this character level
+# Two of them are shown under another name than their id: "vitality" is
+# called HEALTH and "strength" is called DAMAGE, because VITALITY and STRENGTH
+# are the names of two families of the skill tree. (The ids are in save files.)
 # The last one, BOND, is the pet's stat: see PETS further down.
 const PASSIVE_ORDER := ["vitality", "defense", "evasion", "strength", "dexterity", "critical", "agility", "luck", "bond"]
 const PASSIVES := {
-	"vitality": {"name": "VITALITY", "desc": "More maximum health", "kind": "linear", "per_rank": 8.0,
+	"vitality": {"name": "HEALTH", "desc": "More maximum health", "kind": "linear", "per_rank": 8.0,
 		"color": Color("5aa9ff"), "nodes": ["Thick Blood", "Iron Lungs", "Ox Heart"]},
 	"defense": {"name": "DEFENSE", "desc": "Take less damage from every hit", "kind": "curve", "max": 0.8, "half": 50.0,
 		"color": Color("5aa9ff"), "nodes": ["Tough Hide", "Scar Tissue", "Walking Bunker"]},
 	"evasion": {"name": "EVASION", "desc": "Chance to dodge a hit completely", "kind": "curve", "max": 0.6, "half": 40.0,
 		"color": Color("5aa9ff"), "nodes": ["Sidestep", "Slippery", "Phantom"]},
-	"strength": {"name": "STRENGTH", "desc": "More damage with every weapon", "kind": "linear", "per_rank": 0.03,
+	"strength": {"name": "DAMAGE", "desc": "More damage with every weapon", "kind": "linear", "per_rank": 0.03,
 		"color": Color("ff6b3d"), "nodes": ["Heavy Hands", "Bone Breaker", "Juggernaut"]},
 	"dexterity": {"name": "DEXTERITY", "desc": "Shoot, swing and reload faster", "kind": "curve", "max": 1.5, "half": 60.0,
 		"color": Color("ff6b3d"), "nodes": ["Loose Wrists", "Trigger Finger", "Lead Storm"]},
@@ -510,8 +513,8 @@ const PASSIVES := {
 # ----------------------------------------------------------------------------
 #  SKILL TREE (Skills screen) - built from these numbers by scripts/game/skill_tree.gd.
 #  Three families grow out of the survivor in the middle, each in its own colour:
-#    GRIT      staying alive    (vitality, defense, evasion)
-#    FURY      killing faster   (strength, dexterity, critical)
+#    VITALITY  staying alive    (health, defense, evasion)
+#    STRENGTH  killing faster   (damage, dexterity, critical)
 #    INSTINCT  speed, luck, pet (agility, luck, bond)
 #  A family starts with one node that raises all three of its stats. From it
 #  three branches fan out, one per stat: three nodes, a sealed node on the side
@@ -519,11 +522,14 @@ const PASSIVES := {
 #  node has several levels. At the far end sits the family's emblem, an
 #  endless node. A node opens when the one before it has TREE_NEED_LEVELS levels.
 # ----------------------------------------------------------------------------
+# (The owner named the families VITALITY, STRENGTH and INSTINCT. The ids
+# "grit" and "fury" are only used inside the code and the save file - do not
+# rename them, saved trees are stored under them.)
 const TREE_FAMILY_ORDER := ["grit", "fury", "instinct"]
 const TREE_FAMILIES := {
-	"grit": {"name": "GRIT", "desc": "Staying alive", "color": Color("5aa9ff"), "angle_deg": -90.0,
+	"grit": {"name": "VITALITY", "desc": "Staying alive", "color": Color("5aa9ff"), "angle_deg": -90.0,
 		"stats": ["vitality", "defense", "evasion"]},
-	"fury": {"name": "FURY", "desc": "Killing faster", "color": Color("ff6b3d"), "angle_deg": 30.0,
+	"fury": {"name": "STRENGTH", "desc": "Killing faster", "color": Color("ff6b3d"), "angle_deg": 30.0,
 		"stats": ["strength", "dexterity", "critical"]},
 	"instinct": {"name": "INSTINCT", "desc": "Speed, luck and your pet", "color": Color("b6e04a"), "angle_deg": 150.0,
 		"stats": ["agility", "luck", "bond"]},

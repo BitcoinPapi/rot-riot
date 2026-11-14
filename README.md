@@ -61,8 +61,8 @@ works on 4.5 and later.
   each level makes you a little stronger and gives a **skill point** (the
   highest level is 100, and it is meant to take months to reach).
 - Spend skill points on the **Skills** screen. The skill tree has three
-  families, each in its own colour: **GRIT** keeps you alive (health, armor,
-  dodging), **FURY** kills faster (damage, fire rate, critical hits) and
+  families, each in its own colour: **VITALITY** keeps you alive (health,
+  armor, dodging), **STRENGTH** kills faster (damage, fire rate, critical hits) and
   **INSTINCT** is speed, luck and your pet. Start a family with its first
   node, then follow a branch: every node has several levels (the little dots
   under it), and three levels in a node open the next one. Hexagons are

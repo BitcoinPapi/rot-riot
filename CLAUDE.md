@@ -247,9 +247,12 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   a tree with **three distinct families, where it is clear what you invest
   in, and several levels per node** - and found the first version (a 289-node
   web) "super messy and complex". So: three families grow out of Cliff in
-  the middle, each in its own colour: **GRIT** (vitality, defense, evasion),
-  **FURY** (strength, dexterity = fire rate, critical) and **INSTINCT**
-  (agility = move speed, luck, BOND = the pet). A family starts with a root
+  the middle, each in its own colour: **VITALITY** (health, defense,
+  evasion), **STRENGTH** (damage, dexterity = fire rate, critical) and
+  **INSTINCT** (agility = move speed, luck, BOND = the pet). The owner chose
+  these names; in code and save files the first two families are still
+  `grit` and `fury`, and the stats shown as HEALTH and DAMAGE are still
+  `vitality` and `strength` - never rename ids. A family starts with a root
   node (3 levels, each +1 rank of all three stats). From it three branches
   fan out, one per stat: three nodes of 5 levels each (+1 rank per level;
   costs 1 / 2 / 3 points per level; character level 1 / 8 / 18), a **sealed**
