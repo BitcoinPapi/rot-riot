@@ -32,7 +32,7 @@ const DECAL_RESOLUTION := 1.0                 # 1.0 = full detail blood layer. L
 const PLAYER_RADIUS := 14.0
 const PLAYER_SPEED := 300.0                   # instant, no acceleration
 const PLAYER_MAX_HP := 100.0
-const PLAYER_HURT_INVULN := 0.55              # seconds of safety after being hit
+const PLAYER_HURT_INVULN := 0.45              # seconds of safety after being hit
 const PLAYER_HURT_SHOVE_RADIUS := 120.0       # being hit shoves nearby zombies away...
 const PLAYER_HURT_SHOVE_FORCE := 430.0        # ...this hard, so you get a chance to escape
 const PLAYER_HURT_SHOVE_STAGGER := 0.25       # ...and stops them for this long
@@ -142,30 +142,30 @@ const BOSS := 3
 
 const ENEMIES := {
 	SHAMBLER: {
-		"name": "Shambler", "hp": 24.0, "speed": 80.0, "speed_var": 0.2, "radius": 14.0,
-		"damage": 8.0, "attack_cd": 0.8, "score": 10, "rage": 2.2,
-		"coin_chance": 0.30, "coins_min": 1, "coins_max": 1, "medkit_chance": 0.012,
+		"name": "Shambler", "hp": 24.0, "speed": 86.0, "speed_var": 0.2, "radius": 14.0,
+		"damage": 10.0, "attack_cd": 0.8, "score": 10, "rage": 2.2,
+		"coin_chance": 0.18, "coins_min": 1, "coins_max": 1, "medkit_chance": 0.012,
 		"kb_mult": 1.0, "stagger_mult": 1.0, "mass": 1.0, "push_player": 1.0,
 		"hitstop_mult": 1.0, "shake_mult": 1.0, "blood": 1.0,
 	},
 	RUNNER: {
-		"name": "Runner", "hp": 12.0, "speed": 195.0, "speed_var": 0.12, "radius": 11.0,
-		"damage": 6.0, "attack_cd": 0.7, "score": 15, "rage": 2.6,
-		"coin_chance": 0.35, "coins_min": 1, "coins_max": 1, "medkit_chance": 0.012,
+		"name": "Runner", "hp": 14.0, "speed": 220.0, "speed_var": 0.12, "radius": 11.0,
+		"damage": 8.0, "attack_cd": 0.7, "score": 15, "rage": 2.6,
+		"coin_chance": 0.20, "coins_min": 1, "coins_max": 1, "medkit_chance": 0.012,
 		"kb_mult": 1.25, "stagger_mult": 1.0, "mass": 0.6, "push_player": 0.7,
 		"hitstop_mult": 0.8, "shake_mult": 0.8, "blood": 0.7,
 	},
 	BRUTE: {
 		"name": "Brute", "hp": 220.0, "speed": 58.0, "speed_var": 0.08, "radius": 26.0,
-		"damage": 22.0, "attack_cd": 1.1, "score": 60, "rage": 9.0,
-		"coin_chance": 1.0, "coins_min": 3, "coins_max": 5, "medkit_chance": 0.15,
+		"damage": 26.0, "attack_cd": 1.1, "score": 60, "rage": 9.0,
+		"coin_chance": 1.0, "coins_min": 2, "coins_max": 3, "medkit_chance": 0.15,
 		"kb_mult": 0.28, "stagger_mult": 0.3, "mass": 6.0, "push_player": 2.5,
 		"hitstop_mult": 2.6, "shake_mult": 4.0, "blood": 2.5,
 	},
 	BOSS: {
 		"name": "THE GORGER", "hp": 2600.0, "speed": 72.0, "speed_var": 0.0, "radius": 52.0,
 		"damage": 30.0, "attack_cd": 1.0, "score": 1000, "rage": 40.0,
-		"coin_chance": 1.0, "coins_min": 30, "coins_max": 30, "medkit_chance": 1.0,
+		"coin_chance": 1.0, "coins_min": 25, "coins_max": 25, "medkit_chance": 1.0,
 		"kb_mult": 0.04, "stagger_mult": 0.0, "mass": 60.0, "push_player": 2.5,
 		"hitstop_mult": 5.0, "shake_mult": 14.0, "blood": 8.0,
 		# boss-only behaviour
@@ -199,32 +199,34 @@ const SUMMON_RISE_TIME := 0.5           # summoned zombies take this long to cla
 # ----------------------------------------------------------------------------
 #  WAVES
 # ----------------------------------------------------------------------------
-const WAVE_BASE_COUNT := 16.0           # zombies in wave 1
-const WAVE_COUNT_PER_WAVE := 9.0        # + this many per wave...
-const WAVE_COUNT_ACCEL := 0.9           # ...+ this * (wave-1)^2  (makes late waves huge)
-const WAVE_MAX_COUNT := 420
+const WAVE_BASE_COUNT := 22.0           # zombies in wave 1
+const WAVE_COUNT_PER_WAVE := 13.0       # + this many per wave...
+const WAVE_COUNT_ACCEL := 1.5           # ...+ this * (wave-1)^2  (makes late waves huge)
+const WAVE_MAX_COUNT := 500
 const MAX_ENEMIES_ALIVE := 240          # hard cap on screen at once
-const WAVE_PACK_SIZE_BASE := 4.0        # zombies arrive in packs from one side
-const WAVE_PACK_SIZE_PER_WAVE := 0.9
-const WAVE_PACK_SIZE_MAX := 18.0
-const WAVE_PACK_INTERVAL_BASE := 1.5    # seconds between packs in wave 1
-const WAVE_PACK_INTERVAL_PER_WAVE := -0.08
-const WAVE_PACK_INTERVAL_MIN := 0.45
+const WAVE_PACK_SIZE_BASE := 5.0        # zombies arrive in packs from one side
+const WAVE_PACK_SIZE_PER_WAVE := 1.2
+const WAVE_PACK_SIZE_MAX := 24.0
+const WAVE_PACK_INTERVAL_BASE := 1.2    # seconds between packs in wave 1
+const WAVE_PACK_INTERVAL_PER_WAVE := -0.09
+const WAVE_PACK_INTERVAL_MIN := 0.35
+const WAVE_PACK_SIDES_EVERY := 3        # every N waves, packs arrive from one more direction at once...
+const WAVE_PACK_SIDES_MAX := 4          # ...up to this many, so later hordes surround you
 const WAVE_FIRST_DELAY := 1.6           # breathing room at the very start
 const WAVE_INTERMISSION := 3.5          # pause between waves
-const WAVE_HP_GROWTH := 0.05            # +5% zombie health per wave
-const WAVE_SPEED_GROWTH := 0.012        # +1.2% zombie speed per wave
-const WAVE_SPEED_MAX_MULT := 1.3
+const WAVE_HP_GROWTH := 0.08            # +8% zombie health per wave
+const WAVE_SPEED_GROWTH := 0.02         # +2% zombie speed per wave
+const WAVE_SPEED_MAX_MULT := 1.45
 const RUNNER_START_WAVE := 2
-const RUNNER_WEIGHT_PER_WAVE := 0.09
-const RUNNER_WEIGHT_MAX := 0.40
-const BRUTE_START_WAVE := 4
-const BRUTE_WEIGHT_PER_WAVE := 0.025
-const BRUTE_WEIGHT_MAX := 0.12
+const RUNNER_WEIGHT_PER_WAVE := 0.10
+const RUNNER_WEIGHT_MAX := 0.45
+const BRUTE_START_WAVE := 3
+const BRUTE_WEIGHT_PER_WAVE := 0.035
+const BRUTE_WEIGHT_MAX := 0.18
 const BOSS_EVERY := 5                   # a boss arrives every N waves
 const BOSS_WAVE_COUNT_MULT := 0.6       # boss waves have fewer regular zombies
 const RUNNER_PACK_CHANCE := 0.14        # chance that a pack is all runners (after runners unlock)
-const WAVE_CLEAR_COINS_BASE := 3        # coin bonus for clearing a wave...
+const WAVE_CLEAR_COINS_BASE := 2        # coin bonus for clearing a wave...
 const WAVE_CLEAR_COINS_PER_WAVE := 1    # ...plus this per wave number
 
 # ----------------------------------------------------------------------------
@@ -287,19 +289,19 @@ const UPGRADE_ORDER := ["damage", "fire_rate", "move_speed", "max_health"]
 const UPGRADES := {
 	"damage": {
 		"name": "DAMAGE", "desc": "+15% weapon damage per level",
-		"per_level": 0.15, "costs": [50, 110, 200, 340, 520],
+		"per_level": 0.15, "costs": [150, 350, 700, 1200, 2000],
 	},
 	"fire_rate": {
 		"name": "FIRE RATE", "desc": "+10% fire rate per level",
-		"per_level": 0.10, "costs": [50, 110, 200, 340, 520],
+		"per_level": 0.10, "costs": [150, 350, 700, 1200, 2000],
 	},
 	"move_speed": {
 		"name": "MOVE SPEED", "desc": "+6% move speed per level",
-		"per_level": 0.06, "costs": [40, 90, 170, 290, 450],
+		"per_level": 0.06, "costs": [120, 280, 560, 950, 1600],
 	},
 	"max_health": {
 		"name": "MAX HEALTH", "desc": "+20 max health per level",
-		"per_level": 20.0, "costs": [40, 90, 170, 290, 450],
+		"per_level": 20.0, "costs": [120, 280, 560, 950, 1600],
 	},
 }
 
@@ -390,6 +392,11 @@ func wave_speed_mult(wave: int) -> float:
 
 func wave_pack_size(wave: int) -> int:
 	return int(round(minf(WAVE_PACK_SIZE_BASE + WAVE_PACK_SIZE_PER_WAVE * float(wave - 1), WAVE_PACK_SIZE_MAX)))
+
+
+## How many directions the packs of this wave come from at once.
+func wave_pack_sides(wave: int) -> int:
+	return mini(1 + int(float(wave) / WAVE_PACK_SIDES_EVERY), WAVE_PACK_SIDES_MAX)
 
 
 func wave_pack_interval(wave: int) -> float:

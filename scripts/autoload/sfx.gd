@@ -283,6 +283,43 @@ class Synth:
 			y2 += a * (y - y2)
 			buf[k] = y2
 
+	## Add the echo of an open space: a handful of delayed, fading, slightly
+	## muffled copies. `mix` is how loud the echo is, `decay` how many seconds
+	## it takes to die away. This is most of what makes a dry burst of noise
+	## sound like a real gunshot outdoors.
+	func reverb(mix: float, decay: float, damp_hz: float = 2600.0) -> void:
+		var n := buf.size()
+		var wet := PackedFloat32Array()
+		wet.resize(n)
+		wet.fill(0.0)
+		var a := 1.0 - exp(-TAU * damp_hz / SR)
+		var line := PackedFloat32Array()
+		line.resize(n)
+		for d_sec: float in [0.0297, 0.0371, 0.0411, 0.0437, 0.0533, 0.0677]:
+			var d := int(d_sec * SR)
+			var g := pow(0.001, d_sec / decay)     # fades by 60 dB after `decay` seconds
+			var lp := 0.0
+			for k in n:
+				var fb := line[k - d] if k >= d else 0.0
+				lp += a * (fb - lp)
+				var v := buf[k] + lp * g
+				line[k] = v
+				wet[k] += v - buf[k]
+		# Two short "smearing" stages so the echoes blur together instead of ringing.
+		for d_sec: float in [0.005, 0.0017]:
+			var d := int(d_sec * SR)
+			var g := 0.6
+			line.fill(0.0)
+			for k in n:
+				var x_d := wet[k - d] if k >= d else 0.0
+				var y_d := line[k - d] if k >= d else 0.0
+				line[k] = -g * wet[k] + x_d + g * y_d
+			for k in n:
+				wet[k] = line[k]
+		var gain := mix / 6.0
+		for k in n:
+			buf[k] += wet[k] * gain
+
 	## Finish: optional soft clipping, normalise, convert to 16-bit samples.
 	func to_bytes() -> PackedByteArray:
 		var n := buf.size()
@@ -305,49 +342,65 @@ class Synth:
 
 # ----------------------------------------------------------------------------
 #  The recipes. Each weapon is built to sound different:
-#  pistol = sharp crack, shotgun = wide boom, machine gun = tight rattle,
+#  pistol = sharp crack, shotgun = wide boom + pump, machine gun = tight rattle,
 #  launcher = hollow "thoomp" + explosion, sledgehammer = whoosh + heavy thud.
 # ----------------------------------------------------------------------------
 func _make_pistol(s: Synth) -> void:
-	s.length(0.24)
-	s.drive = 1.7
-	s.noise(0.0, 0.2, 1.0, 0.032, 7500.0, 1400.0)
-	s.tone(0.0, 0.09, 0.7, 1100.0, 150.0, 0.028)
-	s.tone(0.0, 0.16, 0.6, 190.0, 60.0, 0.05)
+	# crack (the sharp snap) + body (the bang) + thump (chest punch) + echo.
+	# No gliding high tones: those are what make a gun sound like a laser.
+	s.length(0.5)
+	s.drive = 2.0
+	s.noise(0.0, 0.03, 2.2, 0.006, 9000.0, 5000.0, 0.0003, 1800.0)
+	s.noise(0.0, 0.25, 2.4, 0.034, 5000.0, 900.0, 0.0005)
+	s.tone(0.0, 0.12, 0.4, 150.0, 65.0, 0.035)
+	s.noise(0.012, 0.45, 0.45, 0.16, 2200.0, 500.0, 0.01)
+	s.reverb(0.35, 0.35)
 
 
 func _make_shotgun(s: Synth) -> void:
-	s.length(0.55)
-	s.drive = 2.3
-	s.noise(0.0, 0.45, 1.0, 0.085, 5200.0, 450.0)
-	s.noise(0.02, 0.5, 0.4, 0.2, 1300.0, 280.0)
-	s.tone(0.0, 0.4, 1.0, 165.0, 38.0, 0.11)
-	s.tone(0.0, 0.05, 0.4, 900.0, 200.0, 0.015)
+	# Wider, longer and much lower than the pistol, then the pump being racked.
+	s.length(0.95)
+	s.drive = 2.6
+	s.noise(0.0, 0.03, 1.8, 0.007, 8000.0, 4000.0, 0.0003, 1500.0)
+	s.noise(0.0, 0.5, 2.6, 0.085, 4200.0, 500.0, 0.0005)
+	s.tone(0.0, 0.35, 0.7, 100.0, 42.0, 0.1)
+	s.noise(0.015, 0.6, 0.8, 0.24, 1500.0, 350.0, 0.01)
+	s.reverb(0.4, 0.5)
+	s.noise(0.36, 0.04, 0.9, 0.01, 4000.0, 2200.0, 0.001, 900.0)
+	s.noise(0.47, 0.05, 1.1, 0.012, 3500.0, 1800.0, 0.001, 700.0)
 
 
 func _make_machinegun(s: Synth) -> void:
-	s.length(0.13)
-	s.drive = 1.5
-	s.noise(0.0, 0.12, 0.9, 0.02, 9500.0, 2600.0, 0.001, 350.0)
-	s.tone(0.0, 0.06, 0.55, 820.0, 230.0, 0.018, Synth.SQUARE)
-	s.tone(0.0, 0.1, 0.45, 230.0, 95.0, 0.03)
+	# Short and dry so rapid fire becomes a rattle, with a metallic bolt clack.
+	s.length(0.3)
+	s.drive = 1.8
+	s.noise(0.0, 0.02, 2.2, 0.004, 10000.0, 6000.0, 0.0003, 2500.0)
+	s.noise(0.0, 0.12, 2.2, 0.022, 6000.0, 1500.0, 0.0005, 200.0)
+	s.tone(0.0, 0.08, 0.32, 160.0, 75.0, 0.025)
+	s.noise(0.035, 0.03, 0.8, 0.006, 5000.0, 3000.0, 0.0005, 1500.0)
+	s.noise(0.01, 0.25, 0.28, 0.09, 2500.0, 700.0, 0.008)
+	s.reverb(0.22, 0.2)
 
 
 func _make_launcher(s: Synth) -> void:
-	s.length(0.38)
-	s.drive = 1.4
-	s.tone(0.0, 0.3, 1.0, 340.0, 68.0, 0.085)
-	s.noise(0.0, 0.2, 0.5, 0.045, 1900.0, 380.0)
-	s.noise(0.01, 0.35, 0.22, 0.14, 3200.0, 900.0, 0.01, 700.0)
+	# A grenade launcher really is a hollow, low "thoomp" and a puff of air.
+	s.length(0.5)
+	s.drive = 1.5
+	s.tone(0.0, 0.3, 0.7, 210.0, 90.0, 0.08)
+	s.noise(0.0, 0.2, 2.0, 0.04, 1800.0, 450.0, 0.001)
+	s.noise(0.0, 0.08, 1.2, 0.02, 3500.0, 900.0, 0.0005, 300.0)
+	s.noise(0.01, 0.3, 0.5, 0.1, 2600.0, 800.0, 0.01, 500.0)
+	s.reverb(0.25, 0.3)
 
 
 func _make_explosion(s: Synth) -> void:
-	s.length(1.15)
+	s.length(1.6)
 	s.drive = 2.6
-	s.noise(0.0, 1.0, 1.0, 0.26, 6500.0, 140.0)
+	s.noise(0.0, 0.04, 0.8, 0.01, 9000.0, 4000.0, 0.0003, 1500.0)
+	s.noise(0.0, 1.0, 1.0, 0.26, 6500.0, 140.0, 0.0005)
 	s.noise(0.0, 1.1, 0.75, 0.5, 520.0, 75.0)
-	s.tone(0.0, 0.9, 1.0, 115.0, 27.0, 0.3)
-	s.noise(0.0, 0.05, 0.6, 0.012, 9000.0, 4000.0)
+	s.tone(0.0, 0.9, 1.0, 110.0, 27.0, 0.3)
+	s.reverb(0.35, 0.9, 1800.0)
 
 
 func _make_sledge_swing(s: Synth) -> void:
@@ -359,23 +412,25 @@ func _make_sledge_swing(s: Synth) -> void:
 func _make_sledge_hit(s: Synth) -> void:
 	s.length(0.34)
 	s.drive = 2.1
-	s.tone(0.0, 0.3, 1.0, 155.0, 44.0, 0.09)
-	s.noise(0.0, 0.2, 0.8, 0.03, 3600.0, 550.0)
-	s.noise(0.008, 0.05, 0.45, 0.008, 9000.0, 5000.0, 0.001, 2200.0)
-	s.tone(0.0, 0.07, 0.35, 520.0, 180.0, 0.02, Synth.TRIANGLE)
+	s.tone(0.0, 0.3, 0.8, 155.0, 44.0, 0.09)
+	s.noise(0.0, 0.2, 2.0, 0.03, 3600.0, 550.0, 0.0005)
+	s.noise(0.008, 0.05, 1.0, 0.008, 9000.0, 5000.0, 0.001, 2200.0)
+	s.reverb(0.2, 0.25)
 
 
 func _make_ricochet(s: Synth) -> void:
-	s.length(0.16)
-	s.tone(0.0, 0.15, 0.6, 2600.0, 950.0, 0.04)
-	s.noise(0.0, 0.03, 0.5, 0.006, 9000.0, 5000.0, 0.001, 2500.0)
+	# A bullet smacking stone: a hard tick and a little grit, no whine.
+	s.length(0.2)
+	s.noise(0.0, 0.03, 1.0, 0.006, 9000.0, 5000.0, 0.0003, 2500.0)
+	s.noise(0.0, 0.12, 0.5, 0.025, 4500.0, 1500.0, 0.0005, 900.0)
+	s.reverb(0.2, 0.15)
 
 
 func _make_zombie_hit(s: Synth) -> void:
 	s.length(0.11)
 	s.drive = 1.3
-	s.noise(0.0, 0.1, 0.8, 0.02, 2300.0, 480.0)
-	s.tone(0.0, 0.08, 0.5, 270.0, 110.0, 0.024)
+	s.noise(0.0, 0.1, 2.0, 0.02, 2300.0, 480.0, 0.0005)
+	s.tone(0.0, 0.08, 0.35, 150.0, 80.0, 0.024)
 
 
 func _make_zombie_die(s: Synth) -> void:

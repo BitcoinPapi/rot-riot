@@ -86,17 +86,25 @@ func _spawn_pack() -> void:
 	size = mini(size, Config.MAX_ENEMIES_ALIVE - enemies.alive_count)
 	if size <= 0:
 		return
-	var anchor := game.arena.random_spawn_point()
 	var safe_zone := game.arena.rect.grow(Config.SPAWN_DIST_MIN * 0.7)
-	var spread := 50.0 + size * 8.0
 	# Now and then a whole pack of runners sprints in together.
 	var runner_pack := wave > Config.RUNNER_START_WAVE and randf() < Config.RUNNER_PACK_CHANCE
-	for k in size:
-		var at := anchor + Vector2.from_angle(randf() * TAU) * (randf() * spread)
-		if safe_zone.has_point(at):
-			at = anchor      # never pop into view inside the clearing
-		var kind: int = Config.RUNNER if runner_pack else _pick_kind()
-		enemies.spawn(kind, at, game.enemy_hp_mult, game.enemy_speed_mult)
+	# Later waves split each pack over several directions, so hordes close in
+	# from all around instead of trailing behind the player.
+	var sides := mini(Config.wave_pack_sides(wave), maxi(int(size / 3.0), 1))
+	var left := size
+	for side in sides:
+		var group := left if side == sides - 1 else int(ceil(float(size) / sides))
+		group = mini(group, left)
+		left -= group
+		var anchor := game.arena.random_spawn_point()
+		var spread := 50.0 + group * 8.0
+		for k in group:
+			var at := anchor + Vector2.from_angle(randf() * TAU) * (randf() * spread)
+			if safe_zone.has_point(at):
+				at = anchor      # never pop into view inside the clearing
+			var kind: int = Config.RUNNER if runner_pack else _pick_kind()
+			enemies.spawn(kind, at, game.enemy_hp_mult, game.enemy_speed_mult)
 	to_spawn -= size
 
 

@@ -112,10 +112,11 @@ Brute (tank, resists knockback and stagger), boss "The Gorger" every 5th wave
 (charge with a telegraphed wind-up, dazed afterwards; summons shamblers out of
 the ground; +60% HP each time it returns).
 
-**Waves** (`Config.wave_*` helpers): count = 16 + 9(w-1) + 0.9(w-1)^2, capped
-at 420 per wave and 240 alive. Zombies arrive in packs from one point on the
-tree line so they form hordes; pack size and rate grow with the wave; +5% HP
-and +1.2% speed per wave. Clearing a wave pays a coin bonus.
+**Waves** (`Config.wave_*` helpers): count = 22 + 13(w-1) + 1.5(w-1)^2, capped
+at 500 per wave and 240 alive. Zombies arrive in packs from the tree line so
+they form hordes; pack size and rate grow with the wave, and every 3 waves the
+packs come from one more direction at once (up to 4) so hordes surround the
+player; +8% HP and +2% speed per wave. Clearing a wave pays a coin bonus.
 
 **Score / combo:** each kill within 2.5 s of the last raises the combo, which
 multiplies score (up to x3). Taking damage resets it.
@@ -177,11 +178,56 @@ effects were ~280 draw calls. Not yet measured on the owner's hardware.
 ## Not verified yet (needs a human)
 
 - How it actually feels to play - all feel values are first guesses.
-- How the synthesised sounds sound; they were only checked numerically
-  (length, loudness, brightness), never listened to.
+- How the synthesised sounds sound; Claude can only check them numerically
+  (length, loudness, brightness, how tonal they are), never listen. Owner
+  feedback on v1: guns "sounded like lasers" (cause: fast high-to-low pitch
+  sweeps). v2 guns are noise crack + body + low thump + echo tail with no
+  sweeps above ~200 Hz; not yet heard by the owner. Never add gliding tones
+  above ~200 Hz to a gun sound.
 - A physical gamepad (only simulated gamepad events were tested).
 - The exported Windows .exe and macOS .app on real Windows / macOS machines
   (exports succeed and the exported game data passes the autotest on Linux).
+
+## Owner feedback so far (after the first playtest, Nov 2026)
+
+- Loved: the gore, corpses/blood/casings staying on the ground, the shooting.
+- Rage shook the screen too much -> `RAGE_SHAKE_MULT` (done).
+- Guns sounded like lasers -> rebuilt (done, awaiting feedback).
+- Far too easy (reached wave 15 on the first run and had to die on purpose)
+  and upgrades far too cheap -> first difficulty/economy pass done: bigger
+  and faster waves from several sides, tougher zombies, upgrade prices x3.
+  The test bot now dies on waves 5-7. Expect more tuning.
+
+## Roadmap (owner's requests, in the agreed build order)
+
+Build one stage at a time; the owner plays each before the next starts.
+
+1. **Progression core.** New save format. Character level (XP from kills)
+   that raises base stats. One stat pipeline everything feeds into: max
+   health, strength (damage), move speed, defense, evasion, fire rate, ...
+   Coin upgrades become incremental with no real ceiling ("you can always get
+   stronger"), with a much slower economy. Per-weapon upgrade tracks: power,
+   spawn rate (how often its crate appears), stability (spread/recoil),
+   shooting speed, duration.
+2. **Weapons.** More weapons. Crate rarity tiers (the launcher must be rarer
+   than the machine gun). Dual wielding two of the same gun.
+3. **Gear.** Character screen in the style of an action-RPG paper doll:
+   helmet, chest, gloves, boots, pants, belt, two rings, amulet. Items drop
+   rarely from zombies (never a flood); some pieces only from bosses. Merge
+   two identical items of the same colour to get the next tier. Five tiers
+   (five colours). Attempts for tier 4 and tier 5 can destroy the item;
+   tier 5 succeeds 10% of the time.
+4. **Big-map engine.** Much bigger maps (a large "farming map"), fog of war
+   that clears as the player explores, a minimap, treasure chests to find
+   each round that give gear. Needs: spawning around the player instead of
+   at the map edge, and the decal layer split into chunks (one never-cleared
+   viewport cannot cover a huge map).
+5. **Five themed maps**, each telling a story through its scenery: forest
+   campsite, abandoned farm, graveyard, crashed-convoy highway, quarantine
+   lab. Map select + unlock order.
+6. **Many more enemy types** (ongoing).
+
+Design rule from the owner: progression must feel incremental and endless.
 
 ## Later / ideas
 
