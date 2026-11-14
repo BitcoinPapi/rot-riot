@@ -1,0 +1,15 @@
+# Godot 4 generated files
+.godot/
+*.translation
+
+# Exported builds
+build/
+*.exe
+*.pck
+*.dmg
+*.app
+*.zip
+
+# OS junk
+.DS_Store
+Thumbs.db
