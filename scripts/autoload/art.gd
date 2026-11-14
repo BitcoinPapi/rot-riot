@@ -147,6 +147,16 @@ func _build() -> void:
 	_svg("glow", 64, 64, SVG_GLOW)
 	_svg("ring", 128, 128, "<circle r=\"58\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"5\"/>")
 
+	# --- upgrade trees: node shapes and small symbols (white, tinted when drawn) ---
+	_svg("node_fill", 64, 64, "<circle r=\"29\" fill=\"#ffffff\"/>")
+	_svg("node_ring", 64, 64, "<circle r=\"27\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"6\"/>")
+	_svg("node_diamond", 64, 64, "<path d=\"M0 -30 L30 0 L0 30 L-30 0Z\" fill=\"#ffffff\"/>")
+	_svg("node_diamond_ring", 64, 64, "<path d=\"M0 -27 L27 0 L0 27 L-27 0Z\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"6\" stroke-linejoin=\"round\"/>")
+	_svg("node_hex", 64, 64, "<path d=\"M-15 -26 L15 -26 L30 0 L15 26 L-15 26 L-30 0Z\" fill=\"#ffffff\"/>")
+	_svg("node_hex_ring", 64, 64, "<path d=\"M-13.5 -23.5 L13.5 -23.5 L27 0 L13.5 23.5 L-13.5 23.5 L-27 0Z\" fill=\"none\" stroke=\"#ffffff\" stroke-width=\"6\" stroke-linejoin=\"round\"/>")
+	for symbol: String in SYMBOLS.keys():
+		_svg(symbol, 40, 40, SYMBOLS[symbol])
+
 	# Soft screen-edge vignette used by the HUD (tinted red when hurt).
 	var gradient := Gradient.new()
 	gradient.offsets = PackedFloat32Array([0.0, 0.55, 1.0])
@@ -740,6 +750,29 @@ const SVG_GRENADE := """
 <circle r="5.2" fill="#59752f"/>
 <circle cx="-1.6" cy="-1.6" r="1.7" fill="#b8d67a"/>
 """
+
+# Small white symbols for the upgrade trees (40x40, drawn tinted).
+const SYMBOLS := {
+	"stat_vitality": "<path d=\"M0 15 C-21 1 -16 -15 -7 -15 C-3 -15 0 -12 0 -9 C0 -12 3 -15 7 -15 C16 -15 21 1 0 15Z\" fill=\"#fff\"/>",
+	"stat_strength": "<path d=\"M0 -18 L4.5 -11 L4.5 4 L-4.5 4 L-4.5 -11Z\" fill=\"#fff\"/><rect x=\"-10\" y=\"4\" width=\"20\" height=\"4\" rx=\"1.5\" fill=\"#fff\"/><rect x=\"-2.2\" y=\"8\" width=\"4.4\" height=\"7\" fill=\"#fff\"/><circle cy=\"16.5\" r=\"2.8\" fill=\"#fff\"/>",
+	"stat_dexterity": "<path d=\"M5 -18 L-10 2 L-1.5 2 L-6 18 L11 -4 L2 -4Z\" fill=\"#fff\"/>",
+	"stat_agility": "<path d=\"M-15 -12 L-4 0 L-15 12 L-8.5 12 L2.5 0 L-8.5 -12Z\" fill=\"#fff\"/><path d=\"M-2 -12 L9 0 L-2 12 L4.5 12 L15.5 0 L4.5 -12Z\" fill=\"#fff\"/>",
+	"stat_defense": "<path d=\"M0 -17 L14 -12 L14 0 C14 9 7 14.5 0 18 C-7 14.5 -14 9 -14 0 L-14 -12Z\" fill=\"#fff\"/>",
+	"stat_evasion": "<path d=\"M-12 16 L-12 -3 C-12 -21 12 -21 12 -3 L12 16 L7 11 L2.5 16 L-2.5 11 L-7 16Z\" fill=\"#fff\"/><circle cx=\"-4.5\" cy=\"-4\" r=\"2.6\" fill=\"#000\" fill-opacity=\"0.75\"/><circle cx=\"4.5\" cy=\"-4\" r=\"2.6\" fill=\"#000\" fill-opacity=\"0.75\"/>",
+	"stat_critical": "<circle r=\"10.5\" fill=\"none\" stroke=\"#fff\" stroke-width=\"3.2\"/><path d=\"M0 -18 V-7 M0 7 V18 M-18 0 H-7 M7 0 H18\" stroke=\"#fff\" stroke-width=\"3.2\" stroke-linecap=\"round\"/><circle r=\"2.4\" fill=\"#fff\"/>",
+	"stat_luck": "<circle cx=\"-6\" cy=\"-7\" r=\"6.6\" fill=\"#fff\"/><circle cx=\"6\" cy=\"-7\" r=\"6.6\" fill=\"#fff\"/><circle cx=\"-6\" cy=\"4\" r=\"6.6\" fill=\"#fff\"/><circle cx=\"6\" cy=\"4\" r=\"6.6\" fill=\"#fff\"/><path d=\"M0 2 C1 9 3 14 7 17\" fill=\"none\" stroke=\"#fff\" stroke-width=\"3\" stroke-linecap=\"round\"/>",
+	"ui_star": "<path d=\"M0 -18 L5.3 -5.6 L18.5 -5.6 L7.8 2.6 L11.4 15.5 L0 7.8 L-11.4 15.5 L-7.8 2.6 L-18.5 -5.6 L-5.3 -5.6Z\" fill=\"#fff\"/>",
+	"ui_infinity": "<path d=\"M0 0 C-4 -9 -16 -9 -16 0 C-16 9 -4 9 0 0 C4 -9 16 -9 16 0 C16 9 4 9 0 0Z\" fill=\"none\" stroke=\"#fff\" stroke-width=\"4\"/>",
+	"ui_lock": "<rect x=\"-11\" y=\"-3\" width=\"22\" height=\"18\" rx=\"3\" fill=\"#fff\"/><path d=\"M-7 -3 V-8 C-7 -18 7 -18 7 -8 V-3\" fill=\"none\" stroke=\"#fff\" stroke-width=\"3.6\"/><circle cy=\"5\" r=\"2.6\" fill=\"#000\" fill-opacity=\"0.7\"/>",
+	"ui_person": "<circle cy=\"-8\" r=\"7.5\" fill=\"#fff\"/><path d=\"M-14 17 C-14 2 14 2 14 17Z\" fill=\"#fff\"/>",
+	"track_power": "<path d=\"M0 -18 L4 -6 L16 -10 L8 0 L16 10 L4 6 L0 18 L-4 6 L-16 10 L-8 0 L-16 -10 L-4 -6Z\" fill=\"#fff\"/>",
+	"track_speed": "<path d=\"M5 -18 L-10 2 L-1.5 2 L-6 18 L11 -4 L2 -4Z\" fill=\"#fff\"/>",
+	"track_stability": "<circle r=\"10.5\" fill=\"none\" stroke=\"#fff\" stroke-width=\"3.2\"/><path d=\"M0 -18 V-7 M0 7 V18 M-18 0 H-7 M7 0 H18\" stroke=\"#fff\" stroke-width=\"3.2\" stroke-linecap=\"round\"/><circle r=\"2.4\" fill=\"#fff\"/>",
+	"track_reload": "<path d=\"M12 -6 A13.5 13.5 0 1 0 13.5 3\" fill=\"none\" stroke=\"#fff\" stroke-width=\"4\" stroke-linecap=\"round\"/><path d=\"M5 -9 L16 -3 L15 -16Z\" fill=\"#fff\"/>",
+	"track_spawn": "<rect x=\"-14\" y=\"-12\" width=\"28\" height=\"24\" rx=\"2.5\" fill=\"none\" stroke=\"#fff\" stroke-width=\"3.4\"/><path d=\"M-14 -12 L14 12 M14 -12 L-14 12\" stroke=\"#fff\" stroke-width=\"3\"/>",
+	"track_duration": "<path d=\"M-10 -17 H10 M-10 17 H10\" stroke=\"#fff\" stroke-width=\"3.4\" stroke-linecap=\"round\"/><path d=\"M-8 -15 C-8 -5 0 -3 0 0 C0 -3 8 -5 8 -15Z M-8 15 C-8 5 0 3 0 0 C0 3 8 5 8 15Z\" fill=\"#fff\"/>",
+	"ui_perk": "<path d=\"M0 -18 L15.6 -9 L15.6 9 L0 18 L-15.6 9 L-15.6 -9Z\" fill=\"none\" stroke=\"#fff\" stroke-width=\"3.4\" stroke-linejoin=\"round\"/><path d=\"M0 -9 L2.7 -2.9 L9.3 -2.9 L3.9 1.3 L5.7 7.8 L0 3.9 L-5.7 7.8 L-3.9 1.3 L-9.3 -2.9 L-2.7 -2.9Z\" fill=\"#fff\"/>",
+}
 
 const SVG_COIN := """
 <circle r="8.2" fill="#6b4700"/>

@@ -56,10 +56,9 @@ func _ready() -> void:
 			for i in int(_args["level"]) - 1:
 				SaveData.add_xp(SaveData.xp_needed())
 			SaveData.add_xp(int(SaveData.xp_needed() * 0.4))
-			for i in 3:
-				SaveData.raise_passive("vitality")
-				SaveData.raise_passive("strength")
-			SaveData.raise_passive("evasion")
+			for id: String in ["vitality.0", "vitality.1", "vitality.2", "strength.0", "strength.1", "strength.2",
+					"strength.t0.0", "evasion.0", "vitality-strength.a0.0", "vitality.3"]:
+				SaveData.learn_node(id)
 			SaveData.add_weapon_xp("pistol", 2500)
 			SaveData.add_weapon_xp("shotgun", 900)
 			SaveData.add_weapon_xp("launcher", 200)
@@ -187,9 +186,28 @@ func _open_screen(app: Main, screen: String) -> void:
 				_finish_wave(app.game, Config.WAVES_PER_MAP)
 		_:
 			app.open_screen(screen)
+			if screen == "character":
+				_aim_tree(((app.get("_screens") as Dictionary)["character"] as CharacterScreen).get("_tree"))
 			if screen == "armory" and _args.has("armory-weapon"):
 				var screens: Dictionary = app.get("_screens")
 				(screens["armory"] as ArmoryScreen).call("_select", String(_args["armory-weapon"]))
+
+
+## For screenshots of a tree: --tree-node=ID highlights a node and looks at
+## it, --tree-zoom=N sets the zoom (0 = show everything).
+func _aim_tree(tree: TreeView) -> void:
+	await _frames(2)     # (the screen has to be laid out first)
+	if _args.has("tree-node"):
+		var id := String(_args["tree-node"])
+		tree.select(id)
+		var nodes: Dictionary = tree.get("_nodes")
+		if nodes.has(id):
+			tree.look_at_point(nodes[id]["pos"], tree.zoom)
+	if _args.has("tree-zoom"):
+		if float(_args["tree-zoom"]) <= 0.0:
+			tree.fit()
+		else:
+			tree.look_at_point(tree.get("_cam"), float(_args["tree-zoom"]))
 
 
 ## Pretend the player just killed the last zombie of `wave`.
@@ -291,21 +309,82 @@ func _run_autotest() -> void:
 	await _frames(2)
 	_check(is_equal_approx(float(SaveData.get_setting("master_volume")), 0.5), "settings change is stored")
 
-	# --- character screen: skill points and passive stats ---
+	# --- character screen: skill points and the skill tree ---
 	app.open_screen("character")
 	await _frames(3)
-	_check(not SaveData.raise_passive("strength"), "cannot raise a stat with 0 skill points")
+	var character: CharacterScreen = (app.get("_screens") as Dictionary)["character"]
+	_check(not SaveData.learn_node("strength.0"), "cannot learn a node with 0 skill points")
 	_check(not SaveData.buy_skill_point(), "cannot buy a skill point with 0 coins")
 	SaveData.add_coins(1000)
 	var before := SaveData.coins
 	var price := SaveData.skill_point_price()
 	_check(SaveData.buy_skill_point() and SaveData.skill_points == 1, "coins buy a skill point")
 	_check(SaveData.coins == before - price and SaveData.skill_point_price() > price, "the price is paid and the next point costs more")
-	_check(SaveData.raise_passive("vitality") and SaveData.passive_rank("vitality") == 1 and SaveData.skill_points == 0,
-			"a skill point raises a passive stat")
+	_check(not SaveData.learn_node("vitality.1"), "a node that touches nothing learned cannot be learned")
+	character.call("_on_node_activated", "vitality.0")
+	_check(SaveData.node_count("vitality.0") == 1 and SaveData.passive_rank("vitality") == 1 and SaveData.skill_points == 0,
+			"a skill point learns a node next to the middle")
 	SaveData.buy_skill_point()
-	SaveData.raise_passive("strength")
+	SaveData.learn_node("strength.0")
 	_check(SaveData.spent_points() == 2, "spent points are counted")
+	await _frames(3)
+
+	# The tree itself: one web, nothing overlapping.
+	var tree_nodes := SkillTree.nodes()
+	var reached := {"start": true}
+	var todo: Array[String] = ["start"]
+	while not todo.is_empty():
+		var at: String = todo.pop_back()
+		for other: String in tree_nodes[at]["links"]:
+			if not reached.has(other):
+				reached[other] = true
+				todo.append(other)
+	_check(reached.size() == tree_nodes.size() and tree_nodes.size() >= 200, "the skill tree is one connected web (%d nodes)" % tree_nodes.size())
+	var closest := INF
+	var tree_ids := SkillTree.order()
+	for i in tree_ids.size():
+		for j in range(i + 1, tree_ids.size()):
+			closest = minf(closest, (tree_nodes[tree_ids[i]]["pos"] as Vector2).distance_to(tree_nodes[tree_ids[j]]["pos"]))
+	_check(closest >= 34.0, "no two nodes of the tree overlap (closest pair %.0f px apart)" % closest)
+
+	# Level gates, sealed nodes, keystones and endless nodes (on a borrowed, richer character).
+	var keep_tree := SaveData.tree.duplicate()
+	var keep_points := SaveData.skill_points
+	SaveData.skill_points = 500
+	SaveData.learn_node("strength.1")
+	SaveData.learn_node("strength.2")
+	_check(SaveData.passive_rank("strength") == 2 * Config.TREE_SMALL_RANKS + Config.TREE_NOTABLE_RANKS, "a big node gives several ranks at once")
+	_check(SaveData.node_status("strength.3") == SkillTree.LEVEL and not SaveData.learn_node("strength.3"),
+			"the next ring needs a higher character level")
+	_check(SaveData.learn_node("strength-dexterity.a0.0") and SaveData.learn_node("dexterity.2") and SaveData.passive_rank("dexterity") > 0,
+			"an arc crosses over to the next branch")
+	SaveData.level = 30
+	for id: String in ["vitality.1", "vitality.2", "vitality.3", "vitality.4", "vitality.t1.0"]:
+		SaveData.learn_node(id)
+	_check(SaveData.node_status("vitality.t1.1") == SkillTree.SEALED and not SaveData.learn_node("vitality.t1.1"),
+			"a sealed node stays locked until its deed is done")
+	SaveData.map_best[0] = int(SkillTree.nodes()["vitality.t1.1"]["deed"]["value"])
+	_check(SaveData.learn_node("vitality.t1.1"), "...and opens once it is")
+	SaveData.map_best[0] = 0
+	for k in range(3, 12):
+		SaveData.learn_node("strength.%d" % k)
+	_check(SaveData.node_count("strength.11") == 1 and SaveData.node_status("strength.key") == SkillTree.SEALED, "keystones are sealed too")
+	SaveData.total_kills = 999999
+	_check(SaveData.learn_node("strength.key") and SaveData.has_keystone("strength") and PlayerStats.current().wounded_damage > 0.0,
+			"a keystone gives its special power")
+	SaveData.total_kills = 0
+	var endless_before := SaveData.passive_rank("strength")
+	for i in Config.TREE_MASTERY_COST_STEP + 1:
+		SaveData.learn_node("strength.mastery")
+	_check(SaveData.node_count("strength.mastery") == Config.TREE_MASTERY_COST_STEP + 1
+			and SaveData.passive_rank("strength") == endless_before + (Config.TREE_MASTERY_COST_STEP + 1) * Config.TREE_MASTERY_RANKS
+			and SaveData.node_cost("strength.mastery") > Config.TREE_MASTERY_COST, "an endless node can be learned again and again, at a rising price")
+	_check(SaveData.spent_points() == 500 - SaveData.skill_points + 2, "every point spent in the tree is accounted for")
+	await _frames(3)
+	SaveData.tree = keep_tree
+	SaveData.call("_recount_tree")
+	SaveData.skill_points = keep_points
+	SaveData.level = 1
 	app.close_screen()
 	await _frames(2)
 
@@ -338,11 +417,11 @@ func _run_autotest() -> void:
 	# --- defense, evasion, level up (checked directly, before the fighting starts) ---
 	game.director.intermission = 99999.0
 	var hp_before := game.player.hp
-	SaveData.passives["defense"] = 50          # 50 ranks = 40% less damage
+	SaveData.bonus_ranks["defense"] = 50       # 50 ranks = 40% less damage
 	game.player.refresh_stats()
 	game.damage_player(10.0, game.player.pos + Vector2.RIGHT)
 	_check(is_equal_approx(hp_before - game.player.hp, 6.0), "defense reduces damage taken (10 -> %.1f)" % (hp_before - game.player.hp))
-	SaveData.passives["defense"] = 0
+	SaveData.bonus_ranks.erase("defense")
 	game.player.refresh_stats()
 	game.player.stats.evasion = 1.0
 	game.player.invuln = 0.0
@@ -562,7 +641,14 @@ func _run_autotest() -> void:
 	GameInput.clear_virtual_input()
 	var coins_in_run := game.coins_run
 	var saved_coins := SaveData.coins
+	# The SECOND WIND keystone turns the first killing blow into a second chance.
+	game.player.stats.second_wind = 0.3
+	game.player.stats.evasion = 0.0
 	game.player.invuln = 0.0     # (a zombie may have just hit the bot; skip the safety window)
+	game.damage_player(99999.0, game.player.pos + Vector2.RIGHT)
+	_check(game.state == Game.State.PLAYING and game.player.second_wind_used and is_equal_approx(game.player.hp, game.player.max_hp * 0.3),
+			"SECOND WIND survives one killing blow")
+	game.player.invuln = 0.0
 	game.damage_player(99999.0, game.player.pos + Vector2.RIGHT)
 	_check(game.state == Game.State.DYING, "player dies at 0 health")
 	waited = 0
@@ -665,9 +751,9 @@ func _run_autotest() -> void:
 	SaveData.add_coins(100000)
 	var spent := SaveData.spent_points()
 	var unspent := SaveData.skill_points
-	_check(spent > 0 and SaveData.respec() and SaveData.skill_points == unspent + spent and SaveData.passive_rank("vitality") == 0,
-			"resetting gives every spent skill point back")
-	SaveData.raise_passive("evasion")
+	_check(spent > 0 and SaveData.respec() and SaveData.skill_points == unspent + spent and SaveData.passive_rank("vitality") == 0
+			and SaveData.tree.is_empty(), "resetting gives every spent skill point back")
+	SaveData.learn_node("evasion.0")
 
 	# --- save file round trip ---
 	var coins_now := SaveData.coins
@@ -681,8 +767,9 @@ func _run_autotest() -> void:
 	SaveData.load_game()
 	_check(SaveData.coins == coins_now and SaveData.level == level_now and SaveData.xp == xp_now and SaveData.skill_points == points_now,
 			"save file restores coins, level, XP and skill points")
-	_check(SaveData.passive_rank("evasion") == 1 and SaveData.weapon_rank("shotgun", "power") == shotgun_power
-			and SaveData.weapon_level("pistol") == pistol_level, "save file restores passive ranks and weapon levels")
+	_check(SaveData.passive_rank("evasion") == 1 and SaveData.node_count("evasion.0") == 1
+			and SaveData.weapon_rank("shotgun", "power") == shotgun_power
+			and SaveData.weapon_level("pistol") == pistol_level, "save file restores the skill tree and weapon levels")
 	_check(SaveData.maps_unlocked == 2 and SaveData.map_cleared(0) and SaveData.selected_map == 1,
 			"save file restores map progress")
 
@@ -694,6 +781,24 @@ func _run_autotest() -> void:
 	SaveData.load_game()
 	_check(SaveData.weapon_rank("sledge", "stability") == 0 and SaveData.weapon_points("sledge") == sledge_points + 3,
 			"points spent on an upgrade a weapon no longer has are refunded")
+
+	# --- a save from before the skill tree: the points spent on the old stat list come back ---
+	var flat_file := FileAccess.open(SaveData.save_path, FileAccess.WRITE)
+	flat_file.store_string(JSON.stringify({"version": 2, "coins": 55, "level": 9, "skill_points": 3,
+			"passives": {"vitality": 12, "strength": 4}}))
+	flat_file.close()
+	SaveData.call("_reset_to_defaults")
+	SaveData.load_game()
+	_check(SaveData.points_returned == 10 + 2 * 2 + 4 and SaveData.skill_points == 3 + SaveData.points_returned and SaveData.tree.is_empty(),
+			"a save from before the skill tree gets its spent points back (%d)" % SaveData.points_returned)
+	# ...and a tree whose learned nodes no longer join up is handed back whole.
+	SaveData.tree = {"vitality.0": 1, "vitality.5": 1}
+	SaveData.skill_points = 0
+	SaveData.save_game()
+	SaveData.call("_reset_to_defaults")
+	SaveData.load_game()
+	_check(SaveData.tree.is_empty() and SaveData.skill_points == SaveData.points_returned and SaveData.points_returned == 1 + 4,
+			"a broken tree is refunded instead of kept")
 
 	# --- an old (version 1) save: coins and upgrades are wiped once, records kept ---
 	var old_file := FileAccess.open(SaveData.save_path, FileAccess.WRITE)
@@ -904,6 +1009,62 @@ func _run_inputtest() -> void:
 	_mouse_move(view * 0.3)
 	await _frames(3)
 	_check(GameInput.device == GameInput.Device.KEYBOARD_MOUSE, "moving the mouse switches back to keyboard+mouse")
+
+	# --- the skill tree: keys, gamepad and mouse ---
+	app.pause_game()
+	await _frames(2)
+	app.quit_to_menu()
+	await _frames(3)
+	SaveData.skill_points = 3
+	app.open_screen("character")
+	await _frames(4)
+	var tree: TreeView = ((app.get("_screens") as Dictionary)["character"] as CharacterScreen).get("_tree")
+	_check(tree.has_focus() and tree.selected == "start", "the skill tree opens on the middle node")
+	_key(KEY_RIGHT, true)
+	await _frames(2)
+	_key(KEY_RIGHT, false)
+	await _frames(2)
+	_check(tree.selected == "dexterity.0", "the arrow keys walk from node to node (now on '%s')" % tree.selected)
+	_key(KEY_ENTER, true)
+	await _frames(2)
+	_key(KEY_ENTER, false)
+	await _frames(2)
+	_check(SaveData.node_count("dexterity.0") == 1 and SaveData.skill_points == 2, "Enter learns the highlighted node")
+	_pad_button(JOY_BUTTON_DPAD_RIGHT, true)
+	await _frames(2)
+	_pad_button(JOY_BUTTON_DPAD_RIGHT, false)
+	await _frames(2)
+	_pad_button(JOY_BUTTON_A, true)
+	await _frames(2)
+	_pad_button(JOY_BUTTON_A, false)
+	await _frames(2)
+	_check(tree.selected == "dexterity.1" and SaveData.node_count("dexterity.1") == 1, "the gamepad walks the tree and A learns")
+	await _frames(20)      # (let the view finish gliding to the node)
+	var cam: Vector2 = tree.get("_cam")
+	var node_pos: Vector2 = SkillTree.nodes()["vitality.0"]["pos"]
+	# (Fake mouse events are given in window pixels; without a real display
+	# the window is not the size of the game's canvas, so convert. The window
+	# also has to be told that the mouse is over it.)
+	var on_screen: Vector2 = get_viewport().get_final_transform() * (tree.global_position + tree.size * 0.5 + (node_pos - cam) * tree.zoom)
+	get_viewport().notification(NOTIFICATION_VP_MOUSE_ENTER)
+	_mouse_move(on_screen)
+	await _frames(2)
+	_check(tree.selected == "vitality.0", "pointing at a node highlights it")
+	_mouse_button(MOUSE_BUTTON_LEFT, true, on_screen)
+	await _frames(2)
+	_mouse_button(MOUSE_BUTTON_LEFT, false, on_screen)
+	await _frames(2)
+	_check(SaveData.node_count("vitality.0") == 1 and SaveData.skill_points == 0, "clicking a node learns it")
+	var zoom_before := tree.zoom
+	_mouse_button(MOUSE_BUTTON_WHEEL_UP, true, on_screen)
+	await _frames(2)
+	_mouse_button(MOUSE_BUTTON_WHEEL_UP, false, on_screen)
+	_check(tree.zoom > zoom_before, "the mouse wheel zooms the tree")
+	_key(KEY_ESCAPE, true)
+	await _frames(2)
+	_key(KEY_ESCAPE, false)
+	await _frames(3)
+	_check(app.state == Main.State.MENU and tree.is_visible_in_tree() == false, "Esc leaves the skill tree")
 
 	if _auto_failures.is_empty():
 		print("INPUTTEST PASSED")

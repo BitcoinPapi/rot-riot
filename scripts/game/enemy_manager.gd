@@ -474,6 +474,8 @@ func damage(e: Enemy, amount: float, dir: Vector2, knockback: float, stagger: fl
 		source: String = "", crit: bool = false) -> bool:
 	if not e.alive:
 		return false
+	if e.wounded:
+		amount *= 1.0 + game.player.stats.wounded_damage      # EXECUTIONER keystone
 	e.hp -= amount
 	if not e.wounded and e.hp > 0.0 and e.hp < e.max_hp * Config.WOUNDED_AT:
 		_wound(e)

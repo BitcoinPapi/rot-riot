@@ -71,6 +71,11 @@ func opened() -> void:
 			SaveData.best_score, SaveData.total_kills]
 	else:
 		_stats.text = "WASD move  -  MOUSE aim  -  LEFT CLICK shoot  -  R reload  -  SPACE rage  (gamepad works too)"
-	_notice.text = "New progression system: your old coins and upgrades were reset." if SaveData.was_reset_by_update else ""
-	_notice.visible = SaveData.was_reset_by_update
+	if SaveData.was_reset_by_update:
+		_notice.text = "New progression system: your old coins and upgrades were reset."
+	elif SaveData.points_returned > 0 and SaveData.skill_points > 0:
+		_notice.text = "The skill tree is new: your %d skill points are waiting on the CHARACTER screen." % SaveData.skill_points
+	else:
+		_notice.text = ""
+	_notice.visible = _notice.text != ""
 	_first.grab_focus()

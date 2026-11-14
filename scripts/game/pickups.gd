@@ -148,7 +148,8 @@ func tick(dt: float) -> void:
 	_coin_streak_t -= dt
 	if _coin_streak_t <= 0.0:
 		_coin_streak = 0
-	var magnet2: float = Config.COIN_MAGNET_RADIUS * Config.COIN_MAGNET_RADIUS
+	var magnet: float = Config.COIN_MAGNET_RADIUS * player.stats.magnet_mult
+	var magnet2 := magnet * magnet
 	var pick2: float = Config.COIN_PICKUP_RADIUS * Config.COIN_PICKUP_RADIUS
 	var magnet_speed: float = Config.COIN_MAGNET_SPEED
 	var keep := maxf(1.0 - 5.0 * dt, 0.0)
@@ -184,7 +185,7 @@ func tick(dt: float) -> void:
 	if game.state == Game.State.PLAYING:
 		_crate_timer -= dt
 		if _crate_timer <= 0.0:
-			_crate_timer = randf_range(Config.CRATE_INTERVAL_MIN, Config.CRATE_INTERVAL_MAX)
+			_crate_timer = randf_range(Config.CRATE_INTERVAL_MIN, Config.CRATE_INTERVAL_MAX) / (1.0 + game.player.stats.crate_rate)
 			if crates.size() < Config.CRATE_MAX_ON_FIELD:
 				spawn_crate(_random_crate_spot())
 	i = 0

@@ -72,6 +72,7 @@ func _register_actions() -> void:
 	# gamepad's A (confirm) and B (back). D-pad / left stick navigation is built in.
 	_bind("ui_accept", [_button(JOY_BUTTON_A)])
 	_bind("ui_cancel", [_button(JOY_BUTTON_B)])
+	_bind("ui_focus_next", [_button(JOY_BUTTON_Y)])      # Y steps from an upgrade tree to the buttons beside it
 
 
 func _bind(action: String, events: Array) -> void:

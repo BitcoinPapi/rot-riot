@@ -5,7 +5,8 @@ extends RefCounted
 ##
 ##     base value (Config)
 ##   + character level   (automatic growth per level)
-##   + passive stats     (skill points)
+##   + passive stats     (ranks from the skill tree)
+##   + keystones         (special powers at the tips of the skill tree)
 ##   + ... gear will plug in here in a later stage
 ##
 ## The player asks for a fresh copy when a run starts and whenever something
@@ -19,6 +20,19 @@ var damage_taken_mult := 1.0    # 0.8 = takes 20% less
 var evasion := 0.0              # chance (0..1) to dodge a hit completely
 var crit_chance := 0.0          # chance (0..1) for a shot to deal CRIT_DAMAGE_MULT
 var coin_luck := 0.0            # 0.3 = zombies drop coins 30% more often
+var crit_mult: float = Config.CRIT_DAMAGE_MULT   # damage multiplier of a critical hit
+
+# Keystone powers (0 / 1.0 = not learned). See Config.KEYSTONES.
+var second_wind := 0.0          # once per run a killing blow leaves this fraction of health instead
+var wounded_damage := 0.0       # extra damage against wounded zombies (0.4 = +40%)
+var combo_fire_rate := 0.0      # extra fire rate while the kill combo is at least combo_fire_at
+var combo_fire_at := 0
+var hurt_speed := 0.0           # extra move speed for hurt_speed_time seconds after being hit
+var hurt_speed_time := 0.0
+var hurt_invuln_mult := 1.0     # the safety time after a hit is multiplied by this
+var dodge_invuln: float = Config.DODGE_INVULN    # seconds of safety after a dodge
+var magnet_mult := 1.0          # coin magnet range multiplier
+var crate_rate := 0.0           # weapon crates appear this much more often (0.25 = +25%)
 
 
 static func current() -> PlayerStats:
@@ -32,6 +46,27 @@ static func current() -> PlayerStats:
 	s.evasion = SaveData.passive_value("evasion")
 	s.crit_chance = SaveData.passive_value("critical")
 	s.coin_luck = SaveData.passive_value("luck")
+
+	var keys: Dictionary = Config.KEYSTONES
+	if SaveData.has_keystone("vitality"):
+		s.second_wind = float(keys["vitality"]["value"])
+	if SaveData.has_keystone("strength"):
+		s.wounded_damage = float(keys["strength"]["value"])
+	if SaveData.has_keystone("dexterity"):
+		s.combo_fire_rate = float(keys["dexterity"]["value"])
+		s.combo_fire_at = int(keys["dexterity"]["combo"])
+	if SaveData.has_keystone("agility"):
+		s.hurt_speed = float(keys["agility"]["value"])
+		s.hurt_speed_time = float(keys["agility"]["time"])
+	if SaveData.has_keystone("defense"):
+		s.hurt_invuln_mult = float(keys["defense"]["value"])
+	if SaveData.has_keystone("evasion"):
+		s.dodge_invuln = float(keys["evasion"]["value"])
+	if SaveData.has_keystone("critical"):
+		s.crit_mult = float(keys["critical"]["value"])
+	if SaveData.has_keystone("luck"):
+		s.magnet_mult = float(keys["luck"]["value"])
+		s.crate_rate = float(keys["luck"]["crates"])
 	return s
 
 

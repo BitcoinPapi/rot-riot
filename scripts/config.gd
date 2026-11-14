@@ -458,26 +458,102 @@ const SKILL_POINT_COST_BASE := 120.0    # coins for the first bought skill point
 const SKILL_POINT_COST_GROWTH := 1.15   # ...each further one costs 15% more
 const RESPEC_COST_PER_LEVEL := 25       # coins to take all points back = this * character level
 
-# Passive stats.
+# Passive stats. Their ranks come from the skill tree below.
 #   "linear": each rank adds per_rank, forever.
 #   "curve":  approaches "max" but never reaches it; "half" is the rank at which
 #             you have half of max. (Stops speed/dodge from becoming silly.)
-# Every RANK_COST_STEP ranks, the next ranks of that stat cost one more point.
-const PASSIVE_RANK_COST_STEP := 10
+#   "color"    the stat's colour in the skill tree
+#   "notables" names of the four big nodes along its branch, from the middle outwards
 const PASSIVE_ORDER := ["vitality", "strength", "dexterity", "agility", "defense", "evasion", "critical", "luck"]
 const PASSIVES := {
-	"vitality": {"name": "VITALITY", "desc": "More maximum health", "kind": "linear", "per_rank": 8.0},
-	"strength": {"name": "STRENGTH", "desc": "More damage with every weapon", "kind": "linear", "per_rank": 0.03},
-	"dexterity": {"name": "DEXTERITY", "desc": "Shoot, swing and reload faster", "kind": "curve", "max": 1.5, "half": 60.0},
-	"agility": {"name": "AGILITY", "desc": "Move faster", "kind": "curve", "max": 0.8, "half": 40.0},
-	"defense": {"name": "DEFENSE", "desc": "Take less damage from every hit", "kind": "curve", "max": 0.8, "half": 50.0},
-	"evasion": {"name": "EVASION", "desc": "Chance to dodge a hit completely", "kind": "curve", "max": 0.6, "half": 40.0},
-	"critical": {"name": "CRITICAL", "desc": "Chance for a shot to deal double damage", "kind": "curve", "max": 0.6, "half": 40.0},
-	"luck": {"name": "LUCK", "desc": "Zombies drop coins more often", "kind": "linear", "per_rank": 0.03},
+	"vitality": {"name": "VITALITY", "desc": "More maximum health", "kind": "linear", "per_rank": 8.0,
+		"color": Color("e5484d"), "notables": ["Thick Blood", "Iron Lungs", "Ox Heart", "Unkillable"]},
+	"strength": {"name": "STRENGTH", "desc": "More damage with every weapon", "kind": "linear", "per_rank": 0.03,
+		"color": Color("f08a3c"), "notables": ["Heavy Hands", "Bone Breaker", "Skull Splitter", "Juggernaut"]},
+	"dexterity": {"name": "DEXTERITY", "desc": "Shoot, swing and reload faster", "kind": "curve", "max": 1.5, "half": 60.0,
+		"color": Color("ff8fb1"), "notables": ["Loose Wrists", "Trigger Finger", "Hair Trigger", "Lead Storm"]},
+	"agility": {"name": "AGILITY", "desc": "Move faster", "kind": "curve", "max": 0.8, "half": 40.0,
+		"color": Color("7ed957"), "notables": ["Light Feet", "Sprinter", "Wind Runner", "Blur"]},
+	"defense": {"name": "DEFENSE", "desc": "Take less damage from every hit", "kind": "curve", "max": 0.8, "half": 50.0,
+		"color": Color("6aa7e8"), "notables": ["Tough Hide", "Scar Tissue", "Plated", "Walking Bunker"]},
+	"evasion": {"name": "EVASION", "desc": "Chance to dodge a hit completely", "kind": "curve", "max": 0.6, "half": 40.0,
+		"color": Color("4fd8c9"), "notables": ["Sidestep", "Slippery", "Smoke", "Phantom"]},
+	"critical": {"name": "CRITICAL", "desc": "Chance for a shot to deal double damage", "kind": "curve", "max": 0.6, "half": 40.0,
+		"color": Color("c084fc"), "notables": ["Sharp Eye", "Weak Spots", "Headhunter", "Surgeon"]},
+	"luck": {"name": "LUCK", "desc": "Zombies drop coins more often", "kind": "linear", "per_rank": 0.03,
+		"color": Color("ffc531"), "notables": ["Loose Change", "Pickpocket", "Grave Robber", "Jackpot"]},
+}
+
+# ----------------------------------------------------------------------------
+#  SKILL TREE (Character screen) - built from these numbers by
+#  scripts/game/skill_tree.gd. A web with the survivor in the middle and one
+#  branch per passive stat. A node can be learned when it touches a node you
+#  already have, your character level is high enough for its ring, and (for
+#  sealed nodes) its deed is done.
+#
+#  Along each branch, per ring: small nodes, then one big node. Each ring
+#  also has a side twig, and an arc of nodes that links it to the branches
+#  next to it. At the tip: a keystone (special power) and an endless node.
+# ----------------------------------------------------------------------------
+const TREE_RINGS := [
+	# level = character level needed for this ring     cost = skill points for a small node
+	# twig  = nodes on the side twig                    arc  = nodes linking to the next branch
+	{"level": 1, "cost": 1, "twig": 1, "arc": 1},
+	{"level": 5, "cost": 2, "twig": 2, "arc": 2},
+	{"level": 12, "cost": 3, "twig": 2, "arc": 3},
+	{"level": 22, "cost": 4, "twig": 3, "arc": 4},
+]
+const TREE_SPINE_PER_RING := 3          # nodes along the branch in each ring (the last one is the big node)
+const TREE_SMALL_RANKS := 1             # stat ranks from a small node
+const TREE_NOTABLE_RANKS := 3           # ...from the big node that ends each ring
+const TREE_NOTABLE_COST_MULT := 2       # big nodes cost this many times the ring's price
+const TREE_SEALED_RANKS := 3            # ...from the sealed node at the end of a twig
+const TREE_KEYSTONE_COST := 8
+const TREE_MASTERY_COST := 5            # skill points for the first rank of an endless node...
+const TREE_MASTERY_COST_STEP := 4       # ...and one more point every N ranks
+const TREE_MASTERY_RANKS := 1
+# Layout (pixels in tree space).
+const TREE_START_RADIUS := 84.0         # distance of the first node of a branch from the middle
+const TREE_STEP := 62.0                 # distance between nodes along a branch
+const TREE_TWIG_STEP := 52.0
+const TREE_TIP_DISTANCE := 96.0         # keystone and endless node sit this far beyond the last big node
+const TREE_TIP_SPREAD_DEG := 5.5
+# Sealed nodes stay locked until a deed is done (checked against the saved
+# records). Kinds: "wave" = clear that wave on any map, "kills" = zombies killed
+# in total, "weapon_level" = reach that level with any weapon, "runs" = runs
+# played, "score" = points in one run, "bought" = skill points bought with
+# coins, "map" = clear all waves of that map.
+# One row per ring (ring 0 has no sealed node); branches take them in turn.
+const TREE_SEAL_DEEDS := [
+	[],
+	[{"kind": "wave", "value": 5}, {"kind": "kills", "value": 300}, {"kind": "weapon_level", "value": 4}, {"kind": "runs", "value": 5}],
+	[{"kind": "wave", "value": 12}, {"kind": "kills", "value": 3000}, {"kind": "weapon_level", "value": 10}, {"kind": "score", "value": 40000}],
+	[{"kind": "wave", "value": 25}, {"kind": "kills", "value": 15000}, {"kind": "weapon_level", "value": 18}, {"kind": "bought", "value": 15}],
+]
+# Keystones: one special power at the tip of each branch. "value" (and the
+# extra numbers) are what the power does; "desc" is filled in with them.
+const KEYSTONES := {
+	"vitality": {"name": "SECOND WIND", "value": 0.3, "deed": {"kind": "wave", "value": 20},
+		"desc": "Once per run, a killing blow leaves you at %d%% health instead and throws the horde back."},
+	"strength": {"name": "EXECUTIONER", "value": 0.4, "deed": {"kind": "kills", "value": 10000},
+		"desc": "+%d%% damage against wounded zombies."},
+	"dexterity": {"name": "ADRENALINE", "value": 0.2, "combo": 20, "deed": {"kind": "weapon_level", "value": 15},
+		"desc": "You shoot %d%% faster while your kill combo is %d or more."},
+	"agility": {"name": "BREAKAWAY", "value": 0.4, "time": 2.0, "deed": {"kind": "runs", "value": 40},
+		"desc": "After being hit you move %d%% faster for %d seconds."},
+	"defense": {"name": "THICK SKIN", "value": 2.0, "deed": {"kind": "wave", "value": 30},
+		"desc": "The moment of safety after being hit lasts %d times as long."},
+	"evasion": {"name": "GHOST", "value": 1.0, "deed": {"kind": "score", "value": 150000},
+		"desc": "A dodge leaves you untouchable for %d second."},
+	"critical": {"name": "DEADEYE", "value": 3.0, "deed": {"kind": "wave", "value": 40},
+		"desc": "Critical hits deal %d times the damage instead of double."},
+	"luck": {"name": "SCAVENGER", "value": 2.0, "crates": 0.25, "deed": {"kind": "bought", "value": 20},
+		"desc": "Coins fly to you from %d times as far, and weapon crates appear %d%% more often."},
 }
 const CRIT_DAMAGE_MULT := 2.0
 const CRIT_KNOCKBACK_MULT := 1.4
 const DODGE_INVULN := 0.25              # seconds of safety after a dodge
+const SECOND_WIND_INVULN := 1.5         # seconds of safety when the SECOND WIND keystone saves you
 
 # Weapon levels.
 const WEAPON_XP_BASE := 60.0            # weapon XP needed for its level 2 (needed = base * level ^ exponent)
@@ -641,6 +717,27 @@ func weapon_xp_needed(level: int) -> int:
 ## Coins for the next bought skill point, after `already_bought` of them.
 func skill_point_cost(already_bought: int) -> int:
 	return int(round(SKILL_POINT_COST_BASE * pow(SKILL_POINT_COST_GROWTH, float(already_bought))))
+
+
+## What a deed asks for, as shown on a sealed node (see TREE_SEAL_DEEDS).
+func deed_text(deed: Dictionary) -> String:
+	var value := int(deed["value"])
+	match String(deed["kind"]):
+		"wave":
+			return "Clear wave %d on any map" % value
+		"kills":
+			return "Kill %d zombies in total" % value
+		"weapon_level":
+			return "Reach level %d with any weapon" % value
+		"runs":
+			return "Play %d runs" % value
+		"score":
+			return "Score %d points in one run" % value
+		"bought":
+			return "Buy %d skill points with coins" % value
+		"map":
+			return "Clear all %d waves of %s" % [WAVES_PER_MAP, String(MAPS[clampi(value - 1, 0, MAPS.size() - 1)]["name"])]
+	return ""
 
 
 ## Points needed to raise a stat that is currently at `rank`.

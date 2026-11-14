@@ -21,7 +21,11 @@ var level: int = 1
 var xp: int = 0                  # XP inside the current level
 var skill_points: int = 0        # unspent
 var points_bought: int = 0       # how many were bought with coins (sets the next price)
-var passives: Dictionary = {}    # passive id -> rank
+var tree: Dictionary = {}        # skill tree: node id -> times learned (endless nodes can be more than 1)
+var bonus_ranks: Dictionary = {} # extra ranks of a passive from outside the tree (gear later; tests) - not saved
+
+var _ranks := {}                 # worked out from `tree`: passive id -> ranks
+var _keystones := {}             # ...and passive id -> true if its keystone is learned
 
 # Weapons: id -> {"level": int, "xp": int, "points": int, "ranks": {track: rank}}
 var weapons: Dictionary = {}
@@ -40,6 +44,9 @@ var settings: Dictionary = {}
 
 ## True for one session after an old save was converted (the menu says so once).
 var was_reset_by_update := false
+## Skill points handed back this session because the skill tree replaced the
+## old stat list, or because the tree's layout changed (the menu says so once).
+var points_returned := 0
 
 
 func _ready() -> void:
@@ -56,6 +63,7 @@ func _reset_to_defaults() -> void:
 	total_kills = 0
 	runs_played = 0
 	was_reset_by_update = false
+	points_returned = 0
 	settings = {
 		"master_volume": Config.DEFAULT_MASTER_VOLUME,
 		"sfx_volume": Config.DEFAULT_SFX_VOLUME,
@@ -69,9 +77,9 @@ func _reset_progress() -> void:
 	xp = 0
 	skill_points = 0
 	points_bought = 0
-	passives = {}
-	for id: String in Config.PASSIVE_ORDER:
-		passives[id] = 0
+	tree = {}
+	bonus_ranks = {}
+	_recount_tree()
 	weapons = {}
 	for id: String in Config.WEAPON_ORDER:
 		weapons[id] = _new_weapon_entry()
@@ -133,10 +141,7 @@ func load_game() -> void:
 	xp = maxi(int(data.get("xp", 0)), 0)
 	skill_points = maxi(int(data.get("skill_points", 0)), 0)
 	points_bought = maxi(int(data.get("points_bought", 0)), 0)
-	var saved_passives: Variant = data.get("passives", {})
-	if typeof(saved_passives) == TYPE_DICTIONARY:
-		for id: String in Config.PASSIVE_ORDER:
-			passives[id] = maxi(int((saved_passives as Dictionary).get(id, 0)), 0)
+	_load_tree(data)
 	var saved_weapons: Variant = data.get("weapons", {})
 	if typeof(saved_weapons) == TYPE_DICTIONARY:
 		for id: String in Config.WEAPON_ORDER:
@@ -191,7 +196,7 @@ func save_game() -> void:
 		"xp": xp,
 		"skill_points": skill_points,
 		"points_bought": points_bought,
-		"passives": passives,
+		"tree": tree,
 		"weapons": weapons,
 		"maps_unlocked": maps_unlocked,
 		"map_best": map_best,
@@ -251,8 +256,116 @@ func add_xp(amount: int) -> int:
 	return gained
 
 
+# ----------------------------------------------------------------------------
+#  Skill tree (the nodes are described in scripts/game/skill_tree.gd)
+# ----------------------------------------------------------------------------
+func _load_tree(data: Dictionary) -> void:
+	tree = {}
+	var saved: Variant = data.get("tree")
+	if typeof(saved) == TYPE_DICTIONARY:
+		for id: String in (saved as Dictionary).keys():
+			var count := int((saved as Dictionary)[id])
+			if count <= 0 or id == "start" or not SkillTree.has(id):
+				continue
+			tree[id] = count if bool(SkillTree.nodes()[id]["repeat"]) else 1
+		# If the tree's layout changed and a learned node is cut off from the
+		# middle, hand every point back rather than keep a broken tree.
+		if not _tree_connected():
+			points_returned = spent_points()
+			skill_points += points_returned
+			tree = {}
+	else:
+		# A save from before the skill tree: stats were a plain list of ranks.
+		# Give back the points that were spent on them.
+		var old: Variant = data.get("passives")
+		if typeof(old) == TYPE_DICTIONARY:
+			for id: String in (old as Dictionary).keys():
+				for rank in maxi(int((old as Dictionary)[id]), 0):
+					points_returned += 1 + int(rank / 10.0)
+			skill_points += points_returned
+	_recount_tree()
+
+
+## True if every learned node can be reached from the middle through learned nodes.
+func _tree_connected() -> bool:
+	var seen := {"start": true}
+	var todo: Array[String] = ["start"]
+	while not todo.is_empty():
+		var id: String = todo.pop_back()
+		for other: String in SkillTree.nodes()[id]["links"]:
+			if not seen.has(other) and tree.has(other):
+				seen[other] = true
+				todo.append(other)
+	return seen.size() - 1 == tree.size()
+
+
+func _recount_tree() -> void:
+	_ranks = {}
+	_keystones = {}
+	for id: String in tree.keys():
+		var n: Dictionary = SkillTree.nodes()[id]
+		var count := int(tree[id])
+		var ranks: Dictionary = n["ranks"]
+		for stat: String in ranks.keys():
+			_ranks[stat] = int(_ranks.get(stat, 0)) + int(ranks[stat]) * count
+		if String(n["kind"]) == "keystone":
+			_keystones[String(n["stat"])] = true
+
+
+## How many times a node has been learned (the middle node always counts).
+func node_count(id: String) -> int:
+	return 1 if id == "start" else int(tree.get(id, 0))
+
+
+## Skill points for the next purchase of a node.
+func node_cost(id: String) -> int:
+	return SkillTree.cost(id, node_count(id))
+
+
+## Where a node stands: one of SkillTree.OWNED / READY / POOR / LEVEL / SEALED / FAR.
+func node_status(id: String) -> int:
+	var n: Dictionary = SkillTree.nodes()[id]
+	var count := node_count(id)
+	if count > 0 and not bool(n["repeat"]):
+		return SkillTree.OWNED
+	if count == 0 and not node_touches_learned(id):
+		return SkillTree.FAR
+	if level < int(n["level"]):
+		return SkillTree.LEVEL
+	if not deed_done(n["deed"]):
+		return SkillTree.SEALED
+	if skill_points < node_cost(id):
+		return SkillTree.POOR
+	return SkillTree.READY
+
+
+func node_touches_learned(id: String) -> bool:
+	for other: String in SkillTree.nodes()[id]["links"]:
+		if node_count(other) > 0:
+			return true
+	return false
+
+
+## Spend skill points on a node. Returns false (and changes nothing) if it
+## cannot be learned right now.
+func learn_node(id: String) -> bool:
+	if not SkillTree.has(id) or node_status(id) != SkillTree.READY:
+		return false
+	skill_points -= node_cost(id)
+	tree[id] = node_count(id) + 1
+	_recount_tree()
+	progress_changed.emit()
+	save_game()
+	return true
+
+
+func has_keystone(stat: String) -> bool:
+	return _keystones.has(stat)
+
+
+## Ranks of a passive stat: from the skill tree, plus anything else (gear later).
 func passive_rank(id: String) -> int:
-	return int(passives.get(id, 0))
+	return int(_ranks.get(id, 0)) + int(bonus_ranks.get(id, 0))
 
 
 ## The bonus a passive stat currently gives (see Config.PASSIVES for units).
@@ -260,20 +373,36 @@ func passive_value(id: String) -> float:
 	return Config.stat_value(Config.PASSIVES[id], passive_rank(id))
 
 
-## Skill points needed for the next rank of a passive.
-func passive_cost(id: String) -> int:
-	return Config.rank_cost(passive_rank(id), Config.PASSIVE_RANK_COST_STEP)
+## How far along a deed is (the number its "value" is compared with).
+func deed_progress(deed: Dictionary) -> int:
+	if deed.is_empty():
+		return 0
+	match String(deed["kind"]):
+		"wave":
+			var best := 0
+			for wave: int in map_best:
+				best = maxi(best, wave)
+			return best
+		"kills":
+			return total_kills
+		"weapon_level":
+			var best := 0
+			for id: String in Config.WEAPON_ORDER:
+				best = maxi(best, weapon_level(id))
+			return best
+		"runs":
+			return runs_played
+		"score":
+			return best_score
+		"bought":
+			return points_bought
+		"map":
+			return int(deed["value"]) if map_cleared(int(deed["value"]) - 1) else 0
+	return 0
 
 
-func raise_passive(id: String) -> bool:
-	var cost := passive_cost(id)
-	if skill_points < cost:
-		return false
-	skill_points -= cost
-	passives[id] = passive_rank(id) + 1
-	progress_changed.emit()
-	save_game()
-	return true
+func deed_done(deed: Dictionary) -> bool:
+	return deed.is_empty() or deed_progress(deed) >= int(deed["value"])
 
 
 ## Coins for the next bought skill point (rises every time).
@@ -294,12 +423,12 @@ func buy_skill_point() -> bool:
 	return true
 
 
-## Skill points currently locked into passive ranks.
+## Skill points currently locked into the skill tree.
 func spent_points() -> int:
 	var total := 0
-	for id: String in Config.PASSIVE_ORDER:
-		for rank in passive_rank(id):
-			total += Config.rank_cost(rank, Config.PASSIVE_RANK_COST_STEP)
+	for id: String in tree.keys():
+		for owned in int(tree[id]):
+			total += SkillTree.cost(id, owned)
 	return total
 
 
@@ -314,8 +443,8 @@ func respec() -> bool:
 		return false
 	coins -= respec_price()
 	skill_points += refund
-	for id: String in Config.PASSIVE_ORDER:
-		passives[id] = 0
+	tree = {}
+	_recount_tree()
 	coins_changed.emit()
 	progress_changed.emit()
 	save_game()

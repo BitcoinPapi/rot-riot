@@ -26,6 +26,8 @@ var wounded := false            # below Config.PLAYER_WOUNDED_AT health: bloodie
 var reload_progress := 0.0      # 0..1 while reloading (HUD ring + animation)
 var fire_cd := 0.0
 var invuln := 0.0               # seconds of safety left after being hit
+var hurt_boost := 0.0           # seconds of extra speed left after being hit (BREAKAWAY keystone)
+var second_wind_used := false   # the SECOND WIND keystone works once per run
 var push_vel := Vector2.ZERO    # recoil shove
 
 # Everything permanent (level, skill points, later gear) arrives through here.
@@ -83,6 +85,9 @@ func tick(delta: float) -> void:
 	var speed: float = Config.PLAYER_SPEED * stats.speed_mult * float(weapon["move_mult"])
 	if game.rage_active:
 		speed *= Config.RAGE_SPEED_MULT
+	if hurt_boost > 0.0:
+		hurt_boost -= delta
+		speed *= 1.0 + stats.hurt_speed
 	pos += move_input * speed * delta + push_vel * delta
 	push_vel -= push_vel * minf(Config.RECOIL_PUSH_DAMPING * delta, 1.0)
 	pos = game.arena.resolve(pos, radius)
@@ -131,6 +136,8 @@ func tick(delta: float) -> void:
 func _fire() -> void:
 	var w := weapon
 	var rate: float = stats.fire_rate_mult * float(wmods["fire_rate"])
+	if stats.combo_fire_rate > 0.0 and game.combo >= stats.combo_fire_at:
+		rate *= 1.0 + stats.combo_fire_rate
 	var dmg: float = float(w["damage"]) * stats.damage_mult * float(wmods["damage"])
 	var knock: float = w["knockback"]
 	var steady: float = wmods["steady"]      # 1 = normal spread/recoil, lower = tighter
@@ -173,7 +180,7 @@ func _fire() -> void:
 		for k in pellets:
 			var crit := randf() < stats.crit_chance
 			game.projectiles.spawn(from, dir.rotated(randf_range(-0.5, 0.5) * spread), w, weapon_id,
-					dmg * (Config.CRIT_DAMAGE_MULT if crit else 1.0),
+					dmg * (stats.crit_mult if crit else 1.0),
 					knock * (Config.CRIT_KNOCKBACK_MULT if crit else 1.0), crit)
 		var muzzle := pos + dir * float(w["muzzle_dist"]) + hand
 		if kind == "flame":
@@ -295,7 +302,7 @@ func _melee(w: Dictionary, dir: Vector2, dmg: float, knock: float) -> void:
 			var push := (n * 0.7 + dir * 0.3).normalized()
 			if extra_blood > 0:
 				game.fx.blood_spray(e.pos, push, extra_blood, 1.3)
-			game.enemies.damage(e, dmg * (Config.CRIT_DAMAGE_MULT if crit else 1.0), push,
+			game.enemies.damage(e, dmg * (stats.crit_mult if crit else 1.0), push,
 					knock * (Config.CRIT_KNOCKBACK_MULT if crit else 1.0), float(w["stagger"]), 0.0, weapon_id, crit)
 			hits += 1
 	if swings:

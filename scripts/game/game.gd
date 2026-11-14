@@ -385,7 +385,7 @@ func damage_player(amount: float, from: Vector2) -> void:
 		return
 	# Evasion: the hit misses completely.
 	if randf() < player.stats.evasion:
-		player.invuln = Config.DODGE_INVULN
+		player.invuln = player.stats.dodge_invuln
 		fx.text(player.pos + Vector2(0, -36), "DODGE", Color(0.55, 0.9, 1.0), 18, 0.6)
 		Sfx.play("dodge")
 		return
@@ -393,7 +393,8 @@ func damage_player(amount: float, from: Vector2) -> void:
 	if rage_active:
 		amount *= Config.RAGE_DAMAGE_TAKEN_MULT
 	player.hp -= amount
-	player.invuln = Config.PLAYER_HURT_INVULN
+	player.invuln = Config.PLAYER_HURT_INVULN * player.stats.hurt_invuln_mult
+	player.hurt_boost = player.stats.hurt_speed_time
 	player.hurt_flash()
 	hud.hurt()
 	var away := (player.pos - from).normalized()
@@ -405,8 +406,24 @@ func damage_player(amount: float, from: Vector2) -> void:
 	# Shove the crowd back so the player gets a chance to break out.
 	enemies.shockwave(player.pos, Config.PLAYER_HURT_SHOVE_RADIUS, Config.PLAYER_HURT_SHOVE_FORCE, 0.0, Config.PLAYER_HURT_SHOVE_STAGGER)
 	if player.hp <= 0.0:
+		if player.stats.second_wind > 0.0 and not player.second_wind_used:
+			_second_wind()
+			return
 		player.hp = 0.0
 		_player_died()
+
+
+## SECOND WIND keystone: the blow that should have killed you does not.
+func _second_wind() -> void:
+	player.second_wind_used = true
+	player.hp = player.max_hp * player.stats.second_wind
+	player.invuln = Config.SECOND_WIND_INVULN
+	enemies.shockwave(player.pos, Config.RAGE_BURST_RADIUS, Config.RAGE_BURST_FORCE, 0.0, Config.RAGE_BURST_STAGGER)
+	fx.ring(player.pos, 20.0, Config.RAGE_BURST_RADIUS, 0.45, Color(0.95, 0.3, 0.3, 0.95))
+	fx.light(player.pos, Config.RAGE_BURST_RADIUS * 2.4, 0.35, Color(1.0, 0.3, 0.3, 0.7))
+	fx.text(player.pos + Vector2(0, -48), "SECOND WIND!", Color(1.0, 0.45, 0.45), 28, 1.4)
+	slow_motion(Config.BOSS_DEATH_SLOWMO, 0.6)
+	Sfx.play("rage_start")
 
 
 func _player_died() -> void:
