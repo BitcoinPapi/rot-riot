@@ -11,6 +11,7 @@ extends Node
 ##   --wave=N           jump straight to wave N
 ##   --god              the player cannot die
 ##   --frames=N         quit after N frames and print a summary
+##   --dump-sfx=DIR     write every generated sound to DIR as .wav files, then quit
 ##   --shot=PATH        save a screenshot to PATH ...
 ##   --shot-frame=N     ... on frame N (default 30), then quit
 
@@ -33,6 +34,15 @@ func _process(_delta: float) -> void:
 		app.start_run()
 	if _args.has("screen") and _frame == int(_args.get("screen-frame", "10")):
 		_open_screen(app, String(_args["screen"]))
+	if _args.has("dump-sfx") and Sfx.ready_to_play:
+		var streams: Dictionary = Sfx.get_streams()
+		for sound: String in streams.keys():
+			var wav := streams[sound] as AudioStreamWAV
+			if wav != null:
+				wav.save_to_wav("%s/%s.wav" % [String(_args["dump-sfx"]), sound])
+		print("dumped %d sounds at frame %d" % [streams.size(), _frame])
+		get_tree().quit()
+		return
 	var game: Game = app.game
 	if game != null and is_instance_valid(game):
 		if _args.has("wave") and _frame == 2:
