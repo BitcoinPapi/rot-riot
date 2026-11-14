@@ -134,6 +134,7 @@ func _build() -> void:
 	# --- pickups ---
 	_svg("coin", 18, 18, SVG_COIN)
 	_svg("crate", 38, 38, SVG_CRATE)
+	_flash("crate")
 	_svg("medkit", 28, 28, SVG_MEDKIT)
 
 	# --- scenery ---

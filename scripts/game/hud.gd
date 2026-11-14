@@ -336,7 +336,8 @@ func _draw_crosshair(p: Player) -> void:
 ## are out of view.
 func _draw_crate_arrows() -> void:
 	for crate: Pickups.Crate in game.pickups.crates:
-		_edge_arrow(crate.pos, Config.WEAPONS[crate.weapon]["color"], Art.t("crate"), Color.WHITE)
+		_edge_arrow(crate.pos, Config.CRATE_RARITIES[String(Config.WEAPONS[crate.weapon]["rarity"])]["color"],
+				Art.t("icon_" + crate.weapon), Color.WHITE)
 	for piece: Pickups.Loot in game.pickups.loot:
 		var color: Color = Config.gear_tier_def(Config.gear_tier_of(piece.key))["color"]
 		_edge_arrow(piece.pos, color, Art.t("gear_" + String(Config.GEAR_ITEMS[Config.gear_item_of(piece.key)]["type"])),
@@ -344,9 +345,11 @@ func _draw_crate_arrows() -> void:
 
 
 func _edge_arrow(world: Vector2, color: Color, icon: Texture2D, icon_color: Color) -> void:
+	# Only for things that really are off the screen; the arrow itself is kept
+	# clear of the bars at the top and bottom.
 	var view := Rect2(Vector2(46.0, 128.0), size - Vector2(92.0, 228.0))
 	var sp := _to_screen(world)
-	if view.has_point(sp):
+	if Rect2(Vector2.ZERO, size).grow(-12.0).has_point(sp):
 		return
 	var clamped := Vector2(clampf(sp.x, view.position.x, view.end.x), clampf(sp.y, view.position.y, view.end.y))
 	var dir := (sp - clamped).normalized()
@@ -354,7 +357,10 @@ func _edge_arrow(world: Vector2, color: Color, icon: Texture2D, icon_color: Colo
 	var pulse := 1.0 + 0.15 * sin(_time * 8.0)
 	var tip := clamped + dir * 18.0 * pulse
 	draw_colored_polygon(PackedVector2Array([tip, clamped + side * 12.0, clamped - side * 12.0]), color)
-	draw_texture_rect(icon, Rect2(clamped - dir * 22.0 - Vector2(13, 13), Vector2(26, 26)), false, icon_color)
+	# (Weapon pictures are wide: keep their shape.)
+	var shape := icon.get_size()
+	var icon_size := Vector2(26, 26) if is_equal_approx(shape.x, shape.y) else Vector2(64.0, 64.0 * shape.y / shape.x)
+	draw_texture_rect(icon, Rect2(clamped - dir * (14.0 + icon_size.x * 0.5) - icon_size * 0.5, icon_size), false, icon_color)
 
 
 func _to_screen(world: Vector2) -> Vector2:

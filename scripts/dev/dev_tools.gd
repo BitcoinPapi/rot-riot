@@ -9,6 +9,7 @@ extends Node
 ##   --gear=N           start with N random pieces of gear, some of them worn
 ##   --pets=N           own the first N pets and take the last of them along (use with --level=18 or more)
 ##   --drop-gear        one second into a run, drop a piece of every tier around the player (and one on top of them)
+##   --drop-crates      one second into a run, drop four weapon crates around the player (two of them damaged)
 ##   --map=N            play map N (unlocks it); --best=W sets the best wave cleared there, --start=W the starting wave
 ##   --level=N          start as a level N character with points to spend (for screenshots)
 ##   --armory-weapon=ID with --screen=armory: show this weapon
@@ -124,6 +125,12 @@ func _process(_delta: float) -> void:
 			for i in drops.size():
 				game.pickups.spawn_gear(game.player.pos + Vector2.from_angle(-2.4 + 0.75 * i) * 190.0, drops[i])
 			game.pickups.spawn_gear(game.player.pos + Vector2(4.0, 0.0), "lucky_ring:2")
+		if _args.has("drop-crates") and _frame == 60:
+			var boxes := ["shotgun", "rifle", "launcher", "pistol"]
+			for i in boxes.size():
+				game.pickups.spawn_crate(game.player.pos + Vector2.from_angle(-2.6 + 0.9 * i) * 200.0, boxes[i])
+			game.pickups.damage_crate(game.pickups.crates[1], Config.CRATE_HP * 0.45, Vector2.RIGHT)
+			game.pickups.damage_crate(game.pickups.crates[2], Config.CRATE_HP * 0.75, Vector2.RIGHT)
 		if _args.has("god"):
 			game.player.hp = game.player.max_hp
 		if _args.has("bot") or _auto_bot:
@@ -796,6 +803,22 @@ func _run_autotest() -> void:
 	pl.give_weapon("rifle")
 	pl.give_weapon("smg")
 	pl.refill_ammo()
+
+	# --- weapon crates can be shot to pieces ---
+	game.pickups.crates.clear()
+	game.pickups.spawn_crate(game.arena.clamp_inside(pl.pos + Vector2(0.0, 260.0), 80.0), "shotgun")
+	var box: Pickups.Crate = game.pickups.crates[0]
+	_check(is_equal_approx(box.hp, Config.CRATE_HP), "a fresh crate is undamaged")
+	game.projectiles.spawn(box.pos + Vector2(-70.0, 0.0), Vector2.RIGHT, Config.WEAPONS["pistol"], "pistol", 9999.0, 0.0)
+	await _until(func() -> bool: return box.hp < Config.CRATE_HP, 30)
+	_check(is_equal_approx(box.hp, Config.CRATE_HP - float(Config.WEAPONS["pistol"]["damage"])),
+			"a bullet stops in a weapon crate and damages it (by the weapon's plain damage, not yours)")
+	var box_hp := box.hp
+	game.projectiles.spawn(box.pos + Vector2(-90.0, 0.0), Vector2.RIGHT, Config.WEAPONS["launcher"], "launcher", 1.0, 0.0)
+	await _until(func() -> bool: return box.hp < box_hp, 60)
+	_check(box.hp <= 0.0, "a grenade blows a weapon crate apart")
+	await _until(func() -> bool: return not game.pickups.crates.has(box), 30)
+	_check(not game.pickups.crates.has(box) and pl.weapon_id == "smg", "a destroyed crate is gone, and its weapon with it")
 	_auto_bot = true
 
 	# --- wounded looks ---

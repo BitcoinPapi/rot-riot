@@ -85,7 +85,24 @@ func tick(dt: float) -> void:
 
 		var wall_t := arena.segment_hit(from, to)
 		var e := enemies.segment_hit(from, to, s.radius, s.hit)
-		if s.flame:
+		# Weapon crates are in the way too: a bullet that reaches one before it
+		# reaches a zombie or a rock stops in the wood (and wears the crate down).
+		var crate := game.pickups.crate_on_segment(from, to, s.radius, s.hit)
+		var crate_t: float = game.pickups.crate_t
+		var crate_first := crate != null and crate_t <= wall_t and (e == null or crate_t <= enemies.hit_t)
+		if crate_first and not s.flame:
+			var crate_at := from.lerp(to, crate_t)
+			if s.grenade:
+				explode(crate_at, s)
+			else:
+				game.pickups.damage_crate(crate, float(s.w["damage"]), s.dir)
+			to = crate_at
+			done = true
+		elif s.flame:
+			# Fire licks at a crate once per puff and carries on.
+			if crate != null and crate_t <= wall_t:
+				s.hit.append(crate)
+				game.pickups.damage_crate(crate, float(s.w["damage"]), s.dir)
 			# Fire washes over everything in its path; each puff burns a zombie once.
 			var guard := 0
 			while e != null and enemies.hit_t <= wall_t and guard < 8:
@@ -156,6 +173,7 @@ func explode(at: Vector2, s: Shot) -> void:
 		var dir := away / d if d > 0.01 else s.dir
 		var f := clampf(d / radius, 0.0, 1.0)
 		game.enemies.damage(e, s.damage * lerpf(1.0, edge, f), dir, force * lerpf(1.0, Config.BLAST_EDGE_KNOCKBACK, f), stagger, 0.0, s.wid, s.crit)
+	game.pickups.blast_crates(at, radius, float(w["damage"]), edge)
 	game.fx.explosion(at, radius)
 	game.decals.scorch(at, radius * 0.75)
 	game.shake(float(w["blast_shake"]))

@@ -44,6 +44,8 @@ var RECIPES := {
 	"weapon_expire": [_make_weapon_expire, -6.0, 0.1],
 	"medkit": [_make_medkit, -4.0, 0.1],
 	"crate_spawn": [_make_crate_spawn, -6.0, 0.1],
+	"crate_hit": [_make_crate_hit, -6.0, 0.05],
+	"crate_break": [_make_crate_break, -2.0, 0.2],
 	"rage_ready": [_make_rage_ready, -4.0, 0.3],
 	"rage_start": [_make_rage_start, 1.0, 0.3],
 	"rage_end": [_make_rage_end, -6.0, 0.3],
@@ -767,6 +769,24 @@ func _make_weapon_level(s: Synth) -> void:
 	s.noise(0.07, 0.05, 0.9, 0.012, 4200.0, 2000.0, 0.0005, 900.0)
 	s.tone(0.14, 0.2, 0.5, 587.3, 587.3, 0.09, Synth.TRIANGLE)
 	s.tone(0.24, 0.26, 0.55, 880.0, 880.0, 0.12, Synth.TRIANGLE)
+
+
+func _make_crate_hit(s: Synth) -> void:
+	# A bullet thumping into wood.
+	s.length(0.14)
+	s.band(0.0, 0.1, 1.2, 0.03, 340.0, 4.0)
+	s.noise(0.0, 0.04, 0.7, 0.01, 3500.0, 1200.0, 0.0005, 500.0)
+
+
+func _make_crate_break(s: Synth) -> void:
+	# Planks cracking apart and clattering down.
+	s.length(0.6)
+	s.drive = 1.6
+	s.noise(0.0, 0.1, 1.4, 0.03, 5000.0, 900.0, 0.0005, 200.0)
+	s.band(0.0, 0.2, 1.0, 0.06, 280.0, 3.0)
+	for i in 5:
+		s.band(0.08 + i * 0.07, 0.05, 0.7 - i * 0.1, 0.015, 700.0 + 160.0 * i, 6.0)
+	s.reverb(0.2, 0.3, 2400.0)
 
 
 func _make_pet_bite(s: Synth) -> void:

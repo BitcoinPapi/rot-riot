@@ -13,6 +13,8 @@ class Crate:
 	var weapon := ""
 	var life := 0.0
 	var age := 0.0
+	var hp: float = Config.CRATE_HP     # bullets and blasts wear it down (see damage_crate)
+	var flash := 0.0                    # white flash after a hit
 
 class Medkit:
 	var pos := Vector2.ZERO
@@ -29,6 +31,7 @@ var game: Game
 var crates: Array[Crate] = []
 var medkits: Array[Medkit] = []
 var loot: Array[Loot] = []
+var crate_t := 2.0               # how far along the last tested path a crate was hit (see crate_on_segment)
 var coin_count := 0
 
 var _coin_pos := PackedVector2Array()
@@ -41,6 +44,7 @@ var _coin_streak_t := 0.0
 
 var _coin_tex: Texture2D
 var _crate_tex: Texture2D
+var _crate_flash_tex: Texture2D
 var _medkit_tex: Texture2D
 var _glow: Texture2D
 var _ring_tex: Texture2D
@@ -52,6 +56,7 @@ func _ready() -> void:
 	_font = ThemeDB.fallback_font
 	_coin_tex = Art.t("coin")
 	_crate_tex = Art.t("crate")
+	_crate_flash_tex = Art.t("crate_flash")
 	_medkit_tex = Art.t("medkit")
 	_glow = Art.t("glow")
 	var cap: int = Config.MAX_COINS_ON_FIELD
@@ -133,8 +138,71 @@ func spawn_crate(at: Vector2, weapon: String = "") -> void:
 	c.life = Config.CRATE_LIFETIME
 	crates.append(c)
 	game.fx.dust(c.pos, 8)
-	game.fx.ring(c.pos, 10.0, 90.0, 0.4, Color(1, 1, 1, 0.6))
 	Sfx.play("crate_spawn")
+
+
+# ----------------------------------------------------------------------------
+#  Crates can be shot to pieces
+# ----------------------------------------------------------------------------
+## The first crate a shot flying from `a` to `b` runs into (null = none).
+## `crate_t` is then how far along that path (0..1) it is hit. Crates in
+## `ignore` (already burnt by this puff of fire) are skipped.
+func crate_on_segment(a: Vector2, b: Vector2, shot_radius: float, ignore: Array) -> Crate:
+	crate_t = 2.0
+	if Config.CRATE_HP <= 0.0:
+		return null
+	var best: Crate = null
+	var d := b - a
+	var len2 := d.length_squared()
+	var reach: float = Config.CRATE_HIT_RADIUS + shot_radius
+	for c: Crate in crates:
+		if c.hp <= 0.0 or ignore.has(c):
+			continue
+		var f := a - c.pos
+		var t := 0.0
+		if f.length_squared() > reach * reach:
+			# Where the path first enters the circle around the crate.
+			if len2 <= 0.0001:
+				continue
+			var half_b := f.dot(d)
+			var disc := half_b * half_b - len2 * (f.length_squared() - reach * reach)
+			if disc < 0.0:
+				continue
+			t = (-half_b - sqrt(disc)) / len2
+			if t < 0.0 or t > 1.0:
+				continue
+		if t < crate_t:
+			crate_t = t
+			best = c
+	return best
+
+
+## Wear a crate down. At zero it bursts and the weapon inside is lost.
+func damage_crate(c: Crate, amount: float, dir: Vector2) -> void:
+	if Config.CRATE_HP <= 0.0 or c.hp <= 0.0 or amount <= 0.0:
+		return
+	c.hp -= amount
+	c.flash = Config.CRATE_FLASH_TIME
+	game.fx.dust(c.pos - dir * 14.0, 2)
+	if c.hp > 0.0:
+		Sfx.play("crate_hit", 0.0, 0.15)
+		return
+	c.life = 0.0                      # (tick() takes it off the field)
+	game.fx.dust(c.pos, 16)
+	game.fx.sparks(c.pos, dir, 6)
+	game.fx.text(c.pos + Vector2(0, -34), "%s CRATE DESTROYED" % String(Config.WEAPONS[c.weapon]["name"]), Color(1.0, 0.45, 0.35), 17, 1.3)
+	game.shake(Config.CRATE_BREAK_SHAKE)
+	Sfx.play("crate_break")
+
+
+## An explosion at `at`: crates inside take the blast, less toward the edge.
+func blast_crates(at: Vector2, radius: float, amount: float, edge: float) -> void:
+	for c: Crate in crates:
+		var away := c.pos - at
+		var d := away.length()
+		if d < radius + Config.CRATE_HIT_RADIUS:
+			damage_crate(c, amount * Config.CRATE_BLAST_MULT * lerpf(1.0, edge, clampf(d / radius, 0.0, 1.0)),
+					away / d if d > 0.01 else Vector2.RIGHT)
 
 
 func spawn_medkit(at: Vector2) -> void:
@@ -248,7 +316,8 @@ func tick(dt: float) -> void:
 		var c := crates[i]
 		c.life -= dt
 		c.age += dt
-		var taken := can_collect and c.pos.distance_to(ppos) < Config.CRATE_PICKUP_RADIUS + player.radius
+		c.flash = maxf(c.flash - dt, 0.0)
+		var taken := can_collect and c.hp > 0.0 and c.pos.distance_to(ppos) < Config.CRATE_PICKUP_RADIUS + player.radius
 		if taken:
 			game.collect_crate(c)
 		if taken or c.life <= 0.0:
@@ -340,33 +409,45 @@ func _draw() -> void:
 		draw_texture_rect(icon, Rect2(l.pos + bob - Vector2(s, s) * 0.5 + Vector2(1.0, 2.0), Vector2(s, s)), false, Color(0, 0, 0, 0.6))
 		draw_texture_rect(icon, Rect2(l.pos + bob - Vector2(s, s) * 0.5, Vector2(s, s)), false, color.lightened(0.35))
 
+	# Weapon crates: a wooden box with a big picture of the weapon inside and
+	# its name underneath, in the colour of its rarity.
 	for c: Crate in crates:
 		if c.life < 5.0 and not blink_on:
 			continue
 		var w: Dictionary = Config.WEAPONS[c.weapon]
-		# The glow shows the crate's rarity; rarer crates glow bigger and brighter.
-		var rarity := String(w["rarity"])
-		var tier: int = Config.CRATE_RARITY_ORDER.find(rarity)
-		var color: Color = Config.CRATE_RARITIES[rarity]["color"]
+		var rarity_color: Color = Config.CRATE_RARITIES[String(w["rarity"])]["color"]
 		# Drops in with a bounce, then bobs gently.
 		var drop := 1.0 + maxf(0.3 - c.age, 0.0) * 2.5
-		var s := 38.0 * drop * (1.0 + 0.05 * sin(_time * 4.0))
-		var halo := 104.0 + 34.0 * tier + (12.0 + 6.0 * tier) * sin(_time * (4.0 + tier))
-		draw_texture_rect(_glow, Rect2(c.pos - Vector2(halo, halo) * 0.5, Vector2(halo, halo)), false,
-				Color(color.r, color.g, color.b, 0.32 + 0.12 * tier))
-		if tier > 0:
-			var ring := 62.0 + 10.0 * tier + 4.0 * sin(_time * 6.0)
-			draw_texture_rect(_ring_tex, Rect2(c.pos - Vector2(ring, ring) * 0.5, Vector2(ring, ring)), false,
-					Color(color.r, color.g, color.b, 0.55))
-		draw_texture_rect(_crate_tex, Rect2(c.pos - Vector2(s, s) * 0.5, Vector2(s, s)), false)
-		# The weapon inside is shown on the lid.
-		var gun: Texture2D = Art.t("gun_" + c.weapon)
-		var gsize := Art.size_of("gun_" + c.weapon) * 0.62 * drop
-		draw_set_transform(c.pos, -0.6, Vector2.ONE)
-		draw_texture_rect(gun, Rect2(-gsize * 0.5, gsize), false)
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		var s: float = Config.CRATE_SIZE * drop * (1.0 + 0.04 * sin(_time * 4.0))
+		var box := Rect2(c.pos - Vector2(s, s) * 0.5, Vector2(s, s))
+		var worn := clampf(c.hp / Config.CRATE_HP, 0.0, 1.0) if Config.CRATE_HP > 0.0 else 1.0
+		draw_texture_rect(_crate_flash_tex if c.flash > 0.0 else _crate_tex, box, false,
+				Color(1, 1, 1).lerp(Color(0.62, 0.55, 0.5), 1.0 - worn))
+		# A shot-up crate shows its cracks.
+		if worn < 0.67:
+			draw_line(c.pos + Vector2(-s * 0.38, -s * 0.3), c.pos + Vector2(-s * 0.05, -s * 0.05), Color(0.08, 0.05, 0.03, 0.85), 2.5)
+			draw_line(c.pos + Vector2(-s * 0.05, -s * 0.05), c.pos + Vector2(-s * 0.18, s * 0.22), Color(0.08, 0.05, 0.03, 0.85), 2.5)
+		if worn < 0.34:
+			draw_line(c.pos + Vector2(s * 0.4, -s * 0.2), c.pos + Vector2(s * 0.1, s * 0.08), Color(0.08, 0.05, 0.03, 0.85), 2.5)
+			draw_line(c.pos + Vector2(s * 0.1, s * 0.08), c.pos + Vector2(s * 0.3, s * 0.4), Color(0.08, 0.05, 0.03, 0.85), 2.5)
+		# The weapon inside, large, straight across the lid.
+		var icon: Texture2D = Art.t("icon_" + c.weapon)
+		var icon_size := Art.size_of("icon_" + c.weapon)
+		var isize := Vector2(Config.CRATE_ICON_WIDTH, Config.CRATE_ICON_WIDTH * icon_size.y / icon_size.x) * drop
+		var icon_at := c.pos + Vector2(0.0, -2.0 - 2.0 * sin(_time * 3.0))
+		draw_texture_rect(icon, Rect2(icon_at - isize * 0.5 + Vector2(2.0, 3.0), isize), false, Color(0, 0, 0, 0.55))
+		draw_texture_rect(icon, Rect2(icon_at - isize * 0.5, isize), false)
+		var label := String(w["name"])
+		var label_at := c.pos + Vector2(-90.0, s * 0.5 + 17.0)
+		draw_string_outline(_font, label_at, label, HORIZONTAL_ALIGNMENT_CENTER, 180.0, 14, 6, Color(0, 0, 0, 0.9))
+		draw_string(_font, label_at, label, HORIZONTAL_ALIGNMENT_CENTER, 180.0, 14, rarity_color)
+		# How much more it can take, once it has been hit.
+		if worn < 1.0:
+			var bar := Rect2(c.pos + Vector2(-22.0, s * 0.5 + 22.0), Vector2(44.0, 4.0))
+			draw_rect(bar.grow(1.0), Color(0, 0, 0, 0.7))
+			draw_rect(Rect2(bar.position, Vector2(bar.size.x * worn, bar.size.y)), Color(0.9, 0.3, 0.2).lerp(Color(0.95, 0.8, 0.4), worn))
 		# "x2": picking this one up would put one in each hand.
 		if game.player.alive and game.player.would_dual(c.weapon):
-			var at := c.pos + Vector2(9.0, -15.0)
-			draw_string_outline(_font, at, "x2", HORIZONTAL_ALIGNMENT_LEFT, -1, 17, 6, Color(0, 0, 0, 0.9))
-			draw_string(_font, at, "x2", HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color(1.0, 0.9, 0.35))
+			var at := c.pos + Vector2(s * 0.5 - 4.0, -s * 0.5 + 4.0)
+			draw_string_outline(_font, at, "x2", HORIZONTAL_ALIGNMENT_LEFT, -1, 19, 6, Color(0, 0, 0, 0.9))
+			draw_string(_font, at, "x2", HORIZONTAL_ALIGNMENT_LEFT, -1, 19, Color(1.0, 0.9, 0.35))

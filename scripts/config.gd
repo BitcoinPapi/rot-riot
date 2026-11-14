@@ -421,7 +421,17 @@ const CRATE_INTERVAL_MIN := 13.0
 const CRATE_INTERVAL_MAX := 19.0
 const CRATE_MAX_ON_FIELD := 2
 const CRATE_LIFETIME := 26.0
-const CRATE_PICKUP_RADIUS := 30.0
+const CRATE_PICKUP_RADIUS := 34.0
+const CRATE_SIZE := 54.0                # how big the crate is drawn
+const CRATE_ICON_WIDTH := 104.0         # width of the weapon picture on it (big, so it can be read at a glance)
+# Crates are wood: your own bullets, flames and blasts break them, and what
+# was inside is lost. A hit takes the weapon's plain damage (your upgrades do
+# not make crates more fragile). Set CRATE_HP to 0 for crates that cannot break.
+const CRATE_HP := 150.0
+const CRATE_BLAST_MULT := 2.0           # explosions are this much harder on crates than bullets
+const CRATE_HIT_RADIUS := 24.0          # how big a target a crate is for bullets
+const CRATE_FLASH_TIME := 0.08          # it flashes white this long when hit
+const CRATE_BREAK_SHAKE := 0.25
 const CRATE_MIN_DIST_FROM_PLAYER := 260.0
 const CRATE_MAX_DIST_FROM_PLAYER := 700.0
 
