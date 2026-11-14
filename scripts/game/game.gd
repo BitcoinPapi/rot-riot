@@ -11,6 +11,7 @@ enum State { PLAYING, DYING, OVER }
 var arena: Arena
 var decals: Decals
 var enemies: EnemyManager
+var pickups: Pickups
 var player: Player
 var projectiles: Projectiles
 var fx: Fx
@@ -19,8 +20,13 @@ var cam: GameCamera
 var state: int = State.PLAYING
 var time_alive := 0.0
 var kills := 0
-var rage := 0.0
+var score := 0
+var coins_run := 0              # coins earned this run (banked when the run ends)
+var combo := 0                  # kills in quick succession
+var combo_timer := 0.0
+var rage := 0.0                 # 0..Config.RAGE_MAX
 var rage_active := false
+var rage_time := 0.0
 var enemy_hp_mult := 1.0        # set per wave
 var enemy_speed_mult := 1.0
 
@@ -43,6 +49,10 @@ func _ready() -> void:
 	player = Player.new()
 	player.game = self
 
+	pickups = Pickups.new()
+	pickups.game = self
+	add_child(pickups)
+
 	enemies = EnemyManager.new()
 	add_child(enemies)
 	enemies.setup(self)
@@ -64,6 +74,8 @@ func _ready() -> void:
 	cam = GameCamera.new()
 	add_child(cam)
 	cam.snap_to(player.pos)
+
+	GameInput.rage_pressed.connect(try_activate_rage)
 
 
 func _process(delta: float) -> void:
@@ -97,11 +109,27 @@ func _process(delta: float) -> void:
 func _simulate(dt: float) -> void:
 	if state == State.PLAYING:
 		time_alive += dt
+		_tick_combo_and_rage(dt)
 	player.tick(dt)
 	_debug_spawner(dt)
 	enemies.tick(dt)
 	projectiles.tick(dt)
+	pickups.tick(dt)
 	fx.tick(dt)
+
+
+func _tick_combo_and_rage(dt: float) -> void:
+	if combo > 0:
+		combo_timer -= dt
+		if combo_timer <= 0.0:
+			combo = 0
+	if rage_active:
+		rage_time -= dt
+		rage = Config.RAGE_MAX * maxf(rage_time, 0.0) / Config.RAGE_DURATION
+		if rage_time <= 0.0:
+			rage_active = false
+			rage = 0.0
+			Sfx.play("rage_end")
 
 
 ## Temporary: a trickle of zombies until the wave director arrives.
@@ -119,7 +147,7 @@ func _debug_spawner(dt: float) -> void:
 
 
 func get_stats() -> Dictionary:
-	return {"kills": kills, "time": time_alive}
+	return {"score": score, "kills": kills, "coins": coins_run, "time": time_alive}
 
 
 # ----------------------------------------------------------------------------
@@ -137,6 +165,73 @@ func on_enemy_killed(e: Enemy, dir: Vector2, kill_hitstop: float) -> void:
 	shake(Config.KILL_SHAKE * e.shake_mult)
 	Sfx.play("zombie_die")
 
+	# Score with a combo multiplier for fast kills.
+	combo += 1
+	combo_timer = Config.COMBO_WINDOW
+	score += int(round(e.score * Config.combo_multiplier(combo)))
+
+	# Rage fills from kills (but not while it is burning).
+	if not rage_active and rage < Config.RAGE_MAX:
+		rage = minf(rage + e.rage, Config.RAGE_MAX)
+		if rage >= Config.RAGE_MAX:
+			Sfx.play("rage_ready")
+			fx.text(player.pos + Vector2(0, -40), "RAGE READY!", Color(1.0, 0.45, 0.2), 24, 1.2)
+			if Config.RAGE_AUTO_ACTIVATE:
+				try_activate_rage()
+
+	pickups.drop_from_enemy(e)
+
+
+# ----------------------------------------------------------------------------
+#  Rage
+# ----------------------------------------------------------------------------
+func rage_ready() -> bool:
+	return state == State.PLAYING and not rage_active and rage >= Config.RAGE_MAX
+
+
+func try_activate_rage() -> void:
+	if get_tree().paused or not rage_ready():
+		return
+	rage_active = true
+	rage_time = Config.RAGE_DURATION
+	# The activation itself is a weapon: a blast that throws the horde back.
+	enemies.shockwave(player.pos, Config.RAGE_BURST_RADIUS, Config.RAGE_BURST_FORCE, Config.RAGE_BURST_DAMAGE, 0.5)
+	fx.ring(player.pos, 20.0, Config.RAGE_BURST_RADIUS, 0.4, Color(1.0, 0.35, 0.15, 0.95))
+	fx.ring(player.pos, 10.0, Config.RAGE_BURST_RADIUS * 0.7, 0.3, Color(1.0, 0.8, 0.4, 0.8))
+	fx.light(player.pos, Config.RAGE_BURST_RADIUS * 2.6, 0.3, Color(1.0, 0.3, 0.1, 0.8))
+	fx.text(player.pos + Vector2(0, -44), "RAGE!", Color(1.0, 0.3, 0.15), 30, 1.0)
+	shake(Config.RAGE_BURST_SHAKE)
+	hitstop(Config.RAGE_BURST_HITSTOP, true)
+	Sfx.play("rage_start")
+
+
+# ----------------------------------------------------------------------------
+#  Pickups
+# ----------------------------------------------------------------------------
+func collect_coin(at: Vector2, with_feedback: bool) -> void:
+	coins_run += Config.COIN_VALUE
+	if with_feedback:
+		fx.sparks(at, Vector2.UP, 2)
+		Sfx.play_pitched("coin", pickups.next_coin_pitch(), -8.0)
+
+
+func collect_crate(crate: Pickups.Crate) -> void:
+	player.give_weapon(crate.weapon)
+	var w: Dictionary = Config.WEAPONS[crate.weapon]
+	var color: Color = w["color"]
+	fx.text(player.pos + Vector2(0, -42), String(w["name"]), color, 26, 1.3)
+	fx.ring(crate.pos, 16.0, 120.0, 0.35, Color(color.r, color.g, color.b, 0.9))
+	fx.light(crate.pos, 220.0, 0.25, Color(color.r, color.g, color.b, 0.6))
+	shake(0.2)
+	Sfx.play("pickup_weapon")
+
+
+func collect_medkit(at: Vector2) -> void:
+	player.heal(Config.MEDKIT_HEAL)
+	fx.text(player.pos + Vector2(0, -42), "+%d HP" % int(Config.MEDKIT_HEAL), Color(0.45, 1.0, 0.5), 24, 1.1)
+	fx.ring(at, 10.0, 90.0, 0.35, Color(0.4, 1.0, 0.5, 0.8))
+	Sfx.play("medkit")
+
 
 func damage_player(amount: float, from: Vector2) -> void:
 	if state != State.PLAYING or not player.alive or player.invuln > 0.0:
@@ -148,6 +243,7 @@ func damage_player(amount: float, from: Vector2) -> void:
 	player.hurt_flash()
 	var away := (player.pos - from).normalized()
 	fx.blood_spray(player.pos, away, 8, 1.0)
+	combo = 0
 	shake(Config.HURT_SHAKE)
 	hitstop(Config.HURT_HITSTOP, true)
 	Sfx.play("player_hurt")

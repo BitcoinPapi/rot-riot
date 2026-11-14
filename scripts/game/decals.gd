@@ -98,8 +98,13 @@ func blood_dot(pos: Vector2, size: float) -> void:
 
 
 func scorch(pos: Vector2, radius: float) -> void:
-	stamp(_glow, pos, 0.0, Vector2(radius, radius) * 2.6, Color(0.03, 0.02, 0.02, 0.75))
-	stamp(_splats[2], pos, randf() * TAU, Vector2(radius, radius) * 2.0, Color(0.05, 0.04, 0.03, 0.55))
+	# A soft burnt patch with a darker core and a few cinders around it.
+	stamp(_glow, pos, 0.0, Vector2(radius, radius) * 3.0, Color(0.04, 0.03, 0.02, 0.7))
+	stamp(_glow, pos, 0.0, Vector2(radius, radius) * 1.6, Color(0.02, 0.015, 0.01, 0.8))
+	for k in 7:
+		var p := pos + Vector2.from_angle(randf() * TAU) * randf_range(radius * 0.5, radius * 1.3)
+		var s := randf_range(3.0, 8.0)
+		stamp(_dot, p, 0.0, Vector2(s, s), Color(0.05, 0.04, 0.03, 0.6))
 
 
 ## A dead zombie lying on the ground (darkened so it reads as dead).
