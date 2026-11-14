@@ -165,8 +165,6 @@ func explode(at: Vector2, s: Shot) -> void:
 	var edge: float = w["blast_edge_damage"]
 	var force: float = w["blast_knockback"]
 	var stagger: float = w["blast_stagger"]
-	if game.rage_active:
-		force *= Config.RAGE_KNOCKBACK_MULT
 	for e: Enemy in game.enemies.in_radius(at, radius):
 		var away := e.pos - at
 		var d := away.length()

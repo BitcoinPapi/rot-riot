@@ -123,7 +123,6 @@ func spawn(kind: int, at: Vector2, hp_mult: float = 1.0, speed_mult: float = 1.0
 	e.push_player = c["push_player"]
 	e.score = c["score"]
 	e.xp = maxi(int(round(float(c["xp"]) * game.enemy_xp_mult)), 1)
-	e.rage = c["rage"]
 	e.hitstop_mult = c["hitstop_mult"]
 	e.shake_mult = c["shake_mult"]
 	e.blood = c["blood"]

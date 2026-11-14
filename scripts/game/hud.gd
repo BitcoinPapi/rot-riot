@@ -1,6 +1,6 @@
 class_name Hud
 extends Control
-## The in-game overlay: health, rage, weapon timer, score, coins, wave info,
+## The in-game overlay: health, weapon timer, score, coins, wave info,
 ## boss bar, minimap, crosshair and big announcements. Everything is drawn in
 ## _draw from the Game's state, so there is nothing to keep in sync.
 
@@ -97,7 +97,7 @@ func _draw() -> void:
 
 	_draw_vignettes(p)
 	_draw_crate_arrows()
-	_draw_health_and_rage(p)
+	_draw_health(p)
 	_draw_weapon(p, h)
 	_draw_xp(w, h)
 	_draw_score(w)
@@ -116,8 +116,6 @@ func _draw_vignettes(p: Player) -> void:
 	# Always-on dark corners for mood.
 	draw_texture_rect(vignette, full, false, Color(0, 0, 0, 0.55))
 	var frac := p.hp / p.max_hp
-	if game.rage_active:
-		draw_texture_rect(vignette, full, false, Color(1.0, 0.35, 0.05, 0.4 + 0.15 * sin(_time * 14.0)))
 	if frac < 0.3 and p.alive:
 		draw_texture_rect(vignette, full, false, Color(0.9, 0.0, 0.0, 0.3 + 0.25 * sin(_time * 7.0)))
 	if _hurt > 0.0:
@@ -125,7 +123,7 @@ func _draw_vignettes(p: Player) -> void:
 		draw_rect(full, Color(1.0, 0.0, 0.0, _hurt * 0.12))
 
 
-func _draw_health_and_rage(p: Player) -> void:
+func _draw_health(p: Player) -> void:
 	var x := 26.0
 	var y := 24.0
 	var bar_w := 290.0
@@ -142,33 +140,11 @@ func _draw_health_and_rage(p: Player) -> void:
 	_text(Vector2(x + 8, y + 18), "HP", 16, Color.WHITE)
 	_text(Vector2(x + bar_w - 8, y + 18), "%d / %d" % [int(ceil(p.hp)), int(p.max_hp)], 16, Color.WHITE, 2)
 
-	# Rage
-	var ry := y + bar_h + 12.0
-	var rh := 14.0
-	var rfrac := clampf(game.rage / Config.RAGE_MAX, 0.0, 1.0)
-	var is_ready := game.rage_ready()
-	draw_rect(Rect2(x - 4, ry - 4, bar_w + 8, rh + 8), Color(0, 0, 0, 0.65))
-	draw_rect(Rect2(x, ry, bar_w, rh), Color(0.16, 0.08, 0.03))
-	var rcolor := Color(0.95, 0.45, 0.1)
-	if game.rage_active:
-		rcolor = Color(1.0, 0.25, 0.1).lerp(Color(1.0, 0.9, 0.3), 0.5 + 0.5 * sin(_time * 22.0))
-	elif is_ready:
-		rcolor = Color(1.0, 0.55, 0.1).lerp(Color(1.0, 1.0, 0.6), 0.5 + 0.5 * sin(_time * 10.0))
-	draw_rect(Rect2(x, ry, bar_w * rfrac, rh), rcolor)
-	if game.rage_active:
-		_text(Vector2(x, ry + rh + 22), "RAGE!", 20, Color(1.0, 0.4, 0.15))
-	elif is_ready:
-		var key := "LB" if GameInput.using_gamepad() else "SPACE"
-		var blink := 0.6 + 0.4 * sin(_time * 10.0)
-		_text(Vector2(x, ry + rh + 22), "RAGE READY - PRESS %s" % key, 20, Color(1.0, 0.75, 0.25, blink))
-	else:
-		_text(Vector2(x, ry + rh + 20), "RAGE", 14, Color(0.9, 0.6, 0.35, 0.8))
-
 	# The pet at your side and what it adds.
 	if game.pet != null:
 		var pet_def: Dictionary = Config.PETS[game.pet.id]
 		var pet_color: Color = Config.PET_RARITIES[String(pet_def["rarity"])]["color"]
-		_text(Vector2(x, ry + rh + 44), "%s   +%s%% damage" % [String(pet_def["name"]), String.num(p.stats.pet_damage * 100.0, 1)], 13,
+		_text(Vector2(x, y + bar_h + 24.0), "%s   +%s%% damage" % [String(pet_def["name"]), String.num(p.stats.pet_damage * 100.0, 1)], 13,
 				Color(pet_color.r, pet_color.g, pet_color.b, 0.9), 0, 4)
 
 
@@ -401,9 +377,9 @@ func _draw_hint(w: float, h: float) -> void:
 	if _hint_t <= 0.0 or game.director.wave > 1:
 		return
 	var alpha := clampf(_hint_t / 1.0, 0.0, 1.0) * 0.9
-	var hint := "WASD move   -   MOUSE aim   -   LEFT CLICK shoot   -   R reload   -   SPACE rage   -   ESC pause"
+	var hint := "WASD move   -   MOUSE aim   -   LEFT CLICK shoot   -   R reload   -   ESC pause"
 	if GameInput.using_gamepad():
-		hint = "LEFT STICK move   -   RIGHT STICK aim   -   RT shoot   -   X reload   -   LB rage   -   START pause"
+		hint = "LEFT STICK move   -   RIGHT STICK aim   -   RT shoot   -   X reload   -   START pause"
 	_text(Vector2(w * 0.5, h - 104), hint, 17, Color(1, 1, 1, alpha), 1)
 
 

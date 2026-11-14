@@ -107,8 +107,8 @@ func tick(dt: float) -> void:
 func _bite(e: Enemy) -> void:
 	var stats := game.player.stats
 	var speed := stats.pet_attack_speed
-	if game.rage_active:
-		speed *= stats.pet_rage_speed
+	if game.player.wounded:
+		speed *= stats.pet_feral_speed      # FERAL keystone
 	_bite_cd = Config.PET_BITE_INTERVAL * float(_def["bite_interval"]) / speed
 	_bites += 1
 	_lunge = 1.0
@@ -116,8 +116,6 @@ func _bite(e: Enemy) -> void:
 	if dir == Vector2.ZERO:
 		dir = _facing
 	var dmg := stats.pet_bite
-	if game.rage_active:
-		dmg *= Config.RAGE_DAMAGE_MULT
 	var knock: float = Config.PET_BITE_KNOCKBACK * float(_def["knockback"])
 	# MAUL trick: every few bites is a big one.
 	if stats.pet_maul and _bites % Config.PET_MAUL_EVERY == 0:
@@ -151,7 +149,7 @@ func _draw() -> void:
 	var grow := 1.0 - _arrive * _arrive
 	var s := _size * grow * (1.0 + 0.04 * sin(_walk))
 	var lunge := Vector2(_lunge * 7.0, 0.0)
-	if game.rage_active:
+	if game.player.wounded and game.player.stats.pet_feral_speed > 1.0:
 		Art.draw(self, "glow", Vector2.ZERO, 1.5 * _size, Color(1.0, 0.3, 0.1, 0.45))
 	draw_set_transform(lunge, 0.0, Vector2(s * (1.0 + 0.12 * _lunge), s))
 	Art.draw(self, _sprite, Vector2.ZERO, 1.0)

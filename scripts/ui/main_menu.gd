@@ -104,7 +104,7 @@ func opened() -> void:
 			map_index + 1, String(Config.MAPS[map_index]["name"]), SaveData.map_best_wave(map_index), Config.WAVES_PER_MAP,
 			SaveData.best_score, SaveData.total_kills]
 	else:
-		_stats.text = "WASD move  -  MOUSE aim  -  LEFT CLICK shoot  -  R reload  -  SPACE rage  (gamepad works too)"
+		_stats.text = "WASD move  -  MOUSE aim  -  LEFT CLICK shoot  -  R reload  (gamepad works too)"
 	if SaveData.was_reset_by_update:
 		_notice.text = "New progression system: your old coins and upgrades were reset."
 	elif SaveData.points_returned > 0 and SaveData.skill_points > 0:

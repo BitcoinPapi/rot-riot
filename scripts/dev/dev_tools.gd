@@ -29,9 +29,8 @@ extends Node
 ##   --autotest         play through the whole game loop automatically and report PASS/FAIL
 ##   --inputtest        feed fake keyboard / mouse / gamepad events through GameInput and check them
 ##   --bench=N          keep N zombies alive around the player and report simulation time
-##                      (add --weapon=ID --no-crates --no-rage to compare weapons fairly)
+##                      (add --weapon=ID --no-crates to compare weapons fairly)
 ##   --no-crates        no weapon crates appear (works with --bot too)
-##   --no-rage          the bot never uses rage
 ##   --gallery=PREFIX   show every generated sprite whose name starts with PREFIX, enlarged
 ##                      (--gallery-scale=N to change the size) - for checking art
 ##   --dump-sfx=DIR     write every generated sound to DIR as .wav files, then quit
@@ -172,9 +171,9 @@ func _process(_delta: float) -> void:
 		_quit(0)
 	if _args.has("frames") and _frame >= int(_args["frames"]):
 		if game != null and is_instance_valid(game):
-			print("SUMMARY frames=%d time=%.0fs wave=%d kills=%d score=%d coins=%d alive=%d left=%d hp=%.0f rage=%.0f weapon=%s boss=%s state=%d" % [
+			print("SUMMARY frames=%d time=%.0fs wave=%d kills=%d score=%d coins=%d alive=%d left=%d hp=%.0f weapon=%s boss=%s state=%d" % [
 				_frame, game.time_alive, game.director.wave, game.kills, game.score, game.coins_run, game.enemies.alive_count,
-				game.director.remaining(), game.player.hp, game.rage, game.player.weapon_id,
+				game.director.remaining(), game.player.hp, game.player.weapon_id,
 				str(game.director.boss_alive()), game.state])
 			var weapon_levels: Array = []
 			for id: String in Config.WEAPON_ORDER:
@@ -206,8 +205,6 @@ func _bot(game: Game) -> void:
 	if _args.has("cycle") and _frame % 360 == 5:
 		var order: Array = Config.WEAPON_ORDER
 		p.give_weapon(String(order[int(_frame / 360.0) % order.size()]))
-	if game.rage_ready() and not _args.has("no-rage"):
-		GameInput.press_rage()
 	var target := game.enemies.nearest(p.pos, 900.0)
 	var aim := Vector2.RIGHT
 	var fire := false
@@ -336,7 +333,7 @@ func _bench(game: Game) -> void:
 
 
 # ----------------------------------------------------------------------------
-#  Automated playthrough: menu -> shop -> settings -> run (every weapon, rage,
+#  Automated playthrough: menu -> shop -> settings -> run (every weapon,
 #  pause, boss) -> death -> game over -> play again -> quit to menu -> save file.
 # ----------------------------------------------------------------------------
 func _frames(count: int) -> void:
@@ -916,23 +913,8 @@ func _run_autotest() -> void:
 	await _frames(3)
 	_check(app.state == Main.State.PLAYING and not get_tree().paused, "Esc again resumes")
 
-	# --- rage ---
-	game.player.hp = game.player.max_hp
-	game.rage_active = false          # (the bot may have triggered rage itself a moment ago)
-	game.rage = Config.RAGE_MAX
-	game.player.give_weapon("smg")
-	game.player.ammo = 1
-	GameInput.press_rage()
-	await _frames(2)
-	_check(game.rage_active, "rage activates when the meter is full")
-	_check(game.player.ammo >= game.player.mag_size - 3, "activating rage refills the magazine")
-	# Hit stops freeze game time, so rage lasts a little longer in real frames.
-	waited = 0
-	while game.rage_active and waited < int(Config.RAGE_DURATION * 60.0) * 2:
-		game.player.hp = game.player.max_hp
-		await _frames(1)
-		waited += 1
-	_check(not game.rage_active and waited >= int(Config.RAGE_DURATION * 60.0) - 5, "rage ends after its duration (%d frames)" % waited)
+	# --- there is no rage in the game any more: Space, the right mouse button and LB do nothing ---
+	_check(not InputMap.has_action("rage") and not game.has_method("try_activate_rage"), "rage is gone from the game")
 
 	# --- boss wave ---
 	game.player.hp = game.player.max_hp
@@ -1611,13 +1593,6 @@ func _run_inputtest() -> void:
 	_check(p.reloading, "R reloads")
 	p.refill_ammo()
 
-	# --- rage on Space ---
-	game.rage = Config.RAGE_MAX
-	_key(KEY_SPACE, true)
-	await _frames(2)
-	_key(KEY_SPACE, false)
-	_check(game.rage_active, "Space activates rage")
-
 	# --- pause on Escape / P ---
 	_key(KEY_ESCAPE, true)
 	await _frames(2)
@@ -1665,18 +1640,12 @@ func _run_inputtest() -> void:
 	_pad_axis(JOY_AXIS_TRIGGER_RIGHT, 0.0)
 	await _frames(3)
 	_check(not GameInput.is_firing(), "releasing the trigger stops firing")
-	game.rage_active = false
-	game.rage = Config.RAGE_MAX
 	p.ammo = 3
 	_pad_button(JOY_BUTTON_X, true)
 	await _frames(2)
 	_pad_button(JOY_BUTTON_X, false)
-	_check(p.reloading and not game.rage_active, "X reloads (and no longer triggers rage)")
+	_check(p.reloading, "X reloads")
 	p.refill_ammo()
-	_pad_button(JOY_BUTTON_LEFT_SHOULDER, true)
-	await _frames(2)
-	_pad_button(JOY_BUTTON_LEFT_SHOULDER, false)
-	_check(game.rage_active, "left bumper activates rage")
 	_pad_button(JOY_BUTTON_START, true)
 	await _frames(2)
 	_pad_button(JOY_BUTTON_START, false)

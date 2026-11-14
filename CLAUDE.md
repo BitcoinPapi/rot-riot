@@ -53,7 +53,7 @@ godot --headless --export-release "macOS" build/mac/RotRiot.zip
 ```
 
 Other dev flags (all after `--`, see `scripts/dev/dev_tools.gd`): `--play`,
-`--god`, `--wave=N`, `--weapon=ID`, `--dual`, `--keep-weapon`, `--no-crates`, `--no-rage`,
+`--god`, `--wave=N`, `--weapon=ID`, `--dual`, `--keep-weapon`, `--no-crates`,
 `--cycle`, `--level=N`, `--coins=N`, `--map=N` (with `--best=W` best wave cleared there and
 `--start=W` starting wave), `--screen=maps|character|skills|armory|pets|settings|pause|gameover|victory`,
 `--forge` (with `--screen=character`: open the forge), `--armory-weapon=ID`,
@@ -97,7 +97,7 @@ scripts/autoload/
                          pictures (front view + top-down) are rebuilt from the gear he wears
   sfx.gd                 sounds synthesised at startup (worker thread) + pooled playback
 scripts/game/
-  game.gd                one run: owns the world, runs the simulation loop, hit stop, slow-mo, rage, score
+  game.gd                one run: owns the world, runs the simulation loop, hit stop, slow-mo, score
   player.gd              movement, aim, firing (bullets / grenade / melee), drawing
   player_stats.gd        THE stat pipeline: level + skill tree + gear + pet + keystones + weapon trees/perks
                          -> the numbers the game uses
@@ -227,8 +227,7 @@ show the damage.
   whole magazine and blocks firing; `"shell"` (shotgun) loads one round at a
   time and firing interrupts it. The launcher holds one round, so every shot
   is followed by a reload. Melee weapons have `mag: 0`. Reload speed scales
-  with the dexterity passive, the weapon's own RELOAD SPEED track and rage;
-  activating rage refills the magazine. The HUD shows "R = reload" beside the
+  with the dexterity passive and the weapon's own RELOAD SPEED track. The HUD shows "R = reload" beside the
   ammo count whenever the magazine is not full (the owner asked for a way to
   reload early when it is quiet). Each reload plays three shared
   clicks (`mag_out`, `mag_in`, `rack`; shotgun `shell_in`; flamethrower
@@ -240,7 +239,7 @@ show the damage.
   220x80, in `art.gd`) used on the HUD and in the Armory, plus a small
   top-down sprite (`gun_<id>`) held by the player and shown on crates.
 - Weapon strength is compared with
-  `--bench=150 --no-crates --no-rage --weapon=ID [--dual]` (kills in 15 s).
+  `--bench=150 --no-crates --weapon=ID [--dual]` (kills in 15 s; the numbers below were taken before rage was removed, with the bot not using it).
   Last measured (with reloading): pistol 32, dual pistols 37, SMG 67,
   shotgun 93, rifle 106, machine gun 124, dual machine gun 199, launcher
   ~500, flamethrower ~620; sledgehammer ~350 and chainsaw ~380 do not
@@ -302,9 +301,13 @@ bot reaches wave 6-9 as a new character and ~11 at level 15-30.
 **Score / combo:** each kill within 2.5 s of the last raises the combo, which
 multiplies score (up to x3). Taking damage resets it.
 
-**Rage:** fills from kills (not while active). Activate with Space / RMB / LB /
-LT / X: a blast throws the horde back, then for 8 s damage x3, fire rate
-x1.5, speed x1.25, damage taken x0.2. `RAGE_AUTO_ACTIVATE` exists in config.
+**No rage.** The game used to have a rage meter (kills filled it; Space
+gave a blast and 8 s of x3 damage). The owner had it **removed completely**
+(after v0.7): no meter, no key, no sounds, nothing in config. Do not bring it
+back. Space, the right mouse button, LB and LT are free. The FERAL keystone,
+which used to speed the pet up during rage, now does so while the player is
+badly hurt (below 30% health). SECOND WIND kept its blast
+(`SECOND_WIND_BURST_*`).
 
 **Progression** (all permanent; numbers in the PROGRESSION section of
 config.gd; stored by `save_data.gd`; turned into game numbers only in
@@ -535,7 +538,8 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
 ## Owner feedback so far (after the first playtest, Nov 2026)
 
 - Loved: the gore, corpses/blood/casings staying on the ground, the shooting.
-- Rage shook the screen too much -> `RAGE_SHAKE_MULT` (done).
+- Rage shook the screen too much -> toned down; later the owner had rage
+  removed from the game altogether ("remove the rage option completely").
 - Guns sounded like lasers -> rebuilt. Owner: "the guns sound much better".
 - Far too easy (reached wave 15 on the first run and had to die on purpose)
   and upgrades far too cheap -> difficulty/economy pass: bigger and faster

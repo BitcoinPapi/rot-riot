@@ -25,7 +25,6 @@ works on 4.5 and later.
 | Aim        | Mouse                   | Right stick          |
 | Shoot      | Left mouse button (hold)| Right trigger (hold) |
 | Reload     | R (also automatic)      | X                    |
-| Rage       | Space or right click    | LB or LT             |
 | Pause      | Esc or P                | Start                |
 | Fullscreen | F11                     | (Settings menu)      |
 | Menus      | Mouse, or arrows + Enter| D-pad / stick, A, B  |
@@ -79,12 +78,9 @@ works on 4.5 and later.
   weapon with it.
 - **Reloading:** guns reload by themselves when empty, or press R to reload
   early. The shotgun loads one shell at a time and you can fire in between.
-  Activating rage refills your magazine instantly.
 - **Dual wielding:** pick up a crate of the weapon you are already holding
   (it shows "x2") and you get one in each hand. Works with the pistol, SMG,
   shotgun and machine gun. A pistol crate always gives you two pistols.
-- Kills fill the orange **rage** bar. When it is full, press Space: nearby
-  zombies are blasted away and you are much stronger for 8 seconds.
 - Kills give **XP**. The blue bar along the bottom is your character level;
   each level makes you a little stronger and gives a **skill point** (the
   highest level is 100, and it is meant to take months to reach).
@@ -137,7 +133,7 @@ Close Godot, then double-click **Update Rot Riot.command** inside the project
 folder. A Terminal window opens, downloads the latest version and replaces the
 folder. Your coins, level and upgrades are stored elsewhere and are kept.
 Then open the project in Godot again. The version number is shown in the
-bottom right corner of the main menu (now v0.7.0).
+bottom right corner of the main menu (now v0.7.1).
 
 After an update that changes the upgrade screens, points you had already
 spent are handed back so you can place them again in the new trees.
@@ -202,5 +198,5 @@ godot --headless --fixed-fps 60 -- --bench=250
 ```
 
 The first plays through the whole game automatically (menus, maps, the
-skill tree, weapon upgrades, gear and forging, pets, every weapon, rage, boss, death, levels, save file), the
+skill tree, weapon upgrades, gear and forging, pets, every weapon, boss, death, levels, save file), the
 second checks every control, the third measures speed with 250 zombies. See `CLAUDE.md` for the design notes.

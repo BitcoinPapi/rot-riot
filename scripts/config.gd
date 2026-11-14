@@ -11,7 +11,7 @@ extends Node
 ## ============================================================================
 
 const GAME_TITLE := "ROT RIOT"
-const GAME_VERSION := "0.7.0"
+const GAME_VERSION := "0.7.1"
 const HERO_NAME := "CLIFF"                    # the survivor you play
 # How he looks with nothing equipped (his gear is drawn over this, see scripts/autoload/art.gd).
 const HERO_LOOK := {"skin": "#dfae88", "skin_dark": "#b98660", "hair": "#3a2a1e", "shirt": "#23262b", "shirt_light": "#33373d",
@@ -144,8 +144,6 @@ const DUAL_MAG_MULT := 2                # two guns = two magazines
 
 # Reloading. Reload speed rises with the DEXTERITY passive and with the
 # weapon's own RELOAD SPEED upgrade.
-const RELOAD_RAGE_MULT := 1.6           # reload this much faster while rage is active
-const RAGE_REFILLS_AMMO := true         # activating rage tops the magazine up instantly
 const LOW_AMMO_FRACTION := 0.25         # the ammo counter turns red below this
 const RELOAD_MAG_IN_AT := 0.55          # fraction of the reload at which the new magazine clicks in
 const RELOAD_RACK_AT := 0.86            # fraction at which the slide is racked
@@ -303,28 +301,28 @@ const AI_LEAPER := 3   # Lunger
 const ENEMIES := {
 	SHAMBLER: {
 		"name": "Shambler", "hp": 24.0, "speed": 86.0, "speed_var": 0.2, "radius": 14.0,
-		"damage": 10.0, "attack_cd": 0.8, "score": 10, "rage": 2.2, "xp": 4,
+		"damage": 10.0, "attack_cd": 0.8, "score": 10, "xp": 4,
 		"coin_chance": 0.18, "coins_min": 1, "coins_max": 1, "medkit_chance": 0.012,
 		"kb_mult": 1.0, "stagger_mult": 1.0, "mass": 1.0, "push_player": 1.0,
 		"hitstop_mult": 1.0, "shake_mult": 1.0, "blood": 1.0,
 	},
 	RUNNER: {
 		"name": "Runner", "hp": 14.0, "speed": 220.0, "speed_var": 0.12, "radius": 11.0,
-		"damage": 8.0, "attack_cd": 0.7, "score": 15, "rage": 2.6, "xp": 5,
+		"damage": 8.0, "attack_cd": 0.7, "score": 15, "xp": 5,
 		"coin_chance": 0.20, "coins_min": 1, "coins_max": 1, "medkit_chance": 0.012,
 		"kb_mult": 1.25, "stagger_mult": 1.0, "mass": 0.6, "push_player": 0.7,
 		"hitstop_mult": 0.8, "shake_mult": 0.8, "blood": 0.7,
 	},
 	BRUTE: {
 		"name": "Brute", "hp": 220.0, "speed": 58.0, "speed_var": 0.08, "radius": 26.0,
-		"damage": 26.0, "attack_cd": 1.1, "score": 60, "rage": 9.0, "xp": 22,
+		"damage": 26.0, "attack_cd": 1.1, "score": 60, "xp": 22,
 		"coin_chance": 1.0, "coins_min": 2, "coins_max": 3, "medkit_chance": 0.15,
 		"kb_mult": 0.28, "stagger_mult": 0.3, "mass": 6.0, "push_player": 2.5,
 		"hitstop_mult": 2.6, "shake_mult": 4.0, "blood": 2.5,
 	},
 	BOSS: {
 		"name": "THE GORGER", "hp": 1700.0, "speed": 72.0, "speed_var": 0.0, "radius": 52.0,
-		"damage": 30.0, "attack_cd": 1.0, "score": 1000, "rage": 40.0, "xp": 350,
+		"damage": 30.0, "attack_cd": 1.0, "score": 1000, "xp": 350,
 		"coin_chance": 1.0, "coins_min": 25, "coins_max": 25, "medkit_chance": 1.0,
 		"kb_mult": 0.04, "stagger_mult": 0.0, "mass": 60.0, "push_player": 2.5,
 		"hitstop_mult": 5.0, "shake_mult": 14.0, "blood": 8.0,
@@ -348,7 +346,7 @@ const ENEMIES := {
 	# --- them: on screen and on ground the fog has cleared from.
 	GOBBER: {
 		"name": "Gobber", "ai": AI_SHOOTER, "hp": 20.0, "speed": 80.0, "speed_var": 0.15, "radius": 13.0,
-		"damage": 8.0, "attack_cd": 1.0, "score": 25, "rage": 3.0, "xp": 8,
+		"damage": 8.0, "attack_cd": 1.0, "score": 25, "xp": 8,
 		"coin_chance": 0.30, "coins_min": 1, "coins_max": 2, "medkit_chance": 0.02,
 		"kb_mult": 1.0, "stagger_mult": 1.0, "mass": 0.9, "push_player": 0.8,
 		"hitstop_mult": 1.0, "shake_mult": 1.0, "blood": 1.0,
@@ -366,7 +364,7 @@ const ENEMIES := {
 	},
 	CHUCKER: {
 		"name": "Chucker", "ai": AI_SHOOTER, "hp": 90.0, "speed": 62.0, "speed_var": 0.1, "radius": 20.0,
-		"damage": 16.0, "attack_cd": 1.1, "score": 45, "rage": 6.0, "xp": 16,
+		"damage": 16.0, "attack_cd": 1.1, "score": 45, "xp": 16,
 		"coin_chance": 0.8, "coins_min": 1, "coins_max": 2, "medkit_chance": 0.06,
 		"kb_mult": 0.5, "stagger_mult": 0.5, "mass": 3.0, "push_player": 1.6,
 		"hitstop_mult": 1.8, "shake_mult": 2.2, "blood": 1.8, "gear_pool": "brutes",
@@ -386,7 +384,7 @@ const ENEMIES := {
 	# --- among other zombies and the blast is yours.
 	GASBAG: {
 		"name": "Gasbag", "ai": AI_BURSTER, "hp": 55.0, "speed": 66.0, "speed_var": 0.1, "radius": 19.0,
-		"damage": 0.0, "attack_cd": 1.0, "score": 35, "rage": 4.0, "xp": 12,
+		"damage": 0.0, "attack_cd": 1.0, "score": 35, "xp": 12,
 		"coin_chance": 0.5, "coins_min": 1, "coins_max": 2, "medkit_chance": 0.04,
 		"kb_mult": 0.7, "stagger_mult": 0.6, "mass": 2.5, "push_player": 1.4,
 		"hitstop_mult": 1.6, "shake_mult": 1.0, "blood": 3.0, "no_corpse": true,
@@ -408,7 +406,7 @@ const ENEMIES := {
 	# --- a straight line at where you were. Step aside and it lands dazed.
 	LUNGER: {
 		"name": "Lunger", "ai": AI_LEAPER, "hp": 30.0, "speed": 118.0, "speed_var": 0.12, "radius": 12.0,
-		"damage": 9.0, "attack_cd": 0.8, "score": 30, "rage": 3.4, "xp": 10,
+		"damage": 9.0, "attack_cd": 0.8, "score": 30, "xp": 10,
 		"coin_chance": 0.3, "coins_min": 1, "coins_max": 2, "medkit_chance": 0.02,
 		"kb_mult": 1.1, "stagger_mult": 1.0, "mass": 0.8, "push_player": 0.8,
 		"hitstop_mult": 1.0, "shake_mult": 1.0, "blood": 0.9,
@@ -540,23 +538,12 @@ const COMBO_MULT_PER_KILL := 0.04       # each combo kill adds 4% score
 const COMBO_MULT_MAX := 3.0
 
 # ----------------------------------------------------------------------------
-#  RAGE
+#  SECOND WIND (the VITALITY keystone): the blast that throws the horde back
+#  when a killing blow is survived.
 # ----------------------------------------------------------------------------
-const RAGE_MAX := 100.0
-const RAGE_AUTO_ACTIVATE := false       # true = rage starts by itself when full
-const RAGE_DURATION := 8.0
-const RAGE_DAMAGE_MULT := 3.0
-const RAGE_FIRE_RATE_MULT := 1.5
-const RAGE_SPEED_MULT := 1.25
-const RAGE_KNOCKBACK_MULT := 1.5
-const RAGE_DAMAGE_TAKEN_MULT := 0.2
-const RAGE_BURST_RADIUS := 240.0        # activating rage blasts zombies away
-const RAGE_BURST_FORCE := 760.0
-const RAGE_BURST_DAMAGE := 30.0
-const RAGE_BURST_STAGGER := 0.5
-const RAGE_BURST_SHAKE := 0.8
-const RAGE_SHAKE_MULT := 0.5            # all screen shake is scaled by this while rage is active (faster fire = more shake)
-const RAGE_BURST_HITSTOP := 0.09
+const SECOND_WIND_BURST_RADIUS := 240.0
+const SECOND_WIND_BURST_FORCE := 760.0
+const SECOND_WIND_BURST_STAGGER := 0.5
 
 # ----------------------------------------------------------------------------
 #  PICKUPS
@@ -736,7 +723,7 @@ const KEYSTONES := {
 	"luck": {"name": "SCAVENGER", "value": 2.0, "crates": 0.25, "deed": {"kind": "bought", "value": 20},
 		"desc": "Coins fly to you from %d times as far, and weapon crates appear %d%% more often."},
 	"bond": {"name": "FERAL", "value": 3.0, "deed": {"kind": "pets", "value": 3},
-		"desc": "While you rage, your pet attacks %d times as fast."},
+		"desc": "When you are badly hurt, your pet goes wild: it attacks %d times as fast."},
 }
 const CRIT_DAMAGE_MULT := 2.0
 const CRIT_KNOCKBACK_MULT := 1.4

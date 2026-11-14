@@ -36,9 +36,6 @@ var xp_run := 0                 # XP earned this run (already added to the chara
 var levels_run := 0             # character levels gained this run
 var combo := 0                  # kills in quick succession
 var combo_timer := 0.0
-var rage := 0.0                 # 0..Config.RAGE_MAX
-var rage_active := false
-var rage_time := 0.0
 var enemy_hp_mult := 1.0        # set per wave (map x wave growth)
 var enemy_speed_mult := 1.0
 var enemy_damage_mult := 1.0
@@ -143,7 +140,6 @@ func _ready() -> void:
 	hud.game = self
 	hud_layer.add_child(hud)
 
-	GameInput.rage_pressed.connect(try_activate_rage)
 	GameInput.reload_pressed.connect(_on_reload_pressed)
 
 	# Starting deep into a map: a weapon is waiting beside you.
@@ -213,7 +209,7 @@ func spawn_point(angle: float, extra: float = 0.0, edge: float = 40.0) -> Vector
 func _simulate(dt: float) -> void:
 	if state == State.PLAYING:
 		time_alive += dt
-		_tick_combo_and_rage(dt)
+		_tick_combo(dt)
 	player.tick(dt)
 	if player.alive:
 		fog.reveal(player.pos)
@@ -227,18 +223,11 @@ func _simulate(dt: float) -> void:
 	fx.tick(dt)
 
 
-func _tick_combo_and_rage(dt: float) -> void:
+func _tick_combo(dt: float) -> void:
 	if combo > 0:
 		combo_timer -= dt
 		if combo_timer <= 0.0:
 			combo = 0
-	if rage_active:
-		rage_time -= dt
-		rage = Config.RAGE_MAX * maxf(rage_time, 0.0) / Config.RAGE_DURATION
-		if rage_time <= 0.0:
-			rage_active = false
-			rage = 0.0
-			Sfx.play("rage_end")
 
 
 func get_stats() -> Dictionary:
@@ -320,15 +309,6 @@ func on_enemy_killed(e: Enemy, dir: Vector2, kill_hitstop: float, source: String
 	combo_timer = Config.COMBO_WINDOW
 	score += int(round(e.score * Config.combo_multiplier(combo)))
 
-	# Rage fills from kills (but not while it is burning).
-	if not rage_active and rage < Config.RAGE_MAX:
-		rage = minf(rage + e.rage, Config.RAGE_MAX)
-		if rage >= Config.RAGE_MAX:
-			Sfx.play("rage_ready")
-			fx.text(player.pos + Vector2(0, -40), "RAGE READY!", Color(1.0, 0.45, 0.2), 24, 1.2)
-			if Config.RAGE_AUTO_ACTIVATE:
-				try_activate_rage()
-
 	pickups.drop_from_enemy(e)
 	director.on_enemy_killed(e)
 	if e.kind == Config.BOSS:
@@ -393,34 +373,9 @@ func _spawn_pet() -> void:
 	move_child(pet, player.get_index())     # drawn just under the player
 
 
-# ----------------------------------------------------------------------------
-#  Rage
-# ----------------------------------------------------------------------------
-func rage_ready() -> bool:
-	return state == State.PLAYING and not rage_active and rage >= Config.RAGE_MAX
-
-
 func _on_reload_pressed() -> void:
 	if state == State.PLAYING and not get_tree().paused:
 		player.start_reload()
-
-
-func try_activate_rage() -> void:
-	if get_tree().paused or not rage_ready():
-		return
-	rage_active = true
-	rage_time = Config.RAGE_DURATION
-	if Config.RAGE_REFILLS_AMMO:
-		player.refill_ammo()
-	# The activation itself is a weapon: a blast that throws the horde back.
-	enemies.shockwave(player.pos, Config.RAGE_BURST_RADIUS, Config.RAGE_BURST_FORCE, Config.RAGE_BURST_DAMAGE, Config.RAGE_BURST_STAGGER)
-	fx.ring(player.pos, 20.0, Config.RAGE_BURST_RADIUS, 0.4, Color(1.0, 0.35, 0.15, 0.95))
-	fx.ring(player.pos, 10.0, Config.RAGE_BURST_RADIUS * 0.7, 0.3, Color(1.0, 0.8, 0.4, 0.8))
-	fx.light(player.pos, Config.RAGE_BURST_RADIUS * 2.6, 0.3, Color(1.0, 0.3, 0.1, 0.8))
-	fx.text(player.pos + Vector2(0, -44), "RAGE!", Color(1.0, 0.3, 0.15), 30, 1.0)
-	shake(Config.RAGE_BURST_SHAKE)
-	hitstop(Config.RAGE_BURST_HITSTOP, true)
-	Sfx.play("rage_start")
 
 
 # ----------------------------------------------------------------------------
@@ -500,8 +455,6 @@ func damage_player(amount: float, from: Vector2) -> void:
 		Sfx.play("dodge")
 		return
 	amount *= player.stats.damage_taken_mult      # defense
-	if rage_active:
-		amount *= Config.RAGE_DAMAGE_TAKEN_MULT
 	player.hp -= amount
 	player.invuln = Config.PLAYER_HURT_INVULN * player.stats.hurt_invuln_mult
 	player.hurt_boost = player.stats.hurt_speed_time
@@ -530,12 +483,12 @@ func _second_wind() -> void:
 	player.second_wind_used = true
 	player.hp = player.max_hp * player.stats.second_wind
 	player.invuln = Config.SECOND_WIND_INVULN
-	enemies.shockwave(player.pos, Config.RAGE_BURST_RADIUS, Config.RAGE_BURST_FORCE, 0.0, Config.RAGE_BURST_STAGGER)
-	fx.ring(player.pos, 20.0, Config.RAGE_BURST_RADIUS, 0.45, Color(0.95, 0.3, 0.3, 0.95))
-	fx.light(player.pos, Config.RAGE_BURST_RADIUS * 2.4, 0.35, Color(1.0, 0.3, 0.3, 0.7))
+	enemies.shockwave(player.pos, Config.SECOND_WIND_BURST_RADIUS, Config.SECOND_WIND_BURST_FORCE, 0.0, Config.SECOND_WIND_BURST_STAGGER)
+	fx.ring(player.pos, 20.0, Config.SECOND_WIND_BURST_RADIUS, 0.45, Color(0.95, 0.3, 0.3, 0.95))
+	fx.light(player.pos, Config.SECOND_WIND_BURST_RADIUS * 2.4, 0.35, Color(1.0, 0.3, 0.3, 0.7))
 	fx.text(player.pos + Vector2(0, -48), "SECOND WIND!", Color(1.0, 0.45, 0.45), 28, 1.4)
 	slow_motion(Config.BOSS_DEATH_SLOWMO, 0.6)
-	Sfx.play("rage_start")
+	Sfx.play("second_wind")
 
 
 func _player_died() -> void:
@@ -556,8 +509,6 @@ func _player_died() -> void:
 #  Feel helpers used by everything else
 # ----------------------------------------------------------------------------
 func shake(amount: float) -> void:
-	if rage_active:
-		amount *= Config.RAGE_SHAKE_MULT
 	cam.add_trauma(amount)
 
 

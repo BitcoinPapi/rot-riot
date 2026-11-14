@@ -43,7 +43,7 @@ var pet_attack_speed := 1.0     # > 1 = it bites more often
 var pet_fetch := false          # tricks learned in the BOND branch
 var pet_maul := false
 var pet_guard := false
-var pet_rage_speed := 1.0       # FERAL keystone: attack speed multiplier while raging
+var pet_feral_speed := 1.0      # FERAL keystone: the pet's attack speed multiplier while the player is badly hurt
 
 
 static func current() -> PlayerStats:
@@ -73,7 +73,7 @@ static func current() -> PlayerStats:
 
 	var keys: Dictionary = Config.KEYSTONES
 	if SaveData.has_keystone("bond"):
-		s.pet_rage_speed = float(keys["bond"]["value"])
+		s.pet_feral_speed = float(keys["bond"]["value"])
 	if SaveData.has_keystone("vitality"):
 		s.second_wind = float(keys["vitality"]["value"])
 	if SaveData.has_keystone("strength"):

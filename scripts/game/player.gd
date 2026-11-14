@@ -83,8 +83,6 @@ func tick(delta: float) -> void:
 	# --- move: instant, no acceleration ---
 	move_input = GameInput.get_move()
 	var speed: float = Config.PLAYER_SPEED * stats.speed_mult * float(weapon["move_mult"])
-	if game.rage_active:
-		speed *= Config.RAGE_SPEED_MULT
 	if hurt_boost > 0.0:
 		hurt_boost -= delta
 		speed *= 1.0 + stats.hurt_speed
@@ -149,10 +147,6 @@ func _fire() -> void:
 		interval *= Config.DUAL_INTERVAL_MULT
 		spread_mult *= Config.DUAL_SPREAD_MULT
 		recoil_mult *= Config.DUAL_RECOIL_MULT
-	if game.rage_active:
-		rate *= Config.RAGE_FIRE_RATE_MULT
-		dmg *= Config.RAGE_DAMAGE_MULT
-		knock *= Config.RAGE_KNOCKBACK_MULT
 	if fire_cd < -0.05:
 		fire_cd = 0.0
 	fire_cd += interval / rate
@@ -236,10 +230,7 @@ func start_reload() -> void:
 
 ## Reloads get faster with the DEXTERITY passive and the weapon's own RELOAD SPEED upgrade.
 func _reload_speed() -> float:
-	var speed: float = stats.fire_rate_mult * float(wmods["reload"])
-	if game.rage_active:
-		speed *= Config.RELOAD_RAGE_MULT
-	return speed
+	return stats.fire_rate_mult * float(wmods["reload"])
 
 
 func _tick_reload(delta: float) -> void:
@@ -275,7 +266,7 @@ func _tick_reload(delta: float) -> void:
 		reloading = false
 
 
-## Top the magazine up instantly (used when rage is activated).
+## Top the magazine up instantly.
 func refill_ammo() -> void:
 	ammo = mag_size
 	reloading = false
@@ -389,15 +380,11 @@ func _draw() -> void:
 	if invuln > 0.0 and fmod(_time, 0.12) < 0.06:
 		alpha = 0.45
 
-	if game.rage_active:
-		var pulse := 2.4 + sin(_time * 18.0) * 0.25
-		Art.draw(self, "glow", Vector2.ZERO, pulse, Color(1.0, 0.25, 0.1, 0.55))
-
 	# Body, with a small squash while walking.
 	var bob := 1.0 + sin(_walk_phase) * 0.035
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, bob))
 	var body := "player_flash" if _flash > 0.0 else ("player_hurt" if wounded else "player")
-	var tint := Color(1.0, 0.75, 0.7, alpha) if game.rage_active else Color(1, 1, 1, alpha)
+	var tint := Color(1, 1, 1, alpha)
 	Art.draw(self, body, Vector2.ZERO, 1.0, tint)
 
 	# Reload animation: the gun is pulled in and tipped over while the magazine

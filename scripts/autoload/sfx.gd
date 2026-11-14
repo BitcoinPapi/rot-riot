@@ -55,9 +55,7 @@ var RECIPES := {
 	"crate_spawn": [_make_crate_spawn, -6.0, 0.1],
 	"crate_hit": [_make_crate_hit, -6.0, 0.05],
 	"crate_break": [_make_crate_break, -2.0, 0.2],
-	"rage_ready": [_make_rage_ready, -4.0, 0.3],
-	"rage_start": [_make_rage_start, 1.0, 0.3],
-	"rage_end": [_make_rage_end, -6.0, 0.3],
+	"second_wind": [_make_second_wind, 1.0, 0.3],
 	"wave_start": [_make_wave_start, -4.0, 0.3],
 	"wave_clear": [_make_wave_clear, -4.0, 0.3],
 	"game_over": [_make_game_over, -2.0, 0.5],
@@ -751,14 +749,8 @@ func _make_crate_spawn(s: Synth) -> void:
 	s.tone(0.06, 0.26, 0.3, 880.0, 880.0, 0.11)
 
 
-func _make_rage_ready(s: Synth) -> void:
-	s.length(0.38)
-	s.tone(0.0, 0.14, 0.5, 440.0, 660.0, 0.1, Synth.TRIANGLE)
-	s.tone(0.13, 0.24, 0.6, 660.0, 990.0, 0.14, Synth.TRIANGLE)
-	s.tone(0.13, 0.2, 0.2, 1320.0, 1980.0, 0.1)
-
-
-func _make_rage_start(s: Synth) -> void:
+func _make_second_wind(s: Synth) -> void:
+	# A surge: a rising growl, then a boom.
 	s.length(0.95)
 	s.drive = 2.6
 	s.tone(0.0, 0.5, 0.7, 60.0, 250.0, 0.4, Synth.SAW, 0.3)
@@ -766,11 +758,6 @@ func _make_rage_start(s: Synth) -> void:
 	s.tone(0.45, 0.5, 1.0, 125.0, 38.0, 0.2)
 	s.noise(0.45, 0.5, 0.8, 0.14, 5000.0, 300.0)
 	s.lowpass(5000.0)
-
-
-func _make_rage_end(s: Synth) -> void:
-	s.length(0.42)
-	s.tone(0.0, 0.4, 0.6, 520.0, 150.0, 0.2, Synth.TRIANGLE)
 
 
 func _make_wave_start(s: Synth) -> void:
