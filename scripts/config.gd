@@ -599,32 +599,17 @@ const WEAPON_TRACKS := {
 }
 
 # ----------------------------------------------------------------------------
-#  WEAPON TREES (Armory) - built from these numbers by scripts/game/weapon_tree.gd.
-#  Every weapon has its own tree: the weapon in the middle, one branch per
-#  upgrade it can have (WEAPON_TRACKS above), arcs of nodes between the
-#  branches, three perks, and an endless node at the tip of each branch. Nodes
-#  are bought with that weapon's points and need that weapon's level.
+#  WEAPON UPGRADES (Armory). Every weapon has its own level (from kills made
+#  with it) and gets one weapon point per level. Points buy ranks of the
+#  upgrades above (WEAPON_TRACKS) - as many as you like, at a rising price -
+#  and three perks that open at certain weapon levels.
 # ----------------------------------------------------------------------------
-const WEAPON_TREE_TIERS := [
-	# level = weapon level needed    cost = weapon points for a small node    arc = nodes on each arc between branches
-	{"level": 1, "cost": 1, "arc": 0},
-	{"level": 6, "cost": 1, "arc": 2},
-	{"level": 14, "cost": 2, "arc": 3},
-]
-const WEAPON_TREE_PER_TIER := 3         # nodes along a branch per tier (the last one is the big node)
-const WEAPON_TREE_SMALL_RANKS := 1
-const WEAPON_TREE_BIG_RANKS := 2        # ranks from the big node that ends each tier
-const WEAPON_TREE_BIG_COST_MULT := 2    # ...which costs this many times the tier's price
-const WEAPON_TREE_ENDLESS_LEVEL := 20   # weapon level needed for the endless node at a branch's tip
-const WEAPON_TREE_ENDLESS_COST := 3     # weapon points for its first rank...
-const WEAPON_TREE_ENDLESS_COST_STEP := 4   # ...and one more every N ranks
-const WEAPON_TREE_START_RADIUS := 86.0  # layout: distance of a branch's first node from the middle
-const WEAPON_TREE_STEP := 60.0          # ...and between its nodes
+const WEAPON_RANK_COST_STEP := 5        # every N ranks of an upgrade, the next ranks cost one more weapon point
 const WEAPON_RESPEC_COST_PER_LEVEL := 10   # coins to take a weapon's points back = this * its level
-# Perks: three per weapon, one on each tier, in that order. A perk needs its
-# tier's weapon level and a learned node next to it. "mods" changes the
-# weapon's own numbers: ["add", n] adds, ["mul", x] multiplies.
-# Keep each "desc" in step with its "mods".
+# Perks: three per weapon. Each needs a weapon level and costs weapon points.
+# "mods" changes the weapon's own numbers: ["add", n] adds, ["mul", x]
+# multiplies. Keep each "desc" in step with its "mods".
+const WEAPON_PERK_LEVELS := [5, 12, 20]
 const WEAPON_PERK_COST := [2, 4, 6]
 const WEAPON_PERKS := {
 	"pistol": [

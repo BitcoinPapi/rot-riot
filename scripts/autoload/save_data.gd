@@ -28,11 +28,10 @@ var _ranks := {}                 # worked out from `tree`: passive id -> ranks
 var _keystones := {}             # ...and passive id -> true if its keystone is learned
 
 # Weapons: id -> {"level": int, "xp": int, "points": int (unspent),
-#                  "tree": {node id: times learned}, "spent": int (points in the tree)}
+#                  "upgrades": {track: rank}, "perks": [0 or 1, ...], "spent": int (points used)}
 var weapons: Dictionary = {}
 var tree_spent: int = 0          # skill points locked into `tree` (kept so they can always be handed back)
 
-var _weapon_ranks := {}          # worked out from each weapon's tree: weapon id -> {track: ranks}
 
 # Gear. A piece is named by its id and tier, e.g. "hard_hat:2" (Config.gear_key).
 var gear_bag: Dictionary = {}    # piece -> how many are in the bag (worn pieces are not counted)
@@ -100,7 +99,6 @@ func _reset_progress() -> void:
 	tree_spent = 0
 	bonus_ranks = {}
 	_recount_tree()
-	_weapon_ranks = {}
 	weapons = {}
 	for id: String in Config.WEAPON_ORDER:
 		weapons[id] = _new_weapon_entry()
@@ -123,7 +121,10 @@ func _reset_progress() -> void:
 
 
 func _new_weapon_entry() -> Dictionary:
-	return {"level": 1, "xp": 0, "points": 0, "tree": {}, "spent": 0}
+	var perks: Array = []
+	for i in Config.WEAPON_PERK_COST.size():
+		perks.append(0)
+	return {"level": 1, "xp": 0, "points": 0, "upgrades": {}, "perks": perks, "spent": 0}
 
 
 # ----------------------------------------------------------------------------
@@ -176,11 +177,12 @@ func load_game() -> void:
 			var entry: Variant = (saved_weapons as Dictionary).get(id)
 			if typeof(entry) != TYPE_DICTIONARY:
 				continue
+			weapons[id] = _new_weapon_entry()      # (always start from a clean entry)
 			var w: Dictionary = weapons[id]
 			w["level"] = maxi(int((entry as Dictionary).get("level", 1)), 1)
 			w["xp"] = maxi(int((entry as Dictionary).get("xp", 0)), 0)
 			w["points"] = maxi(int((entry as Dictionary).get("points", 0)), 0)
-			_load_weapon_tree(id, entry)
+			_load_weapon_upgrades(id, entry)
 
 	_load_gear(data)
 	var saved_pets: Variant = data.get("pets_owned")
@@ -541,140 +543,116 @@ func add_weapon_xp(id: String, amount: int) -> int:
 
 
 # ----------------------------------------------------------------------------
-#  Weapon trees (the nodes are described in scripts/game/weapon_tree.gd)
+#  Weapon upgrades (Config: WEAPON_TRACKS and WEAPON_PERKS)
 # ----------------------------------------------------------------------------
-func _load_weapon_tree(id: String, entry: Dictionary) -> void:
+func _load_weapon_upgrades(id: String, entry: Dictionary) -> void:
 	var w: Dictionary = weapons[id]
-	var learned := {}
-	w["tree"] = learned
-	w["spent"] = 0
-	var saved: Variant = entry.get("tree")
+	var saved: Variant = entry.get("upgrades")
 	if typeof(saved) == TYPE_DICTIONARY:
-		var known := true
-		for node_id: String in (saved as Dictionary).keys():
-			var count := int((saved as Dictionary)[node_id])
-			if count <= 0 or node_id == "start":
-				continue
-			if not WeaponTree.has(id, node_id):
-				known = false
-				continue
-			learned[node_id] = count if bool(WeaponTree.nodes(id)[node_id]["repeat"]) else 1
-		# A tree that no longer fits this weapon is handed back whole.
-		if not known or not _weapon_tree_connected(id):
-			var back := maxi(int(entry.get("spent", 0)), weapon_spent(id))
-			w["points"] = int(w["points"]) + back
-			weapon_points_returned += back
-			learned.clear()
+		var upgrades: Dictionary = w["upgrades"]
+		for track: String in Config.weapon_tracks(id):
+			var rank := maxi(int((saved as Dictionary).get(track, 0)), 0)
+			if rank > 0:
+				upgrades[track] = rank
+		var perks: Array = w["perks"]
+		var saved_perks: Variant = entry.get("perks")
+		if typeof(saved_perks) == TYPE_ARRAY:
+			for i in mini((saved_perks as Array).size(), perks.size()):
+				perks[i] = 1 if int((saved_perks as Array)[i]) > 0 else 0
+		# Ranks in an upgrade this weapon no longer has are simply dropped, and
+		# the points come back because "spent" is counted again from what is left.
+		var paid := maxi(int(entry.get("spent", 0)), 0)
 		w["spent"] = weapon_spent(id)
-	else:
-		# A save from before the weapon trees: upgrades were plain ranks
-		# (the first ten of each cost one point, the next ten two, ...).
-		var old: Variant = entry.get("ranks")
-		if typeof(old) == TYPE_DICTIONARY:
-			var back := 0
-			for track: String in (old as Dictionary).keys():
-				for rank in maxi(int((old as Dictionary)[track]), 0):
-					back += 1 + int(rank / 10.0)
-			w["points"] = int(w["points"]) + back
-			weapon_points_returned += back
-	_weapon_ranks.erase(id)
+		if paid > int(w["spent"]):
+			w["points"] = int(w["points"]) + paid - int(w["spent"])
+			weapon_points_returned += paid - int(w["spent"])
+		return
+	# Older saves: hand the points back so they can be spent on the new screen.
+	var back := 0
+	if typeof(entry.get("tree")) == TYPE_DICTIONARY:
+		# (the weapon trees of version 0.2 - 0.4)
+		back = maxi(int(entry.get("spent", 0)), 0)
+	elif typeof(entry.get("ranks")) == TYPE_DICTIONARY:
+		# (plain ranks, before that: the first ten of each cost one point, the next ten two, ...)
+		var old: Dictionary = entry.get("ranks")
+		for track: String in old.keys():
+			for rank in maxi(int(old[track]), 0):
+				back += 1 + int(rank / 10.0)
+	w["points"] = int(w["points"]) + back
+	weapon_points_returned += back
 
 
-func _weapon_tree_connected(id: String) -> bool:
-	var learned: Dictionary = _weapon(id)["tree"]
-	var seen := {"start": true}
-	var todo: Array[String] = ["start"]
-	while not todo.is_empty():
-		var at: String = todo.pop_back()
-		for other: String in WeaponTree.nodes(id)[at]["links"]:
-			if not seen.has(other) and learned.has(other):
-				seen[other] = true
-				todo.append(other)
-	return seen.size() - 1 == learned.size()
+## Ranks bought in one of a weapon's upgrades.
+func weapon_rank(id: String, track: String) -> int:
+	var upgrades: Dictionary = _weapon(id)["upgrades"]
+	return int(upgrades.get(track, 0))
 
 
-## How many times a node of a weapon's tree has been learned.
-func weapon_node_count(id: String, node_id: String) -> int:
-	if node_id == "start":
-		return 1
-	var learned: Dictionary = _weapon(id)["tree"]
-	return int(learned.get(node_id, 0))
+## The bonus a weapon's upgrade currently gives (see Config.WEAPON_TRACKS).
+func weapon_value(id: String, track: String) -> float:
+	return Config.stat_value(Config.WEAPON_TRACKS[track], weapon_rank(id, track))
 
 
-## Weapon points for the next purchase of a node.
-func weapon_node_cost(id: String, node_id: String) -> int:
-	return WeaponTree.cost(id, node_id, weapon_node_count(id, node_id))
+## Weapon points for the next rank of an upgrade.
+func weapon_rank_cost(id: String, track: String) -> int:
+	return Config.rank_cost(weapon_rank(id, track), Config.WEAPON_RANK_COST_STEP)
 
 
-func weapon_node_touches_learned(id: String, node_id: String) -> bool:
-	for other: String in WeaponTree.nodes(id)[node_id]["links"]:
-		if weapon_node_count(id, other) > 0:
-			return true
-	return false
-
-
-## Where a weapon's node stands: SkillTree.OWNED / READY / POOR / LEVEL / FAR.
-func weapon_node_status(id: String, node_id: String) -> int:
-	var n: Dictionary = WeaponTree.nodes(id)[node_id]
-	var count := weapon_node_count(id, node_id)
-	if count > 0 and not bool(n["repeat"]):
-		return SkillTree.OWNED
-	if count == 0 and not weapon_node_touches_learned(id, node_id):
-		return SkillTree.FAR
-	if weapon_level(id) < int(n["level"]):
-		return SkillTree.LEVEL
-	if weapon_points(id) < weapon_node_cost(id, node_id):
-		return SkillTree.POOR
-	return SkillTree.READY
-
-
-## Spend a weapon's points on a node of its tree.
-func learn_weapon_node(id: String, node_id: String) -> bool:
-	if not WeaponTree.has(id, node_id) or weapon_node_status(id, node_id) != SkillTree.READY:
+func raise_weapon_track(id: String, track: String) -> bool:
+	if not Config.weapon_tracks(id).has(track):
 		return false
+	var cost := weapon_rank_cost(id, track)
 	var w := _weapon(id)
-	var cost := weapon_node_cost(id, node_id)
+	if int(w["points"]) < cost:
+		return false
 	w["points"] = int(w["points"]) - cost
 	w["spent"] = int(w["spent"]) + cost
-	var learned: Dictionary = w["tree"]
-	learned[node_id] = weapon_node_count(id, node_id) + 1
-	_weapon_ranks.erase(id)
+	var upgrades: Dictionary = w["upgrades"]
+	upgrades[track] = weapon_rank(id, track) + 1
 	progress_changed.emit()
 	save_game()
 	return true
 
 
-## Ranks of one of a weapon's upgrade tracks, added up from its tree.
-func weapon_rank(id: String, track: String) -> int:
-	if not _weapon_ranks.has(id):
-		var totals := {}
-		var learned: Dictionary = _weapon(id)["tree"]
-		for node_id: String in learned.keys():
-			var ranks: Dictionary = WeaponTree.nodes(id)[node_id]["ranks"]
-			for key: String in ranks.keys():
-				totals[key] = int(totals.get(key, 0)) + int(ranks[key]) * int(learned[node_id])
-		_weapon_ranks[id] = totals
-	var mine: Dictionary = _weapon_ranks[id]
-	return int(mine.get(track, 0))
-
-
-## The bonus a weapon's upgrade track currently gives (see Config.WEAPON_TRACKS).
-func weapon_value(id: String, track: String) -> float:
-	return Config.stat_value(Config.WEAPON_TRACKS[track], weapon_rank(id, track))
-
-
-## True if the weapon has learned its perk number `index` (0, 1 or 2).
+## True if the weapon has bought its perk number `index` (0, 1 or 2).
 func weapon_has_perk(id: String, index: int) -> bool:
-	return weapon_node_count(id, "perk.%d" % index) > 0
+	var perks: Array = _weapon(id)["perks"]
+	return index >= 0 and index < perks.size() and int(perks[index]) > 0
 
 
-## Weapon points currently locked into a weapon's tree.
+## Where a perk stands: "owned", "ready" (can be bought now), "poor" (not
+## enough weapon points) or "locked" (the weapon's level is too low).
+func weapon_perk_status(id: String, index: int) -> String:
+	if weapon_has_perk(id, index):
+		return "owned"
+	if weapon_level(id) < int(Config.WEAPON_PERK_LEVELS[index]):
+		return "locked"
+	return "ready" if weapon_points(id) >= int(Config.WEAPON_PERK_COST[index]) else "poor"
+
+
+func buy_weapon_perk(id: String, index: int) -> bool:
+	if index < 0 or index >= Config.WEAPON_PERK_COST.size() or weapon_perk_status(id, index) != "ready":
+		return false
+	var w := _weapon(id)
+	var cost := int(Config.WEAPON_PERK_COST[index])
+	w["points"] = int(w["points"]) - cost
+	w["spent"] = int(w["spent"]) + cost
+	(w["perks"] as Array)[index] = 1
+	progress_changed.emit()
+	save_game()
+	return true
+
+
+## Weapon points currently used by a weapon's upgrades and perks.
 func weapon_spent(id: String) -> int:
 	var total := 0
-	var learned: Dictionary = _weapon(id)["tree"]
-	for node_id: String in learned.keys():
-		for owned in int(learned[node_id]):
-			total += WeaponTree.cost(id, node_id, owned)
+	var upgrades: Dictionary = _weapon(id)["upgrades"]
+	for track: String in upgrades.keys():
+		for rank in int(upgrades[track]):
+			total += Config.rank_cost(rank, Config.WEAPON_RANK_COST_STEP)
+	for i in Config.WEAPON_PERK_COST.size():
+		if weapon_has_perk(id, i):
+			total += int(Config.WEAPON_PERK_COST[i])
 	return total
 
 
@@ -691,8 +669,10 @@ func respec_weapon(id: String) -> bool:
 	var w := _weapon(id)
 	w["points"] = int(w["points"]) + refund
 	w["spent"] = 0
-	(w["tree"] as Dictionary).clear()
-	_weapon_ranks.erase(id)
+	(w["upgrades"] as Dictionary).clear()
+	var perks: Array = w["perks"]
+	for i in perks.size():
+		perks[i] = 0
 	coins_changed.emit()
 	progress_changed.emit()
 	save_game()
