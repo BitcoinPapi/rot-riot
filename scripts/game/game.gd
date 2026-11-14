@@ -323,11 +323,11 @@ func shake(amount: float) -> void:
 	cam.add_trauma(amount)
 
 
-## Run the world at `scale` speed for `duration` real seconds.
-func slow_motion(scale: float, duration: float) -> void:
+## Run the world at `speed` (1 = normal) for `duration` real seconds.
+func slow_motion(speed: float, duration: float) -> void:
 	if state != State.PLAYING:
 		return
-	_time_scale = scale
+	_time_scale = speed
 	_slowmo_timer = duration
 
 

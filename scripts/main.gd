@@ -174,11 +174,11 @@ func quit_game(exit_code: int = 0) -> void:
 	_bank_current_run()
 	# Give the audio thread a moment to let go of the sounds that were still
 	# playing, otherwise Godot prints "leaked instance" warnings on exit.
+	get_tree().paused = true
 	Sfx.stop_all()
-	await get_tree().process_frame
-	OS.delay_msec(120)
-	await get_tree().process_frame
-	await get_tree().process_frame
+	for i in 6:
+		await get_tree().process_frame
+		OS.delay_msec(40)
 	get_tree().quit(exit_code)
 
 

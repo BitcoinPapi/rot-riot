@@ -108,9 +108,9 @@ func scorch(pos: Vector2, radius: float) -> void:
 
 
 ## A dead zombie lying on the ground (darkened so it reads as dead).
-func body(kind: int, variant: int, pos: Vector2, rot: float, scale: float = 1.0) -> void:
+func body(kind: int, variant: int, pos: Vector2, rot: float, size_scale: float = 1.0) -> void:
 	var sprite := "%s_%d" % [Art.ENEMY_SPRITE[kind], variant]
-	stamp(Art.t(sprite), pos, rot, Art.size_of(sprite) * scale, Color(0.5, 0.42, 0.42, 1.0))
+	stamp(Art.t(sprite), pos, rot, Art.size_of(sprite) * size_scale, Color(0.5, 0.42, 0.42, 1.0))
 
 
 # ----------------------------------------------------------------------------
@@ -141,15 +141,15 @@ func _paint_ground(ci: CanvasItem) -> void:
 	rng.randomize()
 
 	# Dusty dirt base.
-	ci.draw_rect(full, Color("4b4538"))
+	ci.draw_rect(full, Color("5d5646"))
 
 	# Big soft patches of darker / lighter dirt and grass.
 	var patch_colors := [
-		Color(0.22, 0.20, 0.15, 0.30), Color(0.38, 0.35, 0.27, 0.22),
-		Color(0.25, 0.31, 0.17, 0.30), Color(0.29, 0.36, 0.20, 0.24),
-		Color(0.18, 0.17, 0.13, 0.22),
+		Color(0.24, 0.22, 0.16, 0.24), Color(0.47, 0.43, 0.33, 0.24),
+		Color(0.27, 0.33, 0.18, 0.26), Color(0.33, 0.40, 0.22, 0.22),
+		Color(0.42, 0.37, 0.27, 0.20),
 	]
-	for i in 420:
+	for i in 300:
 		var p := Vector2(rng.randf_range(full.position.x, full.end.x), rng.randf_range(full.position.y, full.end.y))
 		var s := rng.randf_range(150.0, 460.0)
 		var size := Vector2(s, s * rng.randf_range(0.6, 1.0))

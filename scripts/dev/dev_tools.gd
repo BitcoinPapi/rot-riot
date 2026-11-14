@@ -91,18 +91,24 @@ func _bot(game: Game) -> void:
 	if game.rage_ready():
 		GameInput.press_rage()
 	var target := game.enemies.nearest(p.pos, 900.0)
-	if game.director.boss_alive() and game.director.boss.pos.distance_to(p.pos) < 700.0:
-		var close := game.enemies.nearest(p.pos, 120.0)
-		target = close if close != null else game.director.boss
 	var aim := Vector2.RIGHT
 	var fire := false
 	var move := Vector2.from_angle(_frame * 0.013)
+	var hunting_boss := false
+	if game.director.boss_alive():
+		# Go and fight the boss, but deal with anything that gets too close first.
+		var boss := game.director.boss
+		var close := game.enemies.nearest(p.pos, 120.0)
+		target = close if close != null else boss
+		if boss.pos.distance_to(p.pos) > 420.0:
+			move = (boss.pos - p.pos).normalized()
+			hunting_boss = true
 	if target != null:
 		aim = (target.pos - p.pos).normalized()
 		fire = true
 		if target.pos.distance_to(p.pos) < 170.0:
 			move = ((p.pos - target.pos).normalized() + move * 0.5).normalized()
-		elif not game.pickups.crates.is_empty():
+		elif not hunting_boss and not game.pickups.crates.is_empty():
 			move = (game.pickups.crates[0].pos - p.pos).normalized()
 	GameInput.set_virtual_input(move, aim, fire)
 
@@ -113,6 +119,7 @@ func _open_screen(app: Main, screen: String) -> void:
 			app.pause_game()
 		"gameover":
 			if app.game != null:
+				app.game.player.invuln = 0.0
 				app.game.damage_player(99999.0, app.game.player.pos + Vector2.RIGHT)
 		_:
 			app.open_screen(screen)
@@ -291,6 +298,7 @@ func _run_autotest() -> void:
 	GameInput.clear_virtual_input()
 	var coins_in_run := game.coins_run
 	var saved_coins := SaveData.coins
+	game.player.invuln = 0.0     # (a zombie may have just hit the bot; skip the safety window)
 	game.damage_player(99999.0, game.player.pos + Vector2.RIGHT)
 	_check(game.state == Game.State.DYING, "player dies at 0 health")
 	waited = 0

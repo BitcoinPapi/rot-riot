@@ -58,6 +58,7 @@ var _last_played := {}    # name -> time in ms
 var _players: Array[AudioStreamPlayer] = []
 var _next_player := 0
 var _task_id := -1
+var _shut_down := false
 
 
 func _ready() -> void:
@@ -108,8 +109,8 @@ func play(sound: String, volume_db: float = 0.0, pitch_variation: float = 0.08) 
 
 func play_pitched(sound: String, pitch: float, volume_db: float = 0.0) -> void:
 	var stream: AudioStream = _streams.get(sound)
-	if stream == null:
-		return   # not generated yet, or unknown name
+	if stream == null or _shut_down:
+		return   # not generated yet, unknown name, or the game is closing
 	var recipe: Array = RECIPES.get(sound, [null, 0.0, 0.03])
 	var now := Time.get_ticks_msec()
 	if now - int(_last_played.get(sound, -100000)) < int(float(recipe[2]) * 1000.0):
@@ -130,8 +131,9 @@ func play_pitched(sound: String, pitch: float, volume_db: float = 0.0) -> void:
 	player.play()
 
 
-## Silence everything (called just before the game closes).
+## Silence everything for good (called just before the game closes).
 func stop_all() -> void:
+	_shut_down = true
 	for p: AudioStreamPlayer in _players:
 		p.stop()
 		p.stream = null
