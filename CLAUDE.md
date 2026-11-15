@@ -875,6 +875,13 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   whether ranged zombies are fair or annoying, how often each should appear
   (first guesses; the bot gets about as far as before, wave 5-11 as a new
   character). Their sounds are unheard.
+- The painted enemies (v0.14) in motion: only still pictures were checked.
+  Unknown: whether a single picture that only turns and rocks looks alive
+  enough, whether the sizes feel right in a crowd (the pictures are wider
+  than the zombies' hit circles, so they overlap more than the shapes did),
+  whether the old-shape Shamblers beside them bother the owner. The Gang
+  Fighter's numbers and his share of a wave are first guesses; with him in
+  the mix waves are a little tougher than before from wave 2 on.
 - The map on real hardware: whether making a new piece of ground causes
   a hitch when walking into new territory, how the fog looks in motion (only
   still screenshots were checked), whether the minimap is big enough to
