@@ -510,7 +510,14 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   see is what you hit. Zombie attacks on a joiner are decided by the host
   and sent as `E_HURT`; the joiner's own computer applies defense, evasion
   and safety time. Spit and rubble fly on every computer and each one only
-  checks its own player. Other players' shots are shown as look-alikes
+  checks its own player. **The host's map is sent as it is**: when a run
+  starts the host sends the finished list of rocks (`Arena.rocks()`) and the
+  chest spots; a joiner never works the map out for itself. (Until v0.9.0
+  both built the rocks from a shared number - a Mac and a PC do not always
+  round numbers the same way, so they could have ended up with different
+  maps.) Rule: never rely on two computers computing the same thing; send
+  the result. Mac and Windows copies speak the same messages and can play
+  together. Other players' shots are shown as look-alikes
   (`Shot.cosmetic`). Players are numbered by **slot** (0 = host, 1 and 2 =
   joiners); joiners only talk to the host. Zombies chase the nearest player
   who is up; packs rise out of sight of every player. Never make a joiner

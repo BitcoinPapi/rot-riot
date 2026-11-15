@@ -11,7 +11,7 @@ extends Node
 ## ============================================================================
 
 const GAME_TITLE := "ROT RIOT"
-const GAME_VERSION := "0.9.0"
+const GAME_VERSION := "0.9.1"
 const HERO_NAME := "CLIFF"                    # the survivor you play
 # How he looks with nothing equipped (his gear is drawn over this, see scripts/autoload/art.gd).
 const HERO_LOOK := {"skin": "#dfae88", "skin_dark": "#b98660", "hair": "#3a2a1e", "shirt": "#23262b", "shirt_light": "#33373d",

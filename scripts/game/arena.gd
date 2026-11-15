@@ -24,11 +24,17 @@ var tree_tint := Color(1, 1, 1)   # the map's colour for the tree tops
 var _trees: Array = []         # [pos, scale, rotation, tint]
 
 
-## `layout_seed` decides where the rocks are (0 = different every time). In
-## co-op both computers build the map from the same number.
-func _init(size: Vector2 = Config.ARENA_SIZE, layout_seed: int = 0) -> void:
+## `layout_seed` decides where the rocks are (0 = different every time).
+## In co-op the host makes the map and sends the joiners the finished list of
+## rocks (`given_rocks`, see rocks()): a Mac and a PC do not always round
+## numbers the same way, so each working the rocks out for itself could end
+## up with two different maps.
+func _init(size: Vector2 = Config.ARENA_SIZE, layout_seed: int = 0, given_rocks: Variant = null) -> void:
 	rect = Rect2(Vector2.ZERO, size)
-	_generate_obstacles(layout_seed)
+	if given_rocks is Array:
+		_set_obstacles(given_rocks)
+	else:
+		_generate_obstacles(layout_seed)
 	_build_buckets()
 	_generate_trees()
 	canopy = DrawLayer.new()
@@ -64,6 +70,30 @@ func _generate_obstacles(layout_seed: int) -> void:
 		obs_radius.append(radius)
 		_obs_sprite.append("rock" if rng.randf() < 0.65 else "stump")
 		_obs_rot.append(rng.randf() * TAU)
+
+
+## (co-op) Every rock as plain numbers, for the host to send to the joiners:
+## [[x, y, radius, 1 if it is a stump, rotation], ...]
+func rocks() -> Array:
+	var list: Array = []
+	for i in obs_pos.size():
+		list.append([obs_pos[i].x, obs_pos[i].y, obs_radius[i], 1 if _obs_sprite[i] == "stump" else 0, _obs_rot[i]])
+	return list
+
+
+## (co-op) Put the rocks exactly where the host's list says.
+func _set_obstacles(list: Array) -> void:
+	for entry: Variant in list:
+		if typeof(entry) != TYPE_ARRAY or (entry as Array).size() < 5:
+			continue
+		var rock: Array = entry
+		var at := Vector2(float(rock[0]), float(rock[1]))
+		if not rect.has_point(at):
+			continue
+		obs_pos.append(at)
+		obs_radius.append(clampf(float(rock[2]), 10.0, 200.0))
+		_obs_sprite.append("stump" if int(rock[3]) == 1 else "rock")
+		_obs_rot.append(float(rock[4]))
 
 
 ## Sort the obstacles into squares, so nobody has to check all of them.

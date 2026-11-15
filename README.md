@@ -64,7 +64,8 @@ works on 4.5 and later.
   - If you run out of health you fall instead of dying. Another player can
     **pick you up by standing beside you** for 3 seconds. The run is lost
     when everybody is down.
-  - Everybody needs the **same version** of the game.
+  - Everybody needs the **same version** of the game. Mac and Windows
+    players can play together.
   - If the code does not appear ("Your router did not open the way in"),
     friends in the same house can still join with the second code shown.
     For friends elsewhere the host's router needs "port forwarding" for UDP
@@ -148,7 +149,7 @@ Close Godot, then double-click **Update Rot Riot.command** inside the project
 folder. A Terminal window opens, downloads the latest version and replaces the
 folder. Your coins, level and upgrades are stored elsewhere and are kept.
 Then open the project in Godot again. The version number is shown in the
-bottom right corner of the main menu (now v0.9.0).
+bottom right corner of the main menu (now v0.9.1).
 
 After an update that changes the upgrade screens, points you had already
 spent are handed back so you can place them again in the new trees.

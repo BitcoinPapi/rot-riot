@@ -15,8 +15,8 @@ var map: Dictionary = Config.MAPS[0]
 
 # Co-op (see scripts/game/coop.gd). `net` is empty for a run alone; for a
 # run together it holds what both computers must agree on:
-# {"host": am I the host, "seed": where the rocks are, "chests": [[x, y], ...],
-#  "slots": the numbers of the players in it}.
+# {"host": am I the host, "slots": the numbers of the players in it, and for
+#  a joiner what the host decided: "rocks": [...] and "chests": [[x, y], ...]}.
 var net: Dictionary = {}
 var coop: Coop                  # null when playing alone
 var is_client := false          # true on the joiner's computer: the world is the host's, shown here
@@ -82,7 +82,7 @@ func _ready() -> void:
 	enemy_xp_mult = float(map["xp"])
 
 	# Children are added bottom layer first.
-	arena = Arena.new(map.get("size", Config.ARENA_SIZE), int(net.get("seed", 0)))
+	arena = Arena.new(map.get("size", Config.ARENA_SIZE), 0, net.get("rocks") if is_client else null)
 	arena.tree_tint = map["trees"]
 	decals = Decals.new()
 	decals.ground_tint = map["ground"]

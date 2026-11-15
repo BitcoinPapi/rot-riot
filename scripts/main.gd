@@ -149,18 +149,19 @@ func start_run(map_index: int = -1, start_wave: int = -1) -> void:
 	if Net.playing_together():
 		var slots: Array = [0]
 		slots.append_array(Net.mates.keys())
-		net = {"host": true, "seed": randi() % 2000000000 + 1, "slots": slots}
+		net = {"host": true, "slots": slots}
 	_begin_run(SaveData.selected_map, SaveData.selected_start, net)
 	if not net.is_empty():
-		Net.announce_run({"map": game.map_index, "wave": game.start_wave, "seed": net["seed"], "slots": net["slots"],
-				"chests": game.pickups.chest_positions()})
+		# (The host's map is THE map: the rocks and chests are sent as they are.)
+		Net.announce_run({"map": game.map_index, "wave": game.start_wave, "slots": net["slots"],
+				"rocks": game.arena.rocks(), "chests": game.pickups.chest_positions()})
 
 
 ## (joiner) The host has started a run: start the same one here.
 func _on_net_run_started(settings: Dictionary) -> void:
 	_bank_current_run()
 	_begin_run(int(settings.get("map", 0)), int(settings.get("wave", 1)),
-			{"host": false, "seed": int(settings.get("seed", 1)), "chests": settings.get("chests", []),
+			{"host": false, "rocks": settings.get("rocks", []), "chests": settings.get("chests", []),
 			"slots": settings.get("slots", [0, Net.slot])})
 
 
