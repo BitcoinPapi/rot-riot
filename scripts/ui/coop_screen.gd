@@ -3,7 +3,9 @@ extends Control
 ## PLAY WITH FRIENDS: up to three players, each on their own computer.
 ##
 ## One of you presses HOST A GAME and tells the others the code that appears.
-## They type it in and press JOIN. Then the host chooses the map and starts;
+## They type it in and press JOIN. If a home router stands in the way, the
+## joiner's screen shows a REPLY CODE: the host types that in and presses
+## LET IN, and they are connected. Then the host chooses the map and starts;
 ## everybody's game starts the same run. The connection stays between runs,
 ## so after a run you are back here, ready for the next one.
 ##
@@ -14,6 +16,7 @@ var _name: LineEdit
 var _code: LineEdit
 var _host: Button
 var _join: Button
+var _big: Label                 # the code to pass on, large: the host's game code or a joiner's reply code
 var _status: Label
 var _start: Button
 var _copy: Button
@@ -59,9 +62,12 @@ func _init() -> void:
 	row.add_child(_join)
 	col.add_child(row)
 
+	_big = UiKit.heading("", 44, UiKit.GOLD)
+	col.add_child(_big)
+
 	_status = UiKit.heading("", 20, UiKit.TEXT)
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_status.custom_minimum_size = Vector2(760, 132)
+	_status.custom_minimum_size = Vector2(760, 118)
 	_status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	col.add_child(_status)
 
@@ -111,15 +117,34 @@ func _on_host() -> void:
 	Net.host()
 
 
+## The button beside the code box: JOIN, or - while hosting - LET IN.
 func _on_join() -> void:
 	if _join.disabled:
 		return
-	Sfx.play("ui_buy")
-	Net.join(_code.text)
+	var typed := _code.text
+	if Net.role != Net.Role.HOST:
+		Sfx.play("ui_buy")
+		Net.join(typed)
+		return
+	var kind := int(Net.read_code(typed)["kind"])
+	if kind != Net.CODE_GAME and kind != Net.CODE_ADDRESS:
+		if Net.let_in(typed):
+			Sfx.play("ui_buy")
+			_code.text = ""
+	elif typed.strip_edges().to_upper() == Net.code:
+		Net.status = "That is your own code. Tell it to your friends: they type it in on their screen."
+		_refresh()
+	elif not Net.mates.is_empty():
+		Net.status = "You have friends in your game. Press STOP HOSTING first if you want to join another game."
+		_refresh()
+	else:
+		# A friend's game code typed while hosting: join their game instead.
+		Sfx.play("ui_buy")
+		Net.join(typed)
 
 
 func _on_copy() -> void:
-	DisplayServer.clipboard_set(Net.code if Net.code != "" else Net.lan_code)
+	DisplayServer.clipboard_set(_big.text)
 	_copy.text = "COPIED"
 
 
@@ -134,16 +159,23 @@ func _refresh() -> void:
 	var idle := Net.role == Net.Role.NONE
 	var hosting := Net.role == Net.Role.HOST
 	_host.disabled = not idle
-	_join.disabled = not idle
-	_code.editable = idle
+	# While hosting the code box takes a friend's reply code (or, to give up
+	# hosting and join a friend instead, their game code).
+	_code.editable = idle or hosting
+	_code.placeholder_text = "a friend's reply code" if hosting else "your friend's code"
+	_join.disabled = not (idle or hosting)
+	_join.text = "LET IN" if hosting else "JOIN"
 	_name.editable = idle
 	_leave.visible = not idle
 	_leave.text = "STOP HOSTING" if hosting else "LEAVE"
 	_start.visible = hosting
 	_start.disabled = Net.mates.is_empty()
-	_copy.visible = hosting and (Net.code != "" or Net.lan_code != "")
-	if _copy.text == "COPIED" and not _copy.visible:
+	var shown := Net.code if hosting else (Net.reply_code if not idle and not Net.joined else "")
+	if shown != _big.text:
 		_copy.text = "COPY CODE"
+	_big.text = shown
+	_big.visible = shown != ""
+	_copy.visible = shown != ""
 	_status.add_theme_color_override("font_color", UiKit.TEXT)
 
 	if idle:
@@ -151,30 +183,31 @@ func _refresh() -> void:
 				"One of you hosts and tells the others the code that appears here.\nThey type it in above and press JOIN."
 		if Net.status != "":
 			_status.add_theme_color_override("font_color", Color(1.0, 0.6, 0.45))
-	elif hosting and not Net.mates.is_empty():
-		var here: Array[String] = []
-		for other: int in Net.mates.keys():
-			here.append("%s (level %d)" % [Net.name_of(other), int(Net.mates[other].get("level", 1))])
-		var room := Config.COOP_MAX_PLAYERS - 1 - Net.mates.size()
-		_status.text = "IN YOUR GAME:  %s\n%s\nChoose a map and start: everybody's game begins together." % [",  ".join(here),
-				("One more friend can still join with the code  %s" % (Net.code if Net.code != "" else Net.lan_code)) if room > 0
-				else "The game is full."]
-		_status.add_theme_color_override("font_color", UiKit.GREEN)
 	elif hosting:
 		var lines: Array[String] = []
-		match Net.door:
-			1:
-				lines.append("Asking your router to let your friends in...")
-			2:
-				lines.append("YOUR CODE:   %s" % Net.code)
-				lines.append("Tell it to your friends. They type it in on this screen and press JOIN.")
-			3:
-				lines.append("Your router did not open the way in by itself.")
-				lines.append("For a friend somewhere else, the router must pass UDP port %d on to this computer "
-						% Config.NET_PORT + "(\"port forwarding\"). Then they join with your internet address.")
-		if Net.lan_code != "" and Net.door != 2:
-			lines.append("A friend IN THE SAME HOUSE can join with:   %s" % Net.lan_code)
-		lines.append("Waiting for your friends to join...")
+		if not Net.mates.is_empty():
+			var here: Array[String] = []
+			for other: int in Net.mates.keys():
+				here.append("%s (level %d)" % [Net.name_of(other), int(Net.mates[other].get("level", 1))])
+			lines.append("IN YOUR GAME:  %s" % ",  ".join(here))
+			if Net.mates.size() >= Config.COOP_MAX_PLAYERS - 1:
+				lines.append("The game is full. Choose a map and start: everybody's game begins together.")
+			else:
+				lines.append("Choose a map and start, or wait: one more friend can still join with your code.")
+			_status.add_theme_color_override("font_color", UiKit.GREEN)
+		elif Net.finding or (Net.code == "" and Net.door == 1):
+			lines.append("Finding out your code...")
+		elif Net.code != "":
+			lines.append("Tell this code to your friends. They type it in on this screen and press JOIN.")
+			lines.append("If a friend sends you a REPLY CODE, type it in above and press LET IN.")
+			if Net.strict:
+				lines.append("(Your internet connection is the strict kind: if nobody gets in, let a friend host.)")
+		else:
+			lines.append("Could not find out your internet address. Is the internet working?")
+		if Net.mates.is_empty() and Net.lan_code != "" and not Net.finding:
+			lines.append("Somebody in the SAME HOUSE can type  %s  instead." % Net.lan_code)
+		if Net.status != "" and not Net.finding and (Net.code == "" or not Net.status.begins_with("Waiting")):
+			lines.append(Net.status)
 		_status.text = "\n".join(lines)
 	else:
 		_status.text = Net.status
@@ -187,7 +220,7 @@ func _refresh() -> void:
 ## Called by Main every time this screen is shown.
 func opened() -> void:
 	_name.text = String(SaveData.get_setting("player_name"))
-	_copy.text = "COPY CODE"
+	_big.text = ""
 	_refresh()
 	if Net.role == Net.Role.HOST and not Net.mates.is_empty():
 		_start.grab_focus()

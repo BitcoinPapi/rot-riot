@@ -51,6 +51,8 @@ var _args := {}
 var _frame := 0
 var _bench_samples := PackedInt32Array()
 var _coop_started := false
+var _coop_code_said := ""        # (co-op) the code this copy has printed, for the script that passes it on
+var _coop_let_in := 0            # (co-op host) how many lines of --letin-file have been typed in already
 var _wave_set := false
 var _coop_t0 := 0                # (co-op test) when this copy's first run began, in milliseconds
 var _coop_testing := false
@@ -75,7 +77,12 @@ func _ready() -> void:
 		SaveData.apply_settings()
 		if _args.has("coop"):
 			Engine.max_fps = 60          # (headless would otherwise spin as fast as it can)
+			# Copies on one computer find each other directly. --stun=IP:PORT,IP:PORT
+			# makes them go the long way round, as over the internet (tools/nattest.sh).
 			Net.use_upnp = false
+			Net.online = _args.has("stun")
+			if _args.has("stun"):
+				Net.stun_servers = Array(String(_args["stun"]).split(","))
 			SaveData.settings["player_name"] = String(_args.get("name", "HOSTY" if String(_args["coop"]) == "host" else "JOINY"))
 		if _args.has("coins"):
 			SaveData.add_coins(int(_args["coins"]))
@@ -460,12 +467,25 @@ func _cooptest_done() -> void:
 ## --coop: host or join, and (as host) start a run once the other copy is in.
 func _coop_connect(app: Main) -> void:
 	var what := String(_args["coop"])
+	# What a player would read off the screen and pass on, printed for the test
+	# script: the host's game code, a joiner's reply code.
+	var shown := Net.code if Net.role == Net.Role.HOST else Net.reply_code
+	if shown != "" and shown != _coop_code_said:
+		_coop_code_said = shown
+		print("%s %s" % ["CODE" if Net.role == Net.Role.HOST else "REPLY", shown])
+		if Net.strict:
+			print("STRICT (this router gives every conversation a new door)")
+	# --letin-file=PATH: reply codes "typed in" by the host, one per line.
+	if what == "host" and _args.has("letin-file") and _frame % 15 == 0 and FileAccess.file_exists(String(_args["letin-file"])):
+		var lines := FileAccess.get_file_as_string(String(_args["letin-file"])).split("\n", false)
+		while _coop_let_in < lines.size():
+			print("LET IN %s -> %s" % [lines[_coop_let_in], Net.let_in(lines[_coop_let_in])])
+			_coop_let_in += 1
 	if _frame == 3:
-		Net.use_upnp = false
 		if what == "host":
 			Net.host()
 		else:
-			Net.join(what.get_slice(":", 1) if what.contains(":") else "127.0.0.1")
+			Net.join(what.substr(5) if what.begins_with("join:") else "127.0.0.1")
 	elif what == "host" and Net.mates.size() >= int(_args.get("players", "2")) - 1 and app.game == null and not _coop_started and _frame > 20:
 		_coop_started = true
 		if _args.has("map"):
@@ -537,6 +557,23 @@ func _open_screen(app: Main, screen: String) -> void:
 					if SaveData.gear_count(key) >= 2 and Config.gear_tier_of(key) < Config.GEAR_TIERS.size():
 						sheet.call("_choose_forge", key)
 						break
+			if screen == "coop" and _args.has("coop-view"):
+				# Pretend states, to look at the screen without a second computer:
+				# --coop-view=host | full | reply
+				var view := String(_args["coop-view"])
+				if view == "reply":
+					Net.role = Net.Role.CLIENT
+					Net.reply_code = Net.make_code("91.44.2.17", 51234, Net.CODE_REPLY)
+					Net.status = "ALMOST THERE.  Send this reply code to your host.  They type it in on this screen and press LET IN."
+				else:
+					Net.role = Net.Role.HOST
+					Net.code = Net.make_code("84.25.133.7", 24565, Net.CODE_GAME)
+					Net.lan_code = "192.168.0.119"
+					Net.status = "Waiting for your friends to join..."
+					if view == "full":
+						Net.mates = {1: {"name": "TATONI", "level": 12, "worn": {}, "pet": ""}, 2: {"name": "KOSTA", "level": 7, "worn": {}, "pet": ""}}
+						Net.status = "KOSTA has joined."
+				Net.changed.emit()
 			if screen == "armory" and _args.has("armory-weapon"):
 				var screens: Dictionary = app.get("_screens")
 				(screens["armory"] as ArmoryScreen).call("_select", String(_args["armory-weapon"]))
@@ -648,6 +685,60 @@ func _run_autotest() -> void:
 	app.close_screen()
 	await _frames(2)
 	_check(is_equal_approx(float(SaveData.get_setting("master_volume")), 0.5), "settings change is stored")
+
+	# --- co-op: game codes, reply codes, and reading an address finder's answer ---
+	var game_code: String = Net.make_code("84.25.133.7", 24565, Net.CODE_GAME)
+	var read_back: Dictionary = Net.read_code(game_code)
+	_check(game_code.length() == 14 and int(read_back["kind"]) == Net.CODE_GAME and String(read_back["ip"]) == "84.25.133.7"
+			and int(read_back["port"]) == 24565, "a game code carries the host's address (%s)" % game_code)
+	var sloppy: Dictionary = Net.read_code("  " + game_code.to_lower().replace("-", " ").replace("0", "o").replace("1", "l") + " ")
+	_check(int(sloppy["kind"]) == Net.CODE_GAME and String(sloppy["ip"]) == "84.25.133.7" and int(sloppy["port"]) == 24565,
+			"...however it is typed: small letters, spaces, the letter O for a zero")
+	var reply_code: String = Net.make_code("84.25.133.7", 51234, Net.CODE_REPLY)
+	var reply_back: Dictionary = Net.read_code(reply_code)
+	_check(int(reply_back["kind"]) == Net.CODE_REPLY and int(reply_back["port"]) == 51234 and reply_code != game_code,
+			"a reply code is told apart from a game code (%s)" % reply_code)
+	var typos := 0
+	var caught := 0
+	for i in game_code.length():
+		if game_code[i] == "-":
+			continue
+		for wrong_sign: String in ["0", "7", "K", "Z", "D"]:
+			if wrong_sign != game_code[i]:
+				typos += 1
+				var wrong: Dictionary = Net.read_code(game_code.substr(0, i) + wrong_sign + game_code.substr(i + 1))
+				if int(wrong["kind"]) == Net.CODE_BAD and bool(wrong["typo"]):
+					caught += 1
+	_check(caught >= typos - 1, "a typing mistake in a code is noticed at once (%d of %d)" % [caught, typos])
+	var plain: Dictionary = Net.read_code("192.168.0.12")
+	var with_door: Dictionary = Net.read_code("84.25.133.7:5000")
+	_check(int(plain["kind"]) == Net.CODE_ADDRESS and int(plain["port"]) == Config.NET_PORT and int(with_door["port"]) == 5000
+			and String(with_door["ip"]) == "84.25.133.7" and int(Net.read_code("hello")["kind"]) == Net.CODE_BAD
+			and int(Net.read_code("")["kind"]) == Net.CODE_BAD, "a plain address still works as a code (same house)")
+	# The example answer from the STUN standard's own test sheet (RFC 5769, 2.2):
+	# "your message came from 192.0.2.1, door 32853".
+	var stun_id := PackedByteArray([0xb7, 0xe7, 0xa7, 0x01, 0xbc, 0x34, 0xd6, 0x86, 0xfa, 0x87, 0xdf, 0xae])
+	var stun_answer := PackedByteArray([0x01, 0x01, 0x00, 0x3c, 0x21, 0x12, 0xa4, 0x42])
+	stun_answer.append_array(stun_id)
+	stun_answer.append_array(PackedByteArray([0x80, 0x22, 0x00, 0x0b, 0x74, 0x65, 0x73, 0x74, 0x20, 0x76, 0x65, 0x63, 0x74, 0x6f, 0x72, 0x20,
+			0x00, 0x20, 0x00, 0x08, 0x00, 0x01, 0xa1, 0x47, 0xe1, 0x12, 0xa6, 0x43]))
+	var stun_rest := PackedByteArray()
+	stun_rest.resize(32)                  # (a signature and a checksum follow; the game does not read them)
+	stun_answer.append_array(stun_rest)
+	var seen: Array = Stun.parse(stun_answer, stun_id)
+	_check(seen.size() == 2 and String(seen[0]) == "192.0.2.1" and int(seen[1]) == 32853,
+			"an address finder's answer is read correctly (the standard's own example: %s)" % str(seen))
+	var other_id := stun_id.duplicate()
+	other_id[0] = 0
+	var old_style := PackedByteArray([0x01, 0x01, 0x00, 0x0c, 0x21, 0x12, 0xa4, 0x42])
+	old_style.append_array(stun_id)
+	old_style.append_array(PackedByteArray([0x00, 0x01, 0x00, 0x08, 0x00, 0x01, 0x5f, 0xf5, 84, 25, 133, 7]))
+	var old_seen: Array = Stun.parse(old_style, stun_id)
+	var question := Stun.request(stun_id)
+	_check(Stun.parse(stun_answer, other_id).is_empty() and Stun.parse(PackedByteArray([1, 2, 3]), stun_id).is_empty()
+			and old_seen.size() == 2 and String(old_seen[0]) == "84.25.133.7" and int(old_seen[1]) == 24565
+			and question.size() == 20 and question.slice(0, 8) == PackedByteArray([0x00, 0x01, 0x00, 0x00, 0x21, 0x12, 0xa4, 0x42])
+			and question.slice(8) == stun_id, "...an answer to somebody else's question is ignored; old-style answers are understood")
 
 	# --- skills screen: skill points and the plain list of stats ---
 	app.open_screen("skills")

@@ -51,10 +51,22 @@ works on 4.5 and later.
   from the wave after it (choose it on the map screen), with a weapon crate
   waiting beside you.
 - **Play with friends (up to 3 players, online).** On the main menu choose
-  **PLAY WITH FRIENDS**. One of you presses **HOST A GAME**; a code appears
-  (it looks like 84.25.133.7). Tell it to the others: they type it in on the
-  same screen and press **JOIN**. Then the host chooses the map and starts,
-  and everybody's game begins together.
+  **PLAY WITH FRIENDS**. It takes three small steps, best done while you
+  are chatting or on a call:
+  1. One of you presses **HOST A GAME**. A code appears in big yellow
+     letters (it looks like K7QM-X2PD-9AB4). Send it to the others
+     (**COPY CODE** copies it).
+  2. The others type or paste it into the box on the same screen and press
+     **JOIN**. Sometimes that is all. More often, after a few seconds, the
+     joining player's screen shows a **REPLY CODE**.
+  3. The joining player sends that reply code back to the host. The host
+     types it into the box and presses **LET IN**. A few seconds later the
+     player is in.
+  Then the host chooses the map and starts, and everybody's game begins
+  together. (Why the reply code? Home internet routers let nobody in who
+  was not spoken to first. With the two codes, both games speak to each
+  other at the same moment, and both routers let it through. Nobody has to
+  change anything in a router.)
   - **All gold is shared:** every coin anybody picks up counts for all of
     you, and each of you keeps the whole amount. Gear is shared the same way.
   - **Zombies are tougher** and there are more of them, the more players
@@ -66,10 +78,16 @@ works on 4.5 and later.
     when everybody is down.
   - Everybody needs the **same version** of the game. Mac and Windows
     players can play together.
-  - If the code does not appear ("Your router did not open the way in"),
-    friends in the same house can still join with the second code shown.
-    For friends elsewhere the host's router needs "port forwarding" for UDP
-    port 24565 - ask someone who knows routers, or let another player host.
+  - **If somebody cannot get in:** let another player be the host and try
+    again - some internet connections (mobile hotspots, some student or
+    office networks) cannot be reached from outside, but can reach others.
+    Join between runs: the host cannot type a reply code in the middle of a
+    fight.
+  - Two players in the **same house** use the same-house code the host's
+    screen shows (it looks like 192.168.0.12) instead of the yellow one.
+  - To work out the codes, the game asks a public "what is my internet
+    address?" server (run by Google and Cloudflare - the same kind every
+    video call uses). Nothing about you or your game is sent to them.
 - **Know your zombies.** Besides the plain Shambler, the fast Runner and the
   big Brute there are four with a trick of their own. Each one **warns you
   first**: it stops, swells up and changes colour for a moment. The first
@@ -149,7 +167,7 @@ Close Godot, then double-click **Update Rot Riot.command** inside the project
 folder. A Terminal window opens, downloads the latest version and replaces the
 folder. Your coins, level and upgrades are stored elsewhere and are kept.
 Then open the project in Godot again. The version number is shown in the
-bottom right corner of the main menu (now v0.9.1).
+bottom right corner of the main menu (now v0.10.0).
 
 After an update that changes the upgrade screens, points you had already
 spent are handed back so you can place them again in the new trees.

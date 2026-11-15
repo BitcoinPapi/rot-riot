@@ -49,6 +49,7 @@ godot --headless -d --fixed-fps 60 -- --inputtest          # fake keyboard/mouse
 godot --headless --fixed-fps 60 -- --bench=250             # hold 250 zombies, report simulation ms per frame
 godot --headless --fixed-fps 60 -- --bot --frames=6000     # bot plays 100 s, prints a SUMMARY line
 tools/cooptest.sh 3                                        # co-op test: 3 copies of the game play together (2 = two copies)
+tools/nattest.sh 3                                         # the same through PRETEND HOME ROUTERS (Linux, root; see "Getting through routers")
 godot --headless --export-release "Windows Desktop" build/windows/RotRiot.exe
 godot --headless --export-release "macOS" build/mac/RotRiot.zip
 ```
@@ -66,7 +67,10 @@ uncovered), `--show-chests` (a closed chest beside the player and an opened one)
 `--horde=KIND:N,KIND:N` (put zombies around the player: shambler, runner, brute, boss, gobber,
 chucker, gasbag, lunger - e.g. `--horde=gobber:3,gasbag:2`),
 `--coop=host [--players=N]` / `--coop=join[:ADDRESS]` (co-op between copies on this computer: run
-them WITHOUT `--fixed-fps`, end them with `--seconds=N`, name them with `--name=X`), `--cooptest`,
+them WITHOUT `--fixed-fps`, end them with `--seconds=N`, name them with `--name=X`; `join:` takes
+a game code or an address; `--stun=IP:PORT,IP:PORT` makes the copies find each other the internet
+way through those address finders; `--letin-file=PATH` = reply codes the host "types in", one per
+line), `--cooptest`, `--screen=coop --coop-view=host|full|reply` (the co-op screen in a pretend state),
 `--shot=PATH --shot-frame=N` (screenshot; needs a real display, e.g. `xvfb-run`),
 `--dump-sfx=DIR` (writes every generated sound as .wav),
 `--gallery=PREFIX[,PREFIX] --gallery-scale=N` (shows generated sprites enlarged, e.g.
@@ -74,7 +78,9 @@ them WITHOUT `--fixed-fps`, end them with `--seconds=N`, name them with `--name=
 
 Definition of done for any change: `--autotest` and `--inputtest` pass,
 `tools/cooptest.sh 2` and `tools/cooptest.sh 3` pass (anything that touches
-the run, zombies, pickups or the HUD can break co-op), and
+the run, zombies, pickups or the HUD can break co-op; after touching
+`net.gd` or `stun.gd` also `tools/nattest.sh 3`, `2 noletin`, `2 open` and
+`2 strict`), and
 the `-d` run prints zero `WARNING` / `SCRIPT ERROR` lines. **Drawing code
 does not run headless**: after touching anything that draws (a screen, the
 HUD, a sprite name) also open it once with a real renderer
@@ -100,7 +106,9 @@ scripts/autoload/
   art.gd                 placeholder sprites generated from SVG shapes at startup; the hero's
                          pictures (front view + top-down) are rebuilt from the gear he wears
   sfx.gd                 sounds synthesised at startup (worker thread) + pooled playback
-  net.gd                 online co-op: hosting, joining, who is in the game (slots), delivering messages
+  net.gd                 online co-op: hosting, joining (game codes, reply codes, getting through home
+                         routers), who is in the game (slots), delivering messages
+scripts/net/stun.gd      asks a public "address finder" how this computer looks from the internet
 scripts/game/
   game.gd                one run: owns the world, runs the simulation loop, hit stop, slow-mo, score
   player.gd              movement, aim, firing (bullets / grenade / melee), drawing
@@ -137,6 +145,8 @@ scripts/ui/              ui_kit.gd (theme + helpers), menu_background, main_menu
 scripts/dev/dev_tools.gd bot, autotest, input test, benchmark, screenshots (only with CLI args)
 assets/sprites/, assets/sfx/   empty; drop-in overrides for generated art and sounds
 tools/cooptest.sh        runs the co-op test with 2 or 3 copies of the game on one computer
+tools/nattest.sh         the co-op test over a pretend internet: every copy in its own "home" behind
+                         its own router (network namespaces + iptables; nattest_stun.py = its address finders)
 Update Rot Riot.command  double-click updater for the owner's Mac (downloads main from GitHub,
                          replaces the project folder; the save file lives elsewhere)
 ```
@@ -155,13 +165,19 @@ Quitting a run from pause also banks its coins.
 be shared, enemies will be stronger"; then "up to 3 players"). Online, each
 player on their own computer (the owner did not answer whether same-screen
 was wanted; T has their own copy, so online was built). Main menu ->
-PLAY WITH FRIENDS: one player presses HOST A GAME and tells the others the
-code shown (their internet address; the game asks the router to open UDP
-port 24565 by UPnP, and says so plainly if the router refuses - then only
-players in the same house can join, or the port must be forwarded by hand).
-The others type the code and press JOIN. The host chooses map and wave and
-starts; everybody's game starts the same run. Everybody must have the same
-version (checked on joining). Rules, all in the CO-OP section of config.gd:
+PLAY WITH FRIENDS, in three steps: (1) one player presses HOST A GAME and
+sends the others the **game code** shown in big letters (12 signs, like
+K7QM-X2PD-9AB4); (2) the others type it in and press JOIN; (3) if a router
+stands in the way - usually - the joiner's screen shows a **reply code**
+after 3 seconds, which the joiner sends to the host, who types it into the
+same box and presses LET IN. See "Getting through routers" below for why.
+While hosting, the code box stays usable (the owner's first try: he had
+pressed HOST and then could not type his friend's code): a reply code lets
+that friend in, a friend's game code stops hosting and joins them. A plain
+address (192.168.0.12) still works as a code for players in the same house.
+The host chooses map and wave and starts; everybody's game starts the same
+run. Everybody must have the same version (checked on joining). Rules, all
+in the CO-OP section of config.gd:
 - **All gold is shared** (owner's rule): one count, kept by the host; a coin
   picked up by anyone counts for everybody, and at the end every player
   banks the whole amount. Score, combo, kills and XP from kills are shared
@@ -523,6 +539,42 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   who is up; packs rise out of sight of every player. Never make a joiner
   decide anything about the world, and never trust message contents
   (`Coop.SIZES`, `Net._clean_info`).
+- **Getting through routers** (v0.10.0, after the owner's first co-op
+  evening failed: his router refused UPnP, and a friend had been sent a
+  same-house address). A home router lets nothing in that was not spoken to
+  first, so nobody can simply connect to the host. The game uses UDP hole
+  punching, all in `net.gd`:
+  - `Stun` asks two public address finders (STUN servers, `NET_STUN_SERVERS`:
+    Google and Cloudflare) "what address and door did my packet come from?"
+    - through the very UDP port the game uses next (ask first, close, then
+    open ENet on the same port). Two different answers = a "strict" router
+    (`Net.strict`), which cannot be reached; the screen says so.
+  - The host's answer, packed by `make_code`, is the game code. A joiner
+    asks the same for itself, then tries to connect in rounds of 3 s from
+    that same local port (`_begin_round`; ENet knocks at 0, 0.5, 1.5 s).
+  - Not through after the first round: the joiner shows its own address as
+    a reply code. The host's `let_in` then sends 1-byte packets to it for
+    20 s with `ENetConnection.socket_send` - they only have to leave
+    through the host's router; after that both routers let the other side
+    in, and the joiner's next knock connects.
+  - While hosting, a packet to the address finder every 10 s keeps the
+    router's door from closing. UPnP is still tried as well; where it works
+    joiners get in at the first knock.
+  - Codes: 6 bytes (address + port) + a check byte + a mark (game / reply)
+    = 12 signs of a 32-sign alphabet without I, L, O, U; a typing mistake
+    is noticed at once.
+  `tools/nattest.sh` proves this on one Linux machine: each copy of the game
+  sits in its own network namespace behind its own NAT router (port-
+  restricted, like home routers). Modes: normal (2 or 3 players), `noletin`
+  (the joiner must NOT get in - shows the routers really block), `open`
+  (door forwarded: no reply code needed), `strict` (must be noticed).
+  **There is no server of ours and no meeting-point service**: the players
+  pass the two codes by hand. Automating step 3 would need an outside
+  service to pass the joiner's address to the host (a public message relay
+  such as ntfy.sh was considered and NOT built: it means sending players'
+  addresses through somebody else's service and accepting its terms - the
+  owner has not been asked). The real answer for the Steam release is Steam's
+  own networking (invites, no codes, no routers).
 - **One simulation loop.** `Game._process` computes `dt` once and ticks
   player -> director -> enemies -> projectiles -> pickups -> fx. Hit stop sets
   `dt = 0` for a few hundredths of a second (rate-limited by
@@ -583,12 +635,16 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
 - The balance of the 100-wave maps, the skill prices, the special powers, the
   perks, gear drop rates and gear stats, pet prices and pet strength: all
   first guesses, only checked with the bot and the tests.
-- Co-op over the real internet. It is tested with two and three copies of
-  the game on ONE computer (`tools/cooptest.sh`), which proves the game logic
-  but not: whether the router door opens (UPnP), how it feels with real
-  delay between homes, whether a slow connection copes (the host sends up to
-  ~40 KB a second per joiner in the biggest fights), Windows/Mac firewalls
-  asking for permission. Co-op difficulty numbers are first guesses.
+- Co-op over the real internet. The first real attempt (v0.9.0, three homes)
+  failed to connect at all; v0.10.0 connects by hole punching instead. That
+  is tested with two and three copies on ONE computer, each behind a
+  pretend router (`tools/nattest.sh`), and the address finder is checked
+  against the standard's own example and against coturn - but NOT against
+  real routers, the real Google/Cloudflare address finders, Windows/Mac
+  firewalls asking for permission, or networks that block UDP. Also unknown:
+  how it feels with real delay between homes, whether a slow connection
+  copes (the host sends up to ~40 KB a second per joiner in the biggest
+  fights). Co-op difficulty numbers are first guesses.
 - The new enemies: whether their warnings are long enough to react to,
   whether ranged zombies are fair or annoying, how often each should appear
   (first guesses; the bot gets about as far as before, wave 5-11 as a new
@@ -689,6 +745,15 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   only; same-screen co-op is not built. T needs the same version of the
   game: send T new builds after every update (Claude cannot publish GitHub
   releases from a session; builds are handed to the owner as files).
+- First co-op evening (v0.9.0, the owner on a Mac, Tatoni and Kosta on PCs,
+  three homes): nobody could connect. The owner's router refused to open
+  the door, and once he had pressed HOST he "couldn't even write in the text
+  field"; Kosta pasted Tatoni's code and it "didn't work" (probably a
+  same-house address, which COPY CODE handed out when the router refused).
+  -> v0.10.0: hole punching with game code + reply code, the code box stays
+  usable while hosting, COPY CODE only ever copies a code that works from
+  outside (built, awaiting their second try). If it fails again: ask what
+  each screen said; then consider Steam networking or a relay.
 - The owner's Mac: browser downloads do not work there, so updates go through
   Terminal (curl) or the double-click updater. Always give the full update
   command and say plainly that Return must be pressed.

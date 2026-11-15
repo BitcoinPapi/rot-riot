@@ -11,7 +11,7 @@ extends Node
 ## ============================================================================
 
 const GAME_TITLE := "ROT RIOT"
-const GAME_VERSION := "0.9.1"
+const GAME_VERSION := "0.10.0"
 const HERO_NAME := "CLIFF"                    # the survivor you play
 # How he looks with nothing equipped (his gear is drawn over this, see scripts/autoload/art.gd).
 const HERO_LOOK := {"skin": "#dfae88", "skin_dark": "#b98660", "hair": "#3a2a1e", "shirt": "#23262b", "shirt_light": "#33373d",
@@ -542,8 +542,22 @@ const COMBO_MULT_MAX := 3.0
 #  computer. One hosts (their computer runs the zombies), the others join.
 #  All gold is shared: every coin any player picks up counts for everybody.
 # ----------------------------------------------------------------------------
-const NET_PORT := 24565                 # the door the host's computer opens for the other player (UDP)
-const NET_CONNECT_TIMEOUT := 8.0        # seconds a JOIN attempt may take before it gives up
+const NET_PORT := 24565                 # the door the host's computer opens for the other players (UDP)
+const NET_CONNECT_TIMEOUT := 8.0        # seconds a JOIN to a plain address (same house) may take before it gives up
+const NET_MAX_CONNECTIONS := 8          # connections the host accepts at once (extra ones are told "the game is full")
+# Getting through home routers (see scripts/autoload/net.gd). A router lets
+# nobody in who was not spoken to first, so both games speak to each other.
+# "Address finders" are public servers that answer one question: "what is my
+# address as seen from the internet?" (the standard is called STUN). Two of
+# them are asked, to notice routers that give every conversation a new address.
+const NET_STUN_SERVERS := ["stun.l.google.com:19302", "stun.cloudflare.com:3478", "stun1.l.google.com:19302"]
+const NET_STUN_TIMEOUT := 2.5           # seconds to wait for the address finders before going on without
+const NET_STUN_RESEND := 0.35           # ask again this often until an answer comes
+const NET_KEEPALIVE := 10.0             # (host) seconds between small packets that keep the router's door from closing
+const NET_PUNCH_TIME := 20.0            # (host) seconds of knocking on a joining friend's router
+const NET_PUNCH_INTERVAL := 0.2         # ...one knock this often
+const NET_JOIN_ROUND := 3.0             # (joiner) seconds per attempt; each attempt knocks at 0, 0.5 and 1.5 s
+const NET_JOIN_TIME := 180.0            # (joiner) seconds of attempts in all - long enough to send the reply code to the host
 const NET_PLAYER_RATE := 30.0           # how many times a second each player's position is sent
 const NET_SNAPSHOT_RATE := 15.0         # how many times a second the host sends where every zombie is
 const COOP_MAX_PLAYERS := 3              # the host and up to two friends
