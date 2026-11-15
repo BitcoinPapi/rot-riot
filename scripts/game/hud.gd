@@ -300,11 +300,11 @@ func _draw_wave(w: float) -> void:
 		_text(Vector2(cx, 40), "GET READY", 24, Color(1, 1, 1, 0.9), 1)
 		return
 	var map_color: Color = game.map["color"]
-	_text(Vector2(cx, 15), "MAP %d  -  %s" % [game.map_index + 1, String(game.map["name"])], 12,
+	_text(Vector2(cx, 15), "ZONE %d  -  %s" % [game.map_index + 1, String(game.map["name"])], 12,
 			Color(map_color.r, map_color.g, map_color.b, 0.85), 1, 4)
 	_text(Vector2(cx, 40), "WAVE %d / %d" % [d.wave, Config.WAVES_PER_MAP], 26, Color.WHITE, 1)
 	if d.finished:
-		_text(Vector2(cx, 62), "map cleared", 15, Color(1.0, 0.85, 0.3, 0.95), 1)
+		_text(Vector2(cx, 62), "zone taken back", 15, Color(1.0, 0.85, 0.3, 0.95), 1)
 	elif d.in_wave:
 		_text(Vector2(cx, 62), "%d left" % d.remaining(), 15, Color(1, 1, 1, 0.7), 1)
 	elif game.perks_pending():

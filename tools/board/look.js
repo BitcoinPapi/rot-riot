@@ -139,7 +139,7 @@ const server = http.createServer((req, res) => {
     say('empty cells are not buttons:', await page.locator('.item >> nth=0').locator('div.tile.none').count());
 
     // a name
-    await page.click(chip('Gang maps'));
+    await page.click(chip('Gang zones'));
     await page.click(id('t-gangs.0.boss'));
     await page.fill('#edit-input', '  Kòk   Wouj ');
     await page.click('#edit-save');

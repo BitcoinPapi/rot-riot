@@ -2659,6 +2659,77 @@ func _run_inputtest() -> void:
 	await _frames(3)
 	_check(app.state == Main.State.MENU and skill_page.is_visible_in_tree() == false, "Esc leaves the skills page")
 
+	# --- the Play screen: the map of Haiti with the five gang zones on it ---
+	var zones_open := SaveData.maps_unlocked
+	var zones_best: Array = SaveData.map_best.duplicate()
+	SaveData.maps_unlocked = 2
+	SaveData.map_best[0] = Config.WAVES_PER_MAP
+	SaveData.map_best[1] = 0
+	SaveData.select_map(0, 1)
+	app.open_screen("maps")
+	await _frames(6)
+	var play: MapScreen = (app.get("_screens") as Dictionary)["maps"]
+	var pins: Array = play.get("_pins")
+	var haiti: Control = play.get("_map")
+	var coast := PackedVector2Array(MapScreen.COAST)
+	var shapes_ok := not Geometry2D.triangulate_polygon(coast).is_empty() \
+			and not Geometry2D.triangulate_polygon(PackedVector2Array(MapScreen.NEIGHBOUR)).is_empty() \
+			and not Geometry2D.triangulate_polygon(PackedVector2Array(MapScreen.LAKE)).is_empty()
+	for island: Array in MapScreen.ISLANDS:
+		shapes_ok = shapes_ok and not Geometry2D.triangulate_polygon(PackedVector2Array(island)).is_empty()
+	_check(shapes_ok, "the outline of Haiti can be drawn (no shape crosses itself)")
+	var pins_ok := pins.size() == Config.MAPS.size()
+	for i in Config.MAPS.size():
+		var spot: Vector2 = Config.MAPS[i]["at"]
+		var zone_pin: Button = pins[i]
+		if not Geometry2D.is_point_in_polygon(spot, coast) or not Rect2(Vector2.ZERO, haiti.size).encloses(Rect2(zone_pin.position, zone_pin.size)):
+			pins_ok = false
+		for j in i:
+			if MapScreen.project(spot).distance_to(MapScreen.project(Config.MAPS[j]["at"])) < MapScreen.PIN_RADIUS * 3.0:
+				pins_ok = false
+	_check(pins_ok, "every zone has a pin on the land of Haiti, inside the picture and clear of the others")
+	_check(play.zone_state(0) == "free" and play.zone_state(1) == "held" and play.zone_state(2) == "locked" and play.zones_free() == 1,
+			"a zone is taken back, held by its gang, or locked")
+	var pin_two: Button = pins[1]
+	var pin_at: Vector2 = to_window * (pin_two.global_position + pin_two.size * 0.5)
+	_mouse_move(pin_at)
+	await _frames(2)
+	_check(play.pointed() == 1 and play.caption().contains(String(Config.MAPS[1]["gang"])),
+			"pointing at a pin names the zone and its gang (\"%s\")" % play.caption())
+	_mouse_button(MOUSE_BUTTON_LEFT, true, pin_at)
+	await _frames(2)
+	_mouse_button(MOUSE_BUTTON_LEFT, false, pin_at)
+	await _frames(2)
+	_check(play.selected() == 1, "clicking a zone's pin chooses that zone")
+	_key(KEY_RIGHT, true)
+	await _frames(2)
+	_key(KEY_RIGHT, false)
+	await _frames(2)
+	_check((pins[2] as Button).has_focus() and play.caption().contains("LOCKED"),
+			"the arrow keys walk from zone to zone; a locked one says what it waits for (\"%s\")" % play.caption())
+	_key(KEY_ENTER, true)
+	await _frames(2)
+	_key(KEY_ENTER, false)
+	await _frames(2)
+	_check(play.selected() == 1, "a locked zone cannot be chosen")
+	_key(KEY_DOWN, true)
+	await _frames(2)
+	_key(KEY_DOWN, false)
+	await _frames(2)
+	_check((play.get("_go") as Button).has_focus(), "down leaves the map for the START button")
+	_key(KEY_ENTER, true)
+	await _frames(2)
+	_key(KEY_ENTER, false)
+	await _frames(10)
+	_check(app.state == Main.State.PLAYING and app.game.map_index == 1, "START begins the fight in the chosen zone")
+	app.pause_game()
+	await _frames(2)
+	app.quit_to_menu()
+	await _frames(3)
+	SaveData.maps_unlocked = zones_open
+	SaveData.map_best.assign(zones_best)
+	SaveData.select_map(0, 1)
+
 	# --- the character screen: click a piece to wear it, click its slot to take it off ---
 	SaveData.add_gear("work_gloves:1")
 	app.open_screen("character")

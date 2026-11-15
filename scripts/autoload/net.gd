@@ -655,7 +655,7 @@ func _roster(everyone: Dictionary) -> void:
 		var other := int(key)
 		if other != slot and other >= 0 and other < Config.COOP_MAX_PLAYERS and typeof(everyone[key]) == TYPE_DICTIONARY:
 			mates[other] = _clean_info(everyone[key])
-	status = "You are in %s's game%s. The host chooses the map and starts." % [name_of(0),
+	status = "You are in %s's game%s. The host chooses the zone and starts." % [name_of(0),
 			"" if mates.size() <= 1 else " with " + " and ".join(_names_without_host())]
 	# Somebody who was here is not any more.
 	for other: int in before:

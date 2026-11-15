@@ -509,6 +509,9 @@ const SUMMON_RISE_TIME := 0.5           # summoned zombies take this long to cla
 #    gear                 multiplies how often zombies drop gear
 #    gear_up              chance that a dropped piece is one tier better than normal
 #    ground / trees       a colour wash that gives the map its mood (real scenery comes later)
+#    at / label_side      where the zone's pin sits on the map of Haiti of the Play screen (degrees east,
+#                         degrees north) and on which side of the pin its name is written (1 right, -1 left).
+#                         Only Furcy is a named real place; the others mark a part of the country.
 # ----------------------------------------------------------------------------
 const WAVES_PER_MAP := 100
 const CHECKPOINT_EVERY := 5             # every N cleared waves (= after each boss) a new starting wave is unlocked
@@ -520,23 +523,28 @@ const MAPS := [
 	{"name": "FURCY HILL CAMP", "gang": "ZEPON", "boss": "KÒK BATAY",     # (Furcy: a real mountain village; the owner's wish)
 		"story": "Kòk Batay's Zepon gang took the army post above Furcy. Their dead do not stay down.",
 		"hp": 1.0, "damage": 1.0, "speed": 1.0, "xp": 1.0, "coins": 1, "gear": 1.0, "gear_up": 0.0,
-		"color": Color(0.62, 0.82, 0.38), "ground": Color(0.0, 0.0, 0.0, 0.0), "trees": Color(1.0, 1.0, 1.0)},
+		"color": Color(0.62, 0.82, 0.38), "ground": Color(0.0, 0.0, 0.0, 0.0), "trees": Color(1.0, 1.0, 1.0),
+		"at": Vector2(-72.20, 18.34), "label_side": 1},
 	{"name": "CANE FIELDS", "gang": "BAZ MACHWÈ", "boss": "MACHWÈ FÈ",
 		"story": "The cane was never cut. Machwè Fè's men guard it - the living ones, and the others.",
 		"hp": 4.0, "damage": 1.8, "speed": 1.04, "xp": 1.5, "coins": 2, "gear": 1.3, "gear_up": 0.08,
-		"color": Color(0.93, 0.76, 0.32), "ground": Color(0.62, 0.47, 0.16, 0.30), "trees": Color(1.0, 0.86, 0.5)},
+		"color": Color(0.93, 0.76, 0.32), "ground": Color(0.62, 0.47, 0.16, 0.30), "trees": Color(1.0, 0.86, 0.5),
+		"at": Vector2(-72.15, 19.60), "label_side": -1},
 	{"name": "GRAND CEMETERY", "gang": "LAME ZO", "boss": "PAPA ZO",
 		"story": "Papa Zo paid the bòkò well. The graves have been empty ever since.",
 		"hp": 12.0, "damage": 3.0, "speed": 1.08, "xp": 2.0, "coins": 4, "gear": 1.7, "gear_up": 0.16,
-		"color": Color(0.62, 0.72, 0.9), "ground": Color(0.16, 0.2, 0.34, 0.42), "trees": Color(0.62, 0.7, 0.86)},
+		"color": Color(0.62, 0.72, 0.9), "ground": Color(0.16, 0.2, 0.34, 0.42), "trees": Color(0.62, 0.7, 0.86),
+		"at": Vector2(-73.74, 18.30), "label_side": 1},
 	{"name": "NATIONAL ROAD", "gang": "WOUT KRAZE", "boss": "GWO KAMYON",
 		"story": "Gwo Kamyon's roadblock stopped the last convoy out of the city. Nobody has moved it.",
 		"hp": 35.0, "damage": 5.0, "speed": 1.12, "xp": 2.75, "coins": 7, "gear": 2.2, "gear_up": 0.25,
-		"color": Color(0.95, 0.5, 0.3), "ground": Color(0.1, 0.1, 0.11, 0.5), "trees": Color(0.78, 0.6, 0.5)},
+		"color": Color(0.95, 0.5, 0.3), "ground": Color(0.1, 0.1, 0.11, 0.5), "trees": Color(0.78, 0.6, 0.5),
+		"at": Vector2(-72.58, 19.06), "label_side": 1},
 	{"name": "THE DOCKS", "gang": "LANNWIT", "boss": "WA LANNWIT",
 		"story": "This is where the powder comes ashore. Wa Lannwit rules here, and he is waiting for you.",
 		"hp": 100.0, "damage": 8.0, "speed": 1.16, "xp": 3.5, "coins": 12, "gear": 3.0, "gear_up": 0.35,
-		"color": Color(0.4, 0.95, 0.85), "ground": Color(0.08, 0.3, 0.3, 0.42), "trees": Color(0.5, 0.9, 0.84)},
+		"color": Color(0.4, 0.95, 0.85), "ground": Color(0.08, 0.3, 0.3, 0.42), "trees": Color(0.5, 0.9, 0.84),
+		"at": Vector2(-72.30, 18.58), "label_side": -1},
 ]
 
 # ----------------------------------------------------------------------------
@@ -1336,7 +1344,7 @@ func deed_text(deed: Dictionary) -> String:
 	var value := int(deed["value"])
 	match String(deed["kind"]):
 		"wave":
-			return "Clear wave %d on any map" % value
+			return "Clear wave %d in any zone" % value
 		"kills":
 			return "Kill %d zombies in total" % value
 		"weapon_level":

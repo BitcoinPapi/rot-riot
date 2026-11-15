@@ -154,12 +154,12 @@ static func _villains() -> Dictionary:
 			values["share"] = _shown(entry["max"], 100.0)
 			meta["start"] = {"path": "ENEMY_MIX[kind=%s].start" % id}
 			meta["share"] = {"path": "ENEMY_MIX[kind=%s].max" % id}
-		var sub := "the leader of each map's gang, every %d waves" % Config.BOSS_EVERY if kind == Config.BOSS else ""
+		var sub := "the leader of each zone's gang, every %d waves" % Config.BOSS_EVERY if kind == Config.BOSS else ""
 		if kind == Config.SHAMBLER:
 			sub = "the plain zombie: at least %d%% of every wave" % int(round(Config.ENEMY_MIX_SHAMBLERS * 100.0))
 		rows.append({"id": id, "name": String(e["name"]).to_upper(), "sub": sub, "values": values, "meta": meta})
-	return {"id": "villains", "title": "Villains", "intro": "The dead the gangs send. These are their numbers on the first map, in wave 1.",
-			"notes": ["Every wave they get tougher, and every map multiplies them again (see Gang maps)."], "columns": columns, "rows": rows}
+	return {"id": "villains", "title": "Villains", "intro": "The dead the gangs send. These are their numbers in the first zone, in wave 1.",
+			"notes": ["Every wave they get tougher, and every zone multiplies them again (see Gang zones)."], "columns": columns, "rows": rows}
 
 
 static func _gangs() -> Dictionary:
@@ -178,11 +178,11 @@ static func _gangs() -> Dictionary:
 	var rows: Array = []
 	for i in Config.MAPS.size():
 		var m: Dictionary = Config.MAPS[i]
-		rows.append({"id": str(i), "name": "MAP %d" % (i + 1), "sub": String(m["story"]), "values": {
+		rows.append({"id": str(i), "name": "ZONE %d" % (i + 1), "sub": String(m["story"]), "values": {
 				"name": String(m["name"]), "gang": String(m.get("gang", "")), "boss": String(m.get("boss", "")),
 				"hp": _shown(m["hp"]), "damage": _shown(m["damage"]), "speed": _shown(m["speed"]), "xp": _shown(m["xp"]),
 				"coins": _shown(m["coins"]), "gear": _shown(m["gear"]), "gear_up": _shown(m["gear_up"], 100.0)}})
-	return {"id": "gangs", "title": "Gang maps", "intro": "Five maps, each one gang's ground with its own boss. The numbers multiply every zombie on that map.",
+	return {"id": "gangs", "title": "Gang zones", "intro": "Five zones of the country, each one gang's ground with its own boss. The numbers multiply every zombie in that zone.",
 			"notes": ["Gang and boss names are invented. Real gangs and real people do not go into the game."],
 			"columns": columns, "rows": rows}
 
@@ -206,7 +206,7 @@ static func _pets() -> Dictionary:
 		var by_level := String(needs["kind"]) == "level"
 		var sub := rarity
 		if not by_level:
-			sub += ", after clearing map %d" % int(needs["value"])
+			sub += ", after taking back zone %d" % int(needs["value"])
 		rows.append({"id": id, "name": String(p["name"]), "sub": sub, "values": {
 				"name": String(p["name"]), "title": String(p["title"]), "price": _shown(p["price"]),
 				"level": _maybe(by_level, _shown(needs["value"])),
@@ -366,7 +366,7 @@ static func _gear() -> Dictionary:
 		_text("name", "Name", "GEAR_ITEMS.{id}.name", 20),
 		_col("first", "It gives", {"unit": "ranks", "min": 0.0, "max": 50.0}),
 		_col("second", "And also", {"unit": "ranks", "min": 0.0, "max": 50.0}),
-		_col("map", "First found on map", {"min": 1.0, "max": float(Config.MAPS.size()), "path": "GEAR_ITEMS.{id}.map"}),
+		_col("map", "First found in zone", {"min": 1.0, "max": float(Config.MAPS.size()), "path": "GEAR_ITEMS.{id}.map"}),
 	]
 	var rows: Array = []
 	for id: String in Config.GEAR_ORDER:
@@ -417,7 +417,7 @@ static func _gear() -> Dictionary:
 	finding.append(["CHEST_TIER_UP_MAX", Config.CHEST_TIER_UP_MAX, "...but at most", {"unit": "%", "scale": 100.0, "max": 100.0}])
 	var found := _list(finding)
 	return {"id": "gear", "title": "Gear", "intro": "What JanJan wears: nine slots, 32 pieces. A piece adds ranks to one or two skills.",
-			"notes": ["The ranks shown are for a COMMON piece. Better tiers multiply them.", "Each gang map also changes how much gear drops (see Gang maps)."],
+			"notes": ["The ranks shown are for a COMMON piece. Better tiers multiply them.", "Each gang zone also changes how much gear drops (see Gang zones)."],
 			"parts": [
 				{"id": "pieces", "title": "The pieces", "intro": "", "columns": columns, "rows": rows},
 				{"id": "tiers", "title": "The five tiers and the forge", "intro": "Two identical pieces of one tier are forged into one piece of the next.",
@@ -447,7 +447,7 @@ static func _rules() -> Dictionary:
 		["PLAYER_SPEED", Config.PLAYER_SPEED, "JanJan's walking speed", {"min": 50.0, "max": 1000.0, "step": 10.0}],
 		["PET_UNLOCK_LEVEL", Config.PET_UNLOCK_LEVEL, "Level at which the first pet joins", {"min": 1.0, "max": 100.0}],
 		["PERK_CHOICES", Config.PERK_CHOICES, "Perks offered each time", {"min": 2.0, "max": 3.0}],
-		["WAVES_PER_MAP", Config.WAVES_PER_MAP, "Waves on every map", {"min": 5.0, "max": 1000.0, "step": 5.0}],
+		["WAVES_PER_MAP", Config.WAVES_PER_MAP, "Waves in every zone", {"min": 5.0, "max": 1000.0, "step": 5.0}],
 		["WAVE_BASE_COUNT", Config.WAVE_BASE_COUNT, "Zombies in wave 1", {"min": 1.0, "max": 500.0}],
 		["WAVE_COUNT_PER_WAVE", Config.WAVE_COUNT_PER_WAVE, "More zombies with every wave", {"max": 100.0}],
 		["MAX_ENEMIES_ALIVE", Config.MAX_ENEMIES_ALIVE, "Most zombies alive at once", {"min": 10.0, "max": 400.0, "step": 10.0}],

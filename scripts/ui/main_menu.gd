@@ -105,7 +105,7 @@ func opened() -> void:
 	_progress.text = "%s   -   LEVEL %d      COINS: %d" % [Config.HERO_NAME, SaveData.level, SaveData.coins]
 	if SaveData.runs_played > 0:
 		var map_index := SaveData.maps_unlocked - 1
-		_stats.text = "MAP %d: %s  -  BEST WAVE %d / %d   -   BEST SCORE %d   -   ZOMBIES KILLED %d" % [
+		_stats.text = "ZONE %d: %s  -  BEST WAVE %d / %d   -   BEST SCORE %d   -   ZOMBIES KILLED %d" % [
 			map_index + 1, String(Config.MAPS[map_index]["name"]), SaveData.map_best_wave(map_index), Config.WAVES_PER_MAP,
 			SaveData.best_score, SaveData.total_kills]
 	else:

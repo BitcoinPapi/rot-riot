@@ -105,16 +105,16 @@ func show_results(stats: Dictionary, is_best: bool) -> void:
 	var won := bool(stats.get("victory", false))
 	var unlocked := int(stats.get("unlocked", -1))
 	var checkpoint := int(stats.get("checkpoint", 0))
-	_title.text = "MAP CLEARED!" if won else "YOU GOT EATEN"
+	_title.text = "ZONE TAKEN BACK!" if won else "YOU GOT EATEN"
 	_title.add_theme_color_override("font_color", UiKit.GOLD if won else UiKit.RED)
-	_map.text = "MAP %d  -  %s" % [map_index + 1, String(map_def["name"])]
+	_map.text = "ZONE %d  -  %s" % [map_index + 1, String(map_def["name"])]
 	# A run with a friend: all gold was shared, and the host starts the next one.
 	var together := bool(stats.get("coop", false))
 	_guest = together and Net.playing_together() and not Net.is_host()
 	if together:
 		_map.text += "   -   with %s (all gold shared)" % String(stats.get("mate", "a friend"))
 	if unlocked >= 0:
-		_news.text = "NEW MAP UNLOCKED:  %s" % String(Config.MAPS[unlocked]["name"])
+		_news.text = "NEW ZONE OPEN:  %s" % String(Config.MAPS[unlocked]["name"])
 	elif checkpoint > 0:
 		_news.text = "CHECKPOINT REACHED:  you can now start from wave %d" % checkpoint
 	else:
@@ -130,7 +130,7 @@ func show_results(stats: Dictionary, is_best: bool) -> void:
 	if won and SaveData.map_unlocked(map_index + 1):
 		_onward_map = map_index + 1
 		_onward_wave = 1
-		_onward.text = "NEXT MAP:  %s" % String(Config.MAPS[map_index + 1]["name"])
+		_onward.text = "NEXT ZONE:  %s" % String(Config.MAPS[map_index + 1]["name"])
 		_onward.visible = true
 	elif latest > start:
 		_onward_map = map_index

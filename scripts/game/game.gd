@@ -516,7 +516,7 @@ func _map_cleared() -> void:
 	_end_timer = Config.MAP_CLEAR_CELEBRATION
 	_time_scale = Config.BOSS_DEATH_SLOWMO
 	_slowmo_timer = 0.0
-	hud.announce("MAP CLEARED!", "%s is yours   -   +%d coins   +%d XP" % [String(map["name"]), coins_bonus, xp_bonus],
+	hud.announce("ZONE TAKEN BACK!", "%s is free   -   +%d coins   +%d XP" % [String(map["name"]), coins_bonus, xp_bonus],
 			Color(1.0, 0.85, 0.3), 6.0)
 	for k in 3:
 		fx.ring(player.pos, 20.0 + 30.0 * k, 320.0 + 140.0 * k, 0.6 + 0.2 * k, Color(1.0, 0.85, 0.3, 0.9))

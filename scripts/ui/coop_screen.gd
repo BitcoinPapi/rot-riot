@@ -74,7 +74,7 @@ func _init() -> void:
 	var row2 := HBoxContainer.new()
 	row2.add_theme_constant_override("separation", 14)
 	row2.alignment = BoxContainer.ALIGNMENT_CENTER
-	_start = UiKit.button("CHOOSE A MAP AND START", func() -> void: main.open_screen("maps"), 420.0)
+	_start = UiKit.button("CHOOSE A ZONE AND START", func() -> void: main.open_screen("maps"), 420.0)
 	row2.add_child(_start)
 	_copy = UiKit.button("COPY CODE", _on_copy, 200.0)
 	row2.add_child(_copy)
@@ -191,9 +191,9 @@ func _refresh() -> void:
 				here.append("%s (level %d)" % [Net.name_of(other), int(Net.mates[other].get("level", 1))])
 			lines.append("IN YOUR GAME:  %s" % ",  ".join(here))
 			if Net.mates.size() >= Config.COOP_MAX_PLAYERS - 1:
-				lines.append("The game is full. Choose a map and start: everybody's game begins together.")
+				lines.append("The game is full. Choose a zone and start: everybody's game begins together.")
 			else:
-				lines.append("Choose a map and start, or wait: one more friend can still join with your code.")
+				lines.append("Choose a zone and start, or wait: one more friend can still join with your code.")
 			_status.add_theme_color_override("font_color", UiKit.GREEN)
 		elif Net.finding or (Net.code == "" and Net.door == 1):
 			lines.append("Finding out your code...")
