@@ -984,6 +984,17 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   "add gear, weapon upgrades and weapon perks to the dashboard" -> done.
   The board is in use: Kosta and the owner have added ideas of their own,
   and the owner has started putting changes on the list.
+- Kosta sent a gun pack (`GUNS_V1.00`, 336 kB: side-view PIXEL-ART pistol,
+  pump shotgun, assault rifle and Kar98 rifle, 32-48 px tall, with shooting
+  and reload frames, muzzle flashes and casings; it looks like Arcade
+  Island's free "Guns Asset Pack" on itch.io, but the archive holds no
+  licence and itch.io could not be read from the session). Tried as the
+  HUD / Armory / crate pictures (`icon_pistol`, `icon_shotgun`, `icon_rifle`)
+  and NOT put in: thinner, darker and harder to read on crates than the
+  drawn guns, pixel art beside smooth art, only side views (nothing for the
+  gun in the hero's hands) and only three or four of the eight weapons. The
+  owner was shown a side-by-side picture; his call. If he wants it anyway,
+  the licence on the pack's page must be read first (public project).
 - The owner's Mac: browser downloads do not work there, so updates go through
   Terminal (curl) or the double-click updater. Always give the full update
   command and say plainly that Return must be pressed.
