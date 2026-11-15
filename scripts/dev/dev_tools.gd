@@ -43,6 +43,8 @@ extends Node
 ##   --gallery=PREFIX   show every generated sprite whose name starts with PREFIX, enlarged
 ##                      (--gallery-scale=N to change the size) - for checking art
 ##   --dump-sfx=DIR     write every generated sound to DIR as .wav files, then quit
+##   --dump-game=DIR    write the game's numbers as tables (DIR/<section>.json) for the
+##                      idea board's dashboard, then quit (see scripts/dev/game_sheet.gd)
 ##   --coins=N          start with N coins (dev runs use a throwaway save file,
 ##                      never the player's real one, unless --real-save is given)
 ##   --shot=PATH        save a screenshot to PATH ...
@@ -143,6 +145,10 @@ func _process(_delta: float) -> void:
 		app.start_run()
 	if _args.has("screen") and _frame == int(_args.get("screen-frame", "10")):
 		_open_screen(app, String(_args["screen"]))
+	if _args.has("dump-game"):
+		print("wrote %d tables of the game's numbers to %s" % [GameSheet.write(String(_args["dump-game"])), String(_args["dump-game"])])
+		_quit(0)
+		return
 	if _args.has("dump-sfx") and Sfx.ready_to_play:
 		var streams: Dictionary = Sfx.get_streams()
 		for sound: String in streams.keys():
@@ -1358,6 +1364,34 @@ func _run_autotest() -> void:
 			hammer_gone = false
 	_check(hammer_gone and Config.WEAPON_ORDER.size() == 8 and Sfx.RECIPES.has("boss_slam"),
 			"there is no sledgehammer any more (%d weapons); the boss keeps his wall-slam thud" % Config.WEAPON_ORDER.size())
+
+	# --- the tables for the idea board's dashboard: every part of the game is in them, and every
+	#     number that can be changed there says where it lives in config.gd ---
+	var sheet_rows := 0
+	var sheet_cells := 0
+	var sheet_ok := true
+	var sheet_ids: Array = []
+	for table: Dictionary in GameSheet.sections():
+		sheet_ids.append(String(table["id"]))
+		var sheet_keys := {}
+		for column: Dictionary in table["columns"]:
+			sheet_keys[String(column["key"])] = column
+		for sheet_row: Dictionary in table["rows"]:
+			sheet_rows += 1
+			var row_values: Dictionary = sheet_row["values"]
+			var row_meta: Dictionary = sheet_row.get("meta", {})
+			for key: String in row_values.keys():
+				if not sheet_keys.has(key):
+					sheet_ok = false
+				elif row_values[key] != null:
+					sheet_cells += 1
+					var where := String(row_meta.get(key, {}).get("path", sheet_keys[key]["path"]))
+					if where == "":
+						sheet_ok = false
+	_check(sheet_ok and sheet_ids == ["weapons", "villains", "gangs", "pets", "skills", "perks", "rules"]
+			and sheet_rows == Config.WEAPON_ORDER.size() + Config.ENEMIES.size() + Config.MAPS.size() + Config.PETS.size()
+			+ Config.PASSIVE_ORDER.size() + Config.RUN_PERK_ORDER.size() + 19,
+			"the dashboard's tables hold every weapon, villain, map, pet, skill and perk (%d rows, %d numbers and names)" % [sheet_rows, sheet_cells])
 
 	# --- there is no rage in the game any more: Space, the right mouse button and LB do nothing ---
 	_check(not InputMap.has_action("rage") and not game.has_method("try_activate_rage"), "rage is gone from the game")

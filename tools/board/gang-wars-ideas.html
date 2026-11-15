@@ -1,0 +1,1038 @@
+<title>Haitian Gang Wars Ideas</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;900&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+/* Layout: a field notebook for the game, in two pages.
+   IDEAS: one wide column of idea cards with the vote count as a stamped number
+   on the left; a narrow reference column beside it (under it on a phone).
+   THE GAME: every part of the game as an item (its name, then a grid of
+   labelled numbers that line up from item to item like a table, then a strip
+   of inspiration pictures). The list of wanted changes sits above it. */
+:root {
+  --bg: #12160f; --panel: #1b2117; --panel-2: #232a1d; --line: #353e2c;
+  --fg: #ece7d5; --dim: #a5a08c; --gold: #ffc531; --blood: #e0503f; --leaf: #9bd15a; --sky: #7fbfe0;
+  --on-gold: #1a1505;
+  --display: "Big Shoulders Display", "Arial Narrow", "Helvetica Neue", Impact, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #eceee2; --panel: #f8f9f1; --panel-2: #e3e7d5; --line: #c4cbb2;
+    --fg: #1c2117; --dim: #5d6452; --gold: #8a5d00; --blood: #a82c20; --leaf: #3d7519; --sky: #1d6890;
+    --on-gold: #fff8e2;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #eceee2; --panel: #f8f9f1; --panel-2: #e3e7d5; --line: #c4cbb2;
+  --fg: #1c2117; --dim: #5d6452; --gold: #8a5d00; --blood: #a82c20; --leaf: #3d7519; --sky: #1d6890;
+  --on-gold: #fff8e2;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 28px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 22px; }
+
+header.top { display: flex; flex-direction: column; gap: 6px; border-bottom: 2px solid var(--line); padding-bottom: 16px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); }
+h1 { font-family: var(--display); font-weight: 900; font-size: clamp(38px, 7vw, 68px); line-height: .95; margin: 0; letter-spacing: .01em; text-transform: uppercase; text-wrap: balance; }
+.lede { color: var(--dim); max-width: 68ch; margin: 0; }
+.bar { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; justify-content: space-between; margin-top: 12px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tabs a { font-family: var(--display); font-weight: 700; font-size: 22px; line-height: 1; letter-spacing: .04em; text-transform: uppercase; text-decoration: none;
+  color: var(--dim); padding: 9px 16px; border: 1px solid var(--line); border-radius: 4px; }
+.tabs a:hover { border-color: var(--dim); color: var(--fg); }
+.tabs a[aria-current="page"] { color: var(--on-gold); background: var(--gold); border-color: var(--gold); }
+.me { display: flex; flex-direction: column; gap: 4px; width: 200px; max-width: 100%; }
+
+.view { display: flex; flex-direction: column; gap: 20px; }
+.cols { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; align-items: start; }
+@media (max-width: 860px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+.main { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+
+h2 { font-family: var(--display); font-weight: 700; font-size: 24px; letter-spacing: .03em; text-transform: uppercase; margin: 0; }
+label, .label { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); }
+
+/* the form for a new idea: a framed block */
+.compose { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.row { display: flex; flex-wrap: wrap; gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1 1 180px; }
+.field.small { flex: 0 1 190px; }
+input[type="text"], textarea, select {
+  font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; width: 100%; min-width: 0; }
+textarea { resize: vertical; min-height: 64px; }
+input:focus-visible, textarea:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible, a:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+button { font: inherit; cursor: pointer; color: var(--fg); background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 7px 12px; }
+button:hover { border-color: var(--dim); }
+button.primary { background: var(--gold); color: var(--on-gold); border-color: var(--gold); font-weight: 600; padding: 9px 18px; }
+button[disabled] { opacity: .45; cursor: not-allowed; }
+.hint { color: var(--dim); font-size: 13px; margin: 0; }
+.hint.warn { color: var(--blood); }
+.notice { border-left: 3px solid var(--gold); padding: 8px 12px; background: var(--panel); color: var(--fg); margin: 0; }
+a.jump { color: var(--gold); }
+
+.filters { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: transparent; }
+.chip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.chips.big .chip { font-size: 15px; padding: 6px 14px; }
+
+.list { display: flex; flex-direction: column; gap: 10px; }
+.idea { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
+.vote { display: flex; flex-direction: column; align-items: center; align-self: start; gap: 2px; padding: 8px 4px; width: 64px; background: transparent; }
+.vote .n { font-family: var(--display); font-weight: 900; font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; }
+.vote .w { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.vote[aria-pressed="true"] { border-color: var(--gold); }
+.vote[aria-pressed="true"] .n { color: var(--gold); }
+.body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.idea h3 { font-size: 18px; font-weight: 600; margin: 0; line-height: 1.3; overflow-wrap: anywhere; }
+.idea p { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; color: var(--dim); }
+.tag { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; border: 1px solid var(--line); border-radius: 3px; padding: 1px 6px; color: var(--dim); }
+.pill { font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; border-radius: 3px; padding: 1px 6px; border: 1px solid currentColor; }
+.pill.s-new { color: var(--dim); } .pill.s-yes { color: var(--gold); } .pill.s-building { color: var(--sky); }
+.pill.s-done { color: var(--leaf); } .pill.s-no { color: var(--dim); text-decoration: line-through; }
+.idea.s-no h3, .idea.s-done h3 { color: var(--dim); }
+.tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 2px; }
+.tools select { width: auto; padding: 4px 8px; font-size: 13px; }
+.tools button { font-size: 13px; padding: 4px 10px; }
+.comments { display: flex; flex-direction: column; gap: 8px; border-left: 2px solid var(--line); padding-left: 12px; margin-top: 4px; }
+.comment { font-size: 14px; }
+.comment b { font-weight: 600; }
+.comment span { color: var(--dim); font-size: 12px; }
+.addc { display: flex; gap: 8px; }
+.addc input { flex: 1 1 auto; }
+.empty { color: var(--dim); border: 1px dashed var(--line); border-radius: 6px; padding: 22px; text-align: center; }
+
+aside.ref { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+aside.ref details { border-top: 1px solid var(--line); padding-top: 8px; }
+aside.ref summary { cursor: pointer; font-weight: 600; }
+aside.ref ul { margin: 6px 0 4px; padding-left: 18px; color: var(--dim); font-size: 14px; }
+aside.ref li { margin: 2px 0; }
+.ver { font-family: var(--mono); font-size: 12px; color: var(--dim); margin: 0; }
+
+/* ---- THE GAME ---- */
+.waiting { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 12px 16px; }
+.waiting summary { cursor: pointer; }
+.waiting summary h2 { display: inline-block; font-size: 20px; margin-right: 8px; vertical-align: middle; }
+.waiting .count { font-family: var(--mono); font-size: 12px; color: var(--on-gold); background: var(--gold); border-radius: 999px; padding: 1px 9px; vertical-align: middle; }
+.waiting .count.zero { color: var(--dim); background: transparent; border: 1px solid var(--line); }
+.waiting .hint { margin: 8px 0 4px; max-width: 78ch; }
+.change { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; border-top: 1px solid var(--line); padding: 8px 0; }
+.change:last-child { padding-bottom: 2px; }
+.change .what { flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
+.change .what button { font-weight: 600; padding: 0; border: 0; background: none; color: var(--fg); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.change .to { color: var(--gold); font-weight: 600; }
+.change .who { color: var(--dim); font-size: 13px; }
+.change > button { font-size: 13px; padding: 3px 10px; }
+
+.sheet { display: flex; flex-direction: column; gap: 14px; }
+.sheet-head { display: flex; flex-direction: column; gap: 4px; }
+.sheet-head p { margin: 0; max-width: 78ch; }
+.item { border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.item.drop { outline: 2px dashed var(--gold); outline-offset: 6px; }
+.item-head { display: flex; flex-wrap: wrap; gap: 2px 12px; align-items: baseline; }
+.item-head h3 { font-family: var(--display); font-weight: 700; font-size: 26px; line-height: 1.05; letter-spacing: .03em; text-transform: uppercase; margin: 0; overflow-wrap: anywhere; }
+.item-head .sub { color: var(--dim); font-size: 14px; overflow-wrap: anywhere; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
+.tile { display: flex; flex-direction: column; justify-content: space-between; gap: 6px; text-align: left; min-height: 72px; min-width: 0;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; color: var(--fg); font: inherit; }
+button.tile:hover { border-color: var(--gold); }
+.tile .label { font-size: 10.5px; letter-spacing: .06em; line-height: 1.3; overflow-wrap: anywhere; }
+.tile .val { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 4px; min-width: 0; }
+.tile .num { font-family: var(--display); font-weight: 700; font-size: 26px; line-height: 1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; min-width: 0; }
+.tile.text .num { font-family: var(--body); font-weight: 600; font-size: 14px; line-height: 1.25; }
+.tile .unit { font-size: 12px; color: var(--dim); }
+.tile.none { background: transparent; border-style: dashed; }
+.tile.none .num { color: var(--line); }
+.tile.changed { border-color: var(--gold); }
+.tile.changed .num { color: var(--gold); }
+.tile .was { font-size: 12px; line-height: 1.3; color: var(--dim); overflow-wrap: anywhere; }
+.tile.editing { grid-column: 1 / -1; border-color: var(--gold); gap: 10px; }
+.tile.editing .label { font-size: 12px; color: var(--fg); }
+.stepper { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.stepper input { flex: 0 1 150px; width: 150px; font-size: 18px; font-variant-numeric: tabular-nums; }
+.tile.text .stepper input { flex: 1 1 220px; max-width: 380px; font-size: 16px; }
+.stepper .step { width: 40px; height: 40px; padding: 0; font-size: 20px; line-height: 1; }
+.stepper .unit { font-size: 14px; }
+.edit-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.item.single { display: grid; grid-template-columns: minmax(0, 1fr) minmax(104px, 150px); gap: 6px 14px; align-items: center; padding-top: 10px; }
+.item.single .item-head { flex-direction: column; align-items: flex-start; gap: 0; }
+.item.single .item-head h3 { font-size: 20px; }
+.item.single .tiles { grid-template-columns: minmax(0, 1fr); }
+.item.single .tile { min-height: 0; }
+.item.single .tile .label { display: none; }
+
+.pics { display: flex; flex-wrap: wrap; gap: 8px; }
+.pics:empty { display: none; }
+.thumb { width: 76px; height: 76px; padding: 0; overflow: hidden; display: grid; place-items: center; text-align: center;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--panel-2); color: var(--dim); font-size: 11px; line-height: 1.2; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.addpic { position: relative; width: 76px; height: 76px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  border: 1px dashed var(--dim); border-radius: 4px; cursor: pointer; letter-spacing: .06em; }
+.addpic .plus { font-family: var(--display); font-weight: 700; font-size: 26px; line-height: 1; color: var(--fg); }
+.addpic input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.addpic:hover { border-color: var(--gold); color: var(--fg); }
+.addpic:focus-within { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+dialog.viewer { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; padding: 14px; width: min(92vw, 900px); max-height: 92vh; }
+dialog.viewer::backdrop { background: rgba(0, 0, 0, .72); }
+.viewer-in { display: flex; flex-direction: column; gap: 10px; }
+.viewer img { max-width: 100%; max-height: 68vh; display: block; margin: 0 auto; border-radius: 4px; }
+.viewer p { margin: 0; overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: no-preference) { button, .chip, .tabs a, .addpic { transition: border-color .12s, background-color .12s, color .12s; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="eyebrow" id="eyebrow">Shared notebook &middot; game v0.13</div>
+    <h1>Haitian Gang Wars</h1>
+    <div class="bar">
+      <nav class="tabs" aria-label="Pages">
+        <a href="#board" id="tab-board">Ideas</a>
+        <a href="#game" id="tab-game">The game</a>
+      </nav>
+      <div class="me">
+        <label for="who">Your name</label>
+        <input type="text" id="who" maxlength="20" placeholder="who are you?" autocomplete="off">
+      </div>
+    </div>
+    <p class="hint warn" id="whohint" hidden></p>
+  </header>
+
+  <p class="notice" id="notice" hidden></p>
+
+  <section class="view" id="view-board">
+    <p class="lede">Put every idea for the game here: new bosses, weapons, maps, sounds, anything. Press the number to vote. The ideas with the most votes get built first.</p>
+    <div class="cols">
+      <div class="main">
+        <form class="compose" id="compose" autocomplete="off">
+          <h2>Add an idea</h2>
+          <div class="row">
+            <div class="field">
+              <label for="title">The idea, in one line</label>
+              <input type="text" id="title" maxlength="90" placeholder="A boss that throws burning tyres">
+            </div>
+            <div class="field small">
+              <label for="area">Part of the game</label>
+              <select id="area"></select>
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="text">More detail (optional)</label>
+              <textarea id="text" maxlength="900" placeholder="How would it work? Why would it be fun?"></textarea>
+            </div>
+          </div>
+          <div class="row" style="align-items:center">
+            <button class="primary" type="submit" id="add">Add idea</button>
+            <p class="hint" id="formhint"></p>
+          </div>
+        </form>
+
+        <div class="filters">
+          <div class="chips" id="statusChips" role="group" aria-label="Show"></div>
+          <div class="chips" id="sortChips" role="group" aria-label="Order"></div>
+        </div>
+        <div class="chips" id="areaChips" role="group" aria-label="Part of the game"></div>
+
+        <div class="list" id="list" aria-live="polite"></div>
+      </div>
+
+      <aside class="ref">
+        <h2>In the game now</h2>
+        <p class="ver">so nobody suggests what already exists. Every number is on <a class="jump" href="#game">The game</a>.</p>
+        <details open>
+          <summary>The story</summary>
+          <ul>
+            <li>You are Jean-Baptiste, "JanJan", a Haitian soldier.</li>
+            <li>The gangs bought a sorcerer's powder and send armies of the dead.</li>
+            <li>Each map is one gang's ground. Its leader is the boss, every 5th wave.</li>
+            <li>The gangs and leaders are invented, not real people.</li>
+          </ul>
+        </details>
+        <details>
+          <summary>Five maps, five bosses</summary>
+          <ul>
+            <li>Hill Camp: K&ograve;k Batay</li>
+            <li>Cane Fields: Machw&egrave; F&egrave;</li>
+            <li>Grand Cemetery: Papa Zo</li>
+            <li>National Road: Gwo Kamyon</li>
+            <li>The Docks: Wa Lannwit</li>
+            <li>100 waves per map. All five still look alike, and so do the bosses.</li>
+          </ul>
+        </details>
+        <details>
+          <summary>Eight weapons</summary>
+          <ul>
+            <li>Pistol, SMG, shotgun</li>
+            <li>Machine gun, rifle</li>
+            <li>Launcher, flamethrower, chainsaw</li>
+            <li>Crates give a weapon for about 20 seconds. Two of the same: one in each hand.</li>
+          </ul>
+        </details>
+        <details>
+          <summary>Eight kinds of zombie</summary>
+          <ul>
+            <li>Shambler, Runner, Brute</li>
+            <li>Gobber (spits), Chucker (lobs rubble)</li>
+            <li>Gasbag (bursts), Lunger (leaps)</li>
+            <li>The gang boss</li>
+          </ul>
+        </details>
+        <details>
+          <summary>Growing stronger</summary>
+          <ul>
+            <li>Character level up to 100, nine skills</li>
+            <li>Weapon levels and upgrades</li>
+            <li>Gear in nine slots, five tiers, forging</li>
+            <li>Five pets, from level 18</li>
+            <li>A perk to choose after every boss (16 perks, for that run)</li>
+          </ul>
+        </details>
+        <details>
+          <summary>Playing together</summary>
+          <ul>
+            <li>Up to 3 players online, Mac and Windows</li>
+            <li>All gold and gear shared, zombies tougher</li>
+            <li>Fallen players can be picked up</li>
+          </ul>
+        </details>
+      </aside>
+    </div>
+  </section>
+
+  <section class="view" id="view-game" hidden>
+    <p class="lede">Everything that is in the game, with its numbers. Press a number or a name to ask for a change, and add pictures of how you imagine things should look.</p>
+    <details class="waiting" id="waiting" open>
+      <summary><h2>Changes waiting</h2><span class="count zero" id="waitCount">0</span></summary>
+      <p class="hint">A change made here does not reach the game by itself. It waits on this list until the owner tells Claude to build it. Then it goes into the next version of the game and the numbers here follow.</p>
+      <div id="changeList"></div>
+    </details>
+    <div class="chips big" id="sectionChips" role="group" aria-label="Part of the game"></div>
+    <div class="sheet" id="sheet"></div>
+  </section>
+</div>
+
+<dialog class="viewer" id="viewer" aria-label="Picture">
+  <div class="viewer-in">
+    <img id="viewerImg" alt="">
+    <p id="viewerCap"></p>
+    <div class="edit-buttons" id="viewerButtons"></div>
+  </div>
+</dialog>
+
+<script>
+(function () {
+  "use strict";
+  var AREAS = [
+    ["story", "Hero & story"], ["bosses", "Gangs & bosses"], ["zombies", "Zombies"], ["maps", "Maps & scenery"],
+    ["weapons", "Weapons"], ["perks", "Perks & skills"], ["gear", "Gear & pets"], ["coop", "Playing together"],
+    ["sound", "Sound & music"], ["look", "Look & menus"], ["other", "Other"]
+  ];
+  var STATUSES = [["new", "New"], ["yes", "We want this"], ["building", "Being built"], ["done", "In the game"], ["no", "Not now"]];
+  var SHOWS = [["open", "Open ideas"], ["done", "In the game"], ["no", "Not now"], ["all", "Everything"]];
+  var SORTS = [["votes", "Most votes"], ["new", "Newest"]];
+  var PICTURE_TYPES = /^image\/(png|jpeg|gif|webp)$/;
+  var MAX_PICTURES = 12;            /* per item */
+  var PICTURE_SIDE = 1600;          /* bigger pictures are made smaller before they are sent */
+  var SAFE_ID = /^[A-Za-z0-9_.\-]{1,120}$/;
+  var ASSET_ID = /^[A-Za-z0-9_\-]{8,64}$/;
+
+  var db = null, assets = null, canWrite = null;
+  var ideas = [], sheets = {}, changes = {}, pics = [];
+  var got = {}, failed = {}, slow = false, absent = false;
+  var view = "board", section = "";
+  var show = "open", sort = "votes", area = "all";
+  var openComments = {}, drafts = {}, confirming = null, chains = {};
+  var editing = null, draft = "", editError = "", sending = {}, viewing = null, removing = false;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var el = function (tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  var labelOf = function (list, id) { for (var i = 0; i < list.length; i++) if (list[i][0] === id) return list[i][1]; return id; };
+
+  function remember(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
+  function recall(key) { try { return localStorage.getItem(key) || ""; } catch (e) { return ""; } }
+  function myName() { return $("who").value.trim().slice(0, 20); }
+  function keyOf(name) {
+    var k = name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 24);
+    return k || "someone";
+  }
+  function when(ms) {
+    if (!ms) return "";
+    return new Date(ms).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+  }
+  function needName() {
+    var hint = $("whohint");
+    if (myName()) { hint.hidden = true; return false; }
+    hint.textContent = "First type your name in the box above, so the others know who it was.";
+    hint.hidden = false;
+    $("who").focus();
+    return true;
+  }
+  function readOnly() { return canWrite === false || !db; }
+  function canUpload() { return !!assets && !readOnly(); }
+  function note(text) { var n = $("notice"); n.textContent = text; n.hidden = !text; }
+
+  /* One write at a time per document; a refused write means this visitor may only read. */
+  function write(id, job) {
+    chains[id] = (chains[id] || Promise.resolve()).then(job).catch(function (e) {
+      if (e && e.code === "invalid_argument") { canWrite = false; renderAll(); }
+      else if (e && e.code === "quota_exceeded") { note("The notebook is full. Remove some old ideas or pictures first."); }
+      else { note("That did not save. Check your connection and try again."); }
+    });
+    return chains[id];
+  }
+
+  /* Redraw without losing the box somebody is typing in. */
+  function keepFocus(job) {
+    var a = document.activeElement, id = a && a.id, caret = null;
+    try { if (id && typeof a.selectionStart === "number") caret = a.selectionStart; } catch (e) {}
+    job();
+    if (!id) return;
+    var back = $(id);
+    if (!back || back === document.activeElement) return;
+    try { back.focus({ preventScroll: true }); if (caret != null && back.setSelectionRange) back.setSelectionRange(caret, caret); } catch (e) {}
+  }
+
+  function chips(host, list, current, pick) {
+    host.textContent = "";
+    list.forEach(function (item) {
+      var b = el("button", "chip", item[1]);
+      b.type = "button";
+      b.setAttribute("aria-pressed", String(item[0] === current));
+      b.addEventListener("click", function () { pick(item[0]); });
+      host.appendChild(b);
+    });
+  }
+
+  /* ================= IDEAS ================= */
+  function votesOf(idea) {
+    var names = [], v = idea.votes || {};
+    Object.keys(v).forEach(function (k) { if (v[k] && v[k].v) names.push(String(v[k].n || k)); });
+    return names;
+  }
+  function commentsOf(idea) {
+    var c = idea.comments || {}, out = [];
+    Object.keys(c).forEach(function (k) { if (c[k] && c[k].text) out.push(c[k]); });
+    out.sort(function (a, b) { return (a.at || 0) - (b.at || 0); });
+    return out;
+  }
+  function renderFilters() {
+    chips($("statusChips"), SHOWS, show, function (v) { show = v; renderBoard(); });
+    chips($("sortChips"), SORTS, sort, function (v) { sort = v; renderBoard(); });
+    chips($("areaChips"), [["all", "All parts"]].concat(AREAS), area, function (v) { area = v; renderBoard(); });
+  }
+  function visible() {
+    var list = ideas.filter(function (i) {
+      var s = i.status || "new";
+      if (area !== "all" && i.area !== area) return false;
+      if (show === "open") return s === "new" || s === "yes" || s === "building";
+      if (show === "done") return s === "done";
+      if (show === "no") return s === "no";
+      return true;
+    });
+    list.sort(function (a, b) {
+      if (sort === "votes") { var d = votesOf(b).length - votesOf(a).length; if (d) return d; }
+      return (b.at || 0) - (a.at || 0);
+    });
+    return list;
+  }
+  function waitingText(what) {
+    if (absent) return "The notebook opens when this page is viewed in Claude, signed in.";
+    if (failed[what]) return "This could not be loaded. Close the page and open it again.";
+    return slow ? "Still trying to reach the notebook. Check your connection." : "Loading…";
+  }
+  function renderList() {
+    keepFocus(function () {
+      var host = $("list");
+      host.textContent = "";
+      if (absent || failed.ideas || (!got.ideas && !ideas.length)) { host.appendChild(el("div", "empty", waitingText("ideas"))); return; }
+      var list = visible();
+      if (!list.length) {
+        host.appendChild(el("div", "empty", ideas.length ? "Nothing here with these filters. Try “Everything”." : "No ideas yet. Add the first one above."));
+        return;
+      }
+      list.forEach(function (idea) { host.appendChild(card(idea)); });
+    });
+  }
+  function card(idea) {
+    var status = idea.status || "new", names = votesOf(idea), me = myName();
+    var mine = me && names.some(function (n) { return keyOf(n) === keyOf(me); });
+    var wrap = el("article", "idea s-" + status);
+
+    var vote = el("button", "vote");
+    vote.type = "button";
+    vote.id = "vote-" + idea.id;
+    vote.setAttribute("aria-pressed", String(!!mine));
+    vote.title = names.length ? "Voted: " + names.join(", ") : "Nobody has voted yet";
+    vote.setAttribute("aria-label", names.length + (names.length === 1 ? " vote" : " votes") + ". " + (mine ? "Take your vote back" : "Vote for this idea"));
+    vote.appendChild(el("span", "n", String(names.length)));
+    vote.appendChild(el("span", "w", names.length === 1 ? "vote" : "votes"));
+    vote.disabled = readOnly();
+    vote.addEventListener("click", function () {
+      if (needName()) return;
+      var patch = {}; patch[keyOf(myName())] = { v: !mine, n: myName() };
+      write(idea.id, function () { return db.doc("ideas/" + idea.id).update({ votes: patch }); });
+    });
+    wrap.appendChild(vote);
+
+    var body = el("div", "body");
+    body.appendChild(el("h3", null, String(idea.title || "(no title)")));
+    if (idea.text) body.appendChild(el("p", null, String(idea.text)));
+    var meta = el("div", "meta");
+    meta.appendChild(el("span", "pill s-" + status, labelOf(STATUSES, status)));
+    meta.appendChild(el("span", "tag", labelOf(AREAS, idea.area || "other")));
+    meta.appendChild(el("span", null, "by " + String(idea.by || "someone") + (idea.at ? " · " + when(idea.at) : "")));
+    if (names.length) meta.appendChild(el("span", null, "votes: " + names.join(", ")));
+    body.appendChild(meta);
+
+    var comments = commentsOf(idea), isOpen = !!openComments[idea.id];
+    var tools = el("div", "tools");
+    var talk = el("button", null, comments.length ? (isOpen ? "Hide comments" : comments.length + (comments.length === 1 ? " comment" : " comments")) : (isOpen ? "Hide" : "Comment"));
+    talk.type = "button"; talk.id = "talk-" + idea.id;
+    talk.setAttribute("aria-expanded", String(isOpen));
+    talk.addEventListener("click", function () { openComments[idea.id] = !isOpen; renderList(); });
+    tools.appendChild(talk);
+    if (!readOnly()) {
+      var sel = el("select"); sel.id = "status-" + idea.id; sel.setAttribute("aria-label", "Where this idea stands");
+      STATUSES.forEach(function (s) { var o = el("option", null, s[1]); o.value = s[0]; if (s[0] === status) o.selected = true; sel.appendChild(o); });
+      sel.addEventListener("change", function () {
+        var next = sel.value;
+        write(idea.id, function () { return db.doc("ideas/" + idea.id).update({ status: next }); });
+      });
+      tools.appendChild(sel);
+      if (confirming === idea.id) {
+        var yes = el("button", null, "Yes, remove it"); yes.type = "button"; yes.id = "rm-yes-" + idea.id;
+        yes.addEventListener("click", function () { confirming = null; write(idea.id, function () { return db.doc("ideas/" + idea.id).delete(); }); });
+        var no = el("button", null, "Keep it"); no.type = "button"; no.id = "rm-no-" + idea.id;
+        no.addEventListener("click", function () { confirming = null; renderList(); });
+        tools.appendChild(yes); tools.appendChild(no);
+      } else {
+        var rm = el("button", null, "Remove"); rm.type = "button"; rm.id = "rm-" + idea.id;
+        rm.addEventListener("click", function () { confirming = idea.id; renderList(); });
+        tools.appendChild(rm);
+      }
+    }
+    body.appendChild(tools);
+
+    if (isOpen) {
+      var box = el("div", "comments");
+      comments.forEach(function (c) {
+        var line = el("div", "comment");
+        line.appendChild(el("b", null, String(c.by || "someone") + ": "));
+        line.appendChild(document.createTextNode(String(c.text)));
+        line.appendChild(el("span", null, c.at ? "  " + when(c.at) : ""));
+        box.appendChild(line);
+      });
+      if (!readOnly()) {
+        var form = el("form", "addc");
+        var input = el("input"); input.type = "text"; input.id = "c-" + idea.id; input.maxLength = 400;
+        input.placeholder = "Say what you think"; input.setAttribute("aria-label", "Your comment"); input.value = drafts[idea.id] || "";
+        input.addEventListener("input", function () { drafts[idea.id] = input.value; });
+        var send = el("button", null, "Send"); send.type = "submit";
+        form.appendChild(input); form.appendChild(send);
+        form.addEventListener("submit", function (ev) {
+          ev.preventDefault();
+          var text = input.value.trim();
+          if (!text || needName()) return;
+          var patch = {};
+          patch["c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)] = { by: myName(), text: text.slice(0, 400), at: Date.now() };
+          drafts[idea.id] = "";
+          write(idea.id, function () { return db.doc("ideas/" + idea.id).update({ comments: patch }); });
+        });
+        box.appendChild(form);
+      } else if (!comments.length) {
+        box.appendChild(el("div", "comment", "No comments yet."));
+      }
+      body.appendChild(box);
+    }
+    wrap.appendChild(body);
+    return wrap;
+  }
+  function renderBoard() {
+    renderFilters();
+    var off = readOnly();
+    ["title", "text", "area", "add"].forEach(function (id) { $(id).disabled = off; });
+    renderList();
+  }
+
+  /* ================= THE GAME ================= */
+  function sheetOrder() {
+    return Object.keys(sheets).sort(function (a, b) { return (Number(sheets[a].order) || 0) - (Number(sheets[b].order) || 0) || (a < b ? -1 : 1); });
+  }
+  function rowsOf(sec) { return Array.isArray(sec.rows) ? sec.rows : []; }
+  function colsOf(sec) { return Array.isArray(sec.columns) ? sec.columns : []; }
+  /* One number or name of one item: the column's settings, with what this row says differently. */
+  function cellOf(sec, row, col) {
+    var c = {}, own = (row.meta && row.meta[col.key]) || {};
+    Object.keys(col).forEach(function (k) { c[k] = col[k]; });
+    Object.keys(own).forEach(function (k) { c[k] = own[k]; });
+    c.id = sec.id + "." + row.id + "." + col.key;
+    c.value = row.values && row.values[col.key] != null ? row.values[col.key] : null;
+    c.path = String(c.path || "").replace("{id}", String(row.id));
+    c.kind = c.kind === "text" ? "text" : "number";
+    c.label = String(c.label || col.key);
+    c.unit = String(c.unit || "");
+    return c;
+  }
+  function same(a, b) {
+    if (typeof a === "number" && typeof b === "number") return Math.abs(a - b) < 1e-9;
+    return String(a) === String(b);
+  }
+  function shown(v, c) {
+    if (c.kind === "text") return String(v);
+    var n = Number(v);
+    return isFinite(n) ? n.toLocaleString("en-US", { maximumFractionDigits: 4 }) : String(v);
+  }
+  function unitText(u) { return u === "x" ? "×" : u; }
+  function findCell(ch) {
+    var sec = sheets[ch.section];
+    if (!sec) return null;
+    var row = rowsOf(sec).filter(function (r) { return String(r.id) === String(ch.row); })[0];
+    var col = colsOf(sec).filter(function (k) { return k.key === ch.col; })[0];
+    return row && col ? cellOf(sec, row, col) : null;
+  }
+  /* A change counts until the game's own number says the same. */
+  function isWaiting(ch) {
+    if (!ch || ch.to == null) return false;
+    var c = findCell(ch);
+    return !c || c.value == null || !same(ch.to, c.value);
+  }
+  function waitingList() {
+    var order = sheetOrder();
+    return Object.keys(changes).map(function (id) { return changes[id]; }).filter(isWaiting).sort(function (a, b) {
+      return (order.indexOf(a.section) - order.indexOf(b.section)) || ((a.at || 0) - (b.at || 0));
+    });
+  }
+
+  function renderWaiting() {
+    var list = waitingList(), host = $("changeList"), count = $("waitCount");
+    count.textContent = String(list.length);
+    count.className = "count" + (list.length ? "" : " zero");
+    host.textContent = "";
+    if (!list.length) return;
+    list.forEach(function (ch) {
+      var c = findCell(ch) || { kind: ch.kind === "text" ? "text" : "number", unit: String(ch.unit || ""), value: ch.from };
+      var line = el("div", "change"), what = el("div", "what");
+      var jump = el("button", null, String(ch.item || ch.row || "?"));
+      jump.type = "button"; jump.id = "go-" + ch.id;
+      jump.addEventListener("click", function () {
+        if (!sheets[ch.section]) return;
+        section = ch.section; remember("gw-ideas-section", section); renderGame();
+        var target = $("item-" + ch.section + "." + ch.row);
+        if (target) target.scrollIntoView({ block: "center" });
+      });
+      what.appendChild(jump);
+      var unit = c.unit ? " " + unitText(c.unit) : "";
+      what.appendChild(document.createTextNode(" · " + String(ch.label || ch.col) + ": " + (c.value == null ? "?" : shown(c.value, c)) + unit + " → "));
+      what.appendChild(el("span", "to", shown(ch.to, c) + unit));
+      line.appendChild(what);
+      line.appendChild(el("span", "who", String(ch.by || "someone") + (ch.at ? " · " + when(ch.at) : "")));
+      if (!readOnly()) {
+        var undo = el("button", null, "Undo"); undo.type = "button"; undo.id = "undo-" + ch.id;
+        undo.setAttribute("aria-label", "Undo this change");
+        undo.addEventListener("click", function () { write(ch.id, function () { return db.doc("changes/" + ch.id).delete(); }); });
+        line.appendChild(undo);
+      }
+      host.appendChild(line);
+    });
+  }
+
+  function renderSections() {
+    var counts = {};
+    waitingList().forEach(function (ch) { counts[ch.section] = (counts[ch.section] || 0) + 1; });
+    var list = sheetOrder().map(function (id) { return [id, String(sheets[id].title || id) + (counts[id] ? " · " + counts[id] : "")]; });
+    chips($("sectionChips"), list, section, function (v) { section = v; editing = null; remember("gw-ideas-section", v); renderGame(); });
+  }
+
+  function decimals(n) { var s = String(n), i = s.indexOf("."); return i < 0 ? 0 : s.length - i - 1; }
+  function parseNumber(text, c) {
+    var t = String(text).trim().replace(/\s+/g, "");
+    var whole = Number(c.step) >= 1 && decimals(c.step) === 0 && decimals(c.value) === 0;
+    t = whole ? t.replace(/,/g, "") : t.replace(",", ".");
+    if (!/^-?\d*\.?\d+$/.test(t) && !/^-?\d+\.$/.test(t)) return NaN;
+    var n = parseFloat(t);
+    return isFinite(n) ? Math.round(n * 1e4) / 1e4 : NaN;
+  }
+  function limits(c) {
+    var lo = typeof c.min === "number" ? c.min : 0, hi = typeof c.max === "number" ? c.max : 100000;
+    return [lo, hi];
+  }
+
+  function openEditor(c, pending) {
+    editing = c.id; editError = "";
+    draft = String(pending ? pending.to : c.value);
+    renderSheet();
+    var input = $("edit-input");
+    if (input) { input.focus(); try { input.select(); } catch (e) {} }
+  }
+  function saveCell(sec, row, c, to) {
+    if (needName()) return;
+    editing = null;
+    if (same(to, c.value)) {
+      if (changes[c.id]) write(c.id, function () { return db.doc("changes/" + c.id).delete(); });
+    } else {
+      var scale = Number(c.scale) || 1;
+      var rec = { section: String(sec.id), row: String(row.id), col: String(c.key), item: String(row.name || row.id), label: c.label, unit: c.unit, kind: c.kind,
+        from: c.value, to: to, raw: c.kind === "number" ? Math.round(to / scale * 1e6) / 1e6 : to, path: c.path, by: myName(), at: Date.now() };
+      write(c.id, function () { return db.doc("changes/" + c.id).set(rec); });
+    }
+    renderGame();
+  }
+
+  function editor(sec, row, c, pending) {
+    var isText = c.kind === "text", lim = limits(c);
+    var form = el("form", "tile editing" + (isText ? " text" : ""));
+    form.noValidate = true; form.id = "ed-" + c.id;
+    var lab = el("label", "label", c.label + " · " + String(row.name || row.id));
+    lab.htmlFor = "edit-input";
+    form.appendChild(lab);
+
+    var line = el("div", "stepper");
+    var input = el("input"); input.type = "text"; input.id = "edit-input"; input.value = draft; input.autocomplete = "off";
+    var calm = function () { editError = ""; var old = $("edit-error"); if (old) old.remove(); };
+    input.addEventListener("input", function () { draft = input.value; calm(); });
+    if (isText) {
+      input.maxLength = Number(c.max) > 0 ? Number(c.max) : 24;
+      line.appendChild(input);
+    } else {
+      input.inputMode = "decimal";
+      var bump = function (dir) {
+        var step = Number(c.step) > 0 ? Number(c.step) : 1, now = parseNumber(draft, c);
+        if (isNaN(now)) now = Number(c.value);
+        var places = Math.min(4, Math.max(decimals(step), decimals(c.value)));
+        var next = Math.min(lim[1], Math.max(lim[0], now + dir * step));
+        draft = String(Number(next.toFixed(places)));
+        input.value = draft;
+        calm();
+      };
+      var less = el("button", "step", "−"); less.type = "button"; less.id = "edit-less"; less.setAttribute("aria-label", "Less");
+      less.addEventListener("click", function () { bump(-1); });
+      var more = el("button", "step", "+"); more.type = "button"; more.id = "edit-more"; more.setAttribute("aria-label", "More");
+      more.addEventListener("click", function () { bump(1); });
+      line.appendChild(less); line.appendChild(input); line.appendChild(more);
+      if (c.unit) line.appendChild(el("span", "unit", unitText(c.unit)));
+    }
+    form.appendChild(line);
+
+    var facts = "In the game now: " + shown(c.value, c) + (c.unit && !isText ? " " + unitText(c.unit) : "") + ". ";
+    facts += isText ? "Up to " + input.maxLength + " letters." : "Anything from " + shown(lim[0], c) + " to " + shown(lim[1], c) + ".";
+    if (c.help) facts += " (" + String(c.help) + ")";
+    form.appendChild(el("p", "hint", facts));
+    if (editError) { var err = el("p", "hint warn", editError); err.id = "edit-error"; err.setAttribute("role", "alert"); form.appendChild(err); }
+
+    var buttons = el("div", "edit-buttons");
+    var save = el("button", "primary", "Put it on the list"); save.type = "submit"; save.id = "edit-save";
+    var cancel = el("button", null, "Cancel"); cancel.type = "button"; cancel.id = "edit-cancel";
+    cancel.addEventListener("click", function () { editing = null; renderSheet(); var t = $("t-" + c.id); if (t) t.focus(); });
+    buttons.appendChild(save); buttons.appendChild(cancel);
+    if (pending) {
+      var back = el("button", null, "Back to " + shown(c.value, c)); back.type = "button"; back.id = "edit-back";
+      back.addEventListener("click", function () { saveCell(sec, row, c, c.value); });
+      buttons.appendChild(back);
+    }
+    form.appendChild(buttons);
+
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var to;
+      if (isText) {
+        to = draft.trim().replace(/\s+/g, " ").slice(0, input.maxLength);
+        if (!to) { editError = "Type a name first."; renderSheet(); return; }
+      } else {
+        to = parseNumber(draft, c);
+        if (isNaN(to)) { editError = "Type a number, like " + shown(c.value, c) + "."; renderSheet(); return; }
+        if (to < lim[0] || to > lim[1]) { editError = "It has to be between " + shown(lim[0], c) + " and " + shown(lim[1], c) + "."; renderSheet(); return; }
+      }
+      saveCell(sec, row, c, to);
+    });
+    form.addEventListener("keydown", function (ev) { if (ev.key === "Escape") { ev.preventDefault(); cancel.click(); } });
+    return form;
+  }
+
+  function tile(sec, row, col) {
+    var c = cellOf(sec, row, col), ch = changes[c.id], pending = isWaiting(ch) ? ch : null;
+    var can = c.value != null && !!c.path && SAFE_ID.test(c.id) && !readOnly();
+    if (can && editing === c.id) return editor(sec, row, c, pending);
+    var t = el(can ? "button" : "div", "tile" + (c.kind === "text" ? " text" : "") + (pending ? " changed" : "") + (c.value == null ? " none" : ""));
+    var text = c.value == null ? "–" : shown(pending ? pending.to : c.value, c);
+    t.appendChild(el("span", "label", c.label));
+    var v = el("span", "val");
+    v.appendChild(el("span", "num", text));
+    if (c.value != null && c.unit && c.kind !== "text") v.appendChild(el("span", "unit", unitText(c.unit)));
+    t.appendChild(v);
+    if (pending) t.appendChild(el("span", "was", "was " + shown(c.value, c) + " · " + String(pending.by || "someone")));
+    if (c.help) t.title = String(c.help);
+    if (can) {
+      t.type = "button"; t.id = "t-" + c.id;
+      t.setAttribute("aria-label", c.label + " of " + String(row.name || row.id) + ": " + text + (c.unit ? " " + c.unit : "") + (pending ? ", waiting to be built" : "") + ". Press to change it.");
+      t.addEventListener("click", function () { openEditor(c, pending); });
+    }
+    return t;
+  }
+
+  /* ---- pictures ---- */
+  function picsOf(secId, rowId) {
+    return pics.filter(function (p) { return p.section === secId && String(p.row) === String(rowId) && ASSET_ID.test(String(p.asset || "")); })
+      .sort(function (a, b) { return (a.at || 0) - (b.at || 0); });
+  }
+  /* A phone photo is far bigger than a thumbnail needs: draw it smaller before sending. */
+  function shrink(file) {
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type) || !window.createImageBitmap) return Promise.resolve(file);
+    return createImageBitmap(file).then(function (bmp) {
+      var big = Math.max(bmp.width, bmp.height);
+      if (big <= PICTURE_SIDE && file.size <= 1500000) { if (bmp.close) bmp.close(); return file; }
+      var k = Math.min(1, PICTURE_SIDE / big), canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bmp.width * k)); canvas.height = Math.max(1, Math.round(bmp.height * k));
+      var g = canvas.getContext("2d");
+      g.fillStyle = "#ffffff"; g.fillRect(0, 0, canvas.width, canvas.height);
+      g.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+      if (bmp.close) bmp.close();
+      return new Promise(function (done) { canvas.toBlob(function (small) { done(small && small.size < file.size ? small : file); }, "image/jpeg", 0.86); });
+    }).catch(function () { return file; });
+  }
+  function send(blob, again) {
+    return assets.upload(blob).catch(function (e) {
+      if (e && e.code === "store_unavailable" && !again) return new Promise(function (r) { setTimeout(r, 1500); }).then(function () { return send(blob, true); });
+      throw e;
+    });
+  }
+  function pictureProblem(e) {
+    var code = e && e.code;
+    if (code === "too_large") note("That picture is too big (20 MB is the most). Try a smaller one.");
+    else if (code === "unsupported_type") note("That kind of file does not work here. Use a JPG, PNG, GIF or WEBP picture.");
+    else if (code === "quota_or_state") note("There is no room left for pictures. Remove some old ones first.");
+    else if (code === "rate_limited") note("Too many pictures at once. Wait a moment and try again.");
+    else if (code === "not_granted" || code === "capability_disabled" || code === "capability_removed") { assets = null; note("Pictures cannot be added from here."); }
+    else note("That picture did not upload. Check your connection and try again.");
+  }
+  function addPictures(sec, row, files) {
+    if (!canUpload() || needName()) return;
+    var key = sec.id + "." + row.id, list = [].slice.call(files || []), have = picsOf(sec.id, row.id).length + (sending[key] || 0);
+    var chain = Promise.resolve();
+    note("");
+    list.forEach(function (file) {
+      if (!PICTURE_TYPES.test(file.type)) { note("“" + file.name + "” is not a picture this page can keep. Use a JPG, PNG, GIF or WEBP file."); return; }
+      if (have >= MAX_PICTURES) { note(MAX_PICTURES + " pictures is the most for one item. Remove one first."); return; }
+      have++;
+      sending[key] = (sending[key] || 0) + 1;
+      chain = chain.then(function () { return shrink(file); }).then(function (blob) {
+        if (blob.size > 20 * 1024 * 1024) throw { code: "too_large" };
+        return send(blob, false);
+      }).then(function (stored) {
+        var ref = db.collection("pics").doc();
+        return write(ref.id, function () { return ref.set({ section: String(sec.id), row: String(row.id), asset: stored.id, by: myName(), at: Date.now() }); });
+      }).catch(pictureProblem).then(function () {
+        sending[key] = Math.max(0, (sending[key] || 1) - 1);
+        if (view === "game") renderSheet();
+      });
+    });
+    renderSheet();
+  }
+  function strip(sec, row) {
+    var box = el("div", "pics"), key = sec.id + "." + row.id;
+    picsOf(sec.id, row.id).forEach(function (p) {
+      var b = el("button", "thumb"); b.type = "button"; b.id = "pic-" + p.id;
+      var img = el("img"); img.loading = "lazy"; img.alt = "Picture for " + String(row.name || row.id) + ", added by " + String(p.by || "someone");
+      img.addEventListener("error", function () { b.textContent = "picture missing"; });
+      img.src = "/_blob/" + p.asset;
+      b.appendChild(img);
+      b.addEventListener("click", function () { openViewer(p.id); });
+      box.appendChild(b);
+    });
+    for (var i = 0; i < (sending[key] || 0); i++) box.appendChild(el("div", "thumb", "sending…"));
+    if (canUpload()) {
+      var add = el("label", "addpic");
+      var input = el("input"); input.type = "file"; input.accept = "image/png,image/jpeg,image/gif,image/webp"; input.multiple = true;
+      input.id = "addpic-" + key;
+      input.setAttribute("aria-label", "Add a picture of how you imagine " + String(row.name || row.id));
+      input.addEventListener("change", function () { var files = [].slice.call(input.files || []); input.value = ""; addPictures(sec, row, files); });
+      add.appendChild(input);
+      add.appendChild(el("span", "plus", "+"));
+      add.appendChild(el("span", null, "picture"));
+      box.appendChild(add);
+    }
+    return box;
+  }
+  function hasFiles(ev) { return !!ev.dataTransfer && [].indexOf.call(ev.dataTransfer.types || [], "Files") >= 0; }
+
+  function openViewer(id) { viewing = id; removing = false; renderViewer(); var d = $("viewer"); if (!d.open) { try { d.showModal(); } catch (e) { d.setAttribute("open", ""); } } }
+  function closeViewer() { viewing = null; removing = false; var d = $("viewer"); try { d.close(); } catch (e) { d.removeAttribute("open"); } }
+  function renderViewer() {
+    var p = pics.filter(function (x) { return x.id === viewing; })[0];
+    if (!p) { if (viewing) closeViewer(); return; }
+    var sec = sheets[p.section], row = sec ? rowsOf(sec).filter(function (r) { return String(r.id) === String(p.row); })[0] : null;
+    var name = row ? String(row.name || row.id) : String(p.row);
+    var img = $("viewerImg"), src = "/_blob/" + p.asset;
+    if (img.getAttribute("src") !== src) img.src = src;
+    img.alt = "Picture for " + name;
+    $("viewerCap").textContent = name + " · added by " + String(p.by || "someone") + (p.at ? " · " + when(p.at) : "");
+    var bar = $("viewerButtons"); bar.textContent = "";
+    var close = el("button", null, "Close"); close.type = "button"; close.id = "viewer-close";
+    close.addEventListener("click", closeViewer);
+    bar.appendChild(close);
+    if (readOnly()) return;
+    if (!removing) {
+      var rm = el("button", null, "Remove picture"); rm.type = "button"; rm.id = "viewer-remove";
+      rm.addEventListener("click", function () { removing = true; renderViewer(); $("viewer-yes").focus(); });
+      bar.appendChild(rm);
+    } else {
+      var yes = el("button", null, "Yes, remove it"); yes.type = "button"; yes.id = "viewer-yes";
+      yes.addEventListener("click", function () {
+        var asset = p.asset;
+        closeViewer();
+        write(p.id, function () { return db.doc("pics/" + p.id).delete(); }).then(function () {
+          if (assets) assets.delete(asset).catch(function () {});   /* (somebody else's upload may only be unlinked, not erased) */
+        });
+      });
+      var keep = el("button", null, "Keep it"); keep.type = "button"; keep.id = "viewer-keep";
+      keep.addEventListener("click", function () { removing = false; renderViewer(); });
+      bar.appendChild(yes); bar.appendChild(keep);
+    }
+  }
+
+  function item(sec, row) {
+    var a = el("article", "item"); a.id = "item-" + sec.id + "." + row.id;
+    if (colsOf(sec).length === 1 && String(editing || "").indexOf(sec.id + "." + row.id + ".") !== 0) a.className = "item single";
+    var head = el("div", "item-head");
+    head.appendChild(el("h3", null, String(row.name || row.id)));
+    if (row.sub) head.appendChild(el("span", "sub", String(row.sub)));
+    a.appendChild(head);
+    var tiles = el("div", "tiles");
+    colsOf(sec).forEach(function (col) { tiles.appendChild(tile(sec, row, col)); });
+    a.appendChild(tiles);
+    if (sec.pictures !== false) {
+      a.appendChild(strip(sec, row));
+      if (canUpload()) {
+        a.addEventListener("dragover", function (ev) { if (hasFiles(ev)) { ev.preventDefault(); a.classList.add("drop"); } });
+        a.addEventListener("dragleave", function (ev) { if (!a.contains(ev.relatedTarget)) a.classList.remove("drop"); });
+        a.addEventListener("drop", function (ev) {
+          a.classList.remove("drop");
+          if (!hasFiles(ev)) return;
+          ev.preventDefault();
+          addPictures(sec, row, ev.dataTransfer.files);
+        });
+      }
+    }
+    return a;
+  }
+
+  function renderSheet() {
+    keepFocus(function () {
+      var host = $("sheet"), ids = sheetOrder();
+      host.textContent = "";
+      if (absent || failed.game || (!got.game && !ids.length)) { host.appendChild(el("div", "empty", waitingText("game"))); return; }
+      if (!ids.length) { host.appendChild(el("div", "empty", "The game's numbers have not been put here yet. Ask Claude to bring the dashboard up to date.")); return; }
+      if (!sheets[section]) section = ids[0];
+      var sec = sheets[section];
+      var head = el("div", "sheet-head");
+      head.appendChild(el("h2", null, String(sec.title || sec.id)));
+      if (sec.intro) head.appendChild(el("p", null, String(sec.intro)));
+      (Array.isArray(sec.notes) ? sec.notes : []).forEach(function (n) { head.appendChild(el("p", "hint", String(n))); });
+      if (sec.pictures !== false) {
+        if (canUpload()) head.appendChild(el("p", "hint", "Pictures: press “+ picture” under an item, or drop a file on it, to show how you imagine it. They are ideas for the look. The game's own art is always drawn new, never copied."));
+        else if (canWrite === true && got.game) head.appendChild(el("p", "hint", "To add pictures here, ask the owner to invite you as an Editor."));
+      }
+      host.appendChild(head);
+      rowsOf(sec).forEach(function (row) { if (row && row.id != null) host.appendChild(item(sec, row)); });
+      host.appendChild(el("p", "ver", "Numbers from game v" + String(sec.version || "?") + (sec.synced ? ", put here on " + when(Number(sec.synced)) : "") + "."));
+    });
+  }
+  function renderGame() { renderWaiting(); renderSections(); renderSheet(); if (viewing) renderViewer(); }
+
+  /* ================= both pages ================= */
+  function renderAll() {
+    $("view-board").hidden = view !== "board";
+    $("view-game").hidden = view !== "game";
+    ["board", "game"].forEach(function (v) { var t = $("tab-" + v); if (v === view) t.setAttribute("aria-current", "page"); else t.removeAttribute("aria-current"); });
+    if (canWrite === false && !absent) note("You can read everything, but this page cannot save changes from you yet. Ask the owner to invite you by email as an Editor (Share menu on this page).");
+    if (view === "game") renderGame(); else renderBoard();
+  }
+  function go(v, mark) {
+    if (v !== "game" && v !== "board") return;
+    view = v; editing = null;
+    remember("gw-ideas-view", v);
+    if (mark) { try { if (location.hash !== "#" + v) history.replaceState(null, "", "#" + v); } catch (e) {} }
+    renderAll();
+  }
+  function viewInAddress() { var h = String(location.hash || "").replace(/^#/, ""); return h === "game" || h === "board" ? h : ""; }
+
+  AREAS.forEach(function (a) { var o = el("option", null, a[1]); o.value = a[0]; $("area").appendChild(o); });
+  $("area").value = "other";
+  $("who").value = recall("gw-ideas-name");
+  section = recall("gw-ideas-section");
+  view = viewInAddress() || (recall("gw-ideas-view") === "game" ? "game" : "board");
+  /* (The idea list is redrawn while typing, never when the box is left: a redraw at that moment would swallow the click that follows.) */
+  $("who").addEventListener("input", function () { remember("gw-ideas-name", myName()); $("whohint").hidden = true; if (view === "board") renderList(); });
+  ["board", "game"].forEach(function (v) { $("tab-" + v).addEventListener("click", function (ev) { ev.preventDefault(); go(v, true); }); });
+  [].forEach.call(document.querySelectorAll("a.jump"), function (a) { a.addEventListener("click", function (ev) { ev.preventDefault(); go("game", true); window.scrollTo(0, 0); }); });
+  window.addEventListener("hashchange", function () { var v = viewInAddress(); if (v && v !== view) go(v, false); });
+  window.addEventListener("dragover", function (ev) { if (hasFiles(ev)) ev.preventDefault(); });
+  window.addEventListener("drop", function (ev) { if (hasFiles(ev)) ev.preventDefault(); });
+  $("viewer").addEventListener("click", function (ev) { if (ev.target === $("viewer")) closeViewer(); });
+  $("viewer").addEventListener("close", function () { viewing = null; removing = false; });
+
+  $("compose").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    if (readOnly()) return;
+    var title = $("title").value.trim();
+    if (needName()) return;
+    if (!title) { $("formhint").textContent = "Write the idea in one line first."; $("formhint").className = "hint warn"; $("title").focus(); return; }
+    var ref = db.collection("ideas").doc();
+    var doc = { title: title.slice(0, 90), text: $("text").value.trim().slice(0, 900), area: $("area").value, by: myName(), at: Date.now(), status: "new", votes: {}, comments: {} };
+    $("add").disabled = true;
+    write(ref.id, function () { return ref.set(doc); }).then(function () {
+      $("add").disabled = readOnly();
+      if (canWrite === false) return;
+      $("title").value = ""; $("text").value = "";
+      $("formhint").textContent = "Added. It is at the top under “Newest”."; $("formhint").className = "hint";
+      show = "open"; renderBoard();
+    });
+  });
+
+  renderAll();
+
+  /* ---- the shared notebook: ideas, the game's tables, wanted changes, pictures ---- */
+  var NAMES = ["ideas", "game", "changes", "pics"];
+  var timer = setTimeout(function () { slow = true; renderAll(); }, 10000);
+  function arrived(name) {
+    got[name] = true;
+    if (NAMES.every(function (n) { return got[n]; })) { clearTimeout(timer); slow = false; }
+  }
+  function apply(name, docs) {
+    if (name === "ideas") ideas = docs;
+    else if (name === "pics") pics = docs;
+    else if (name === "changes") { changes = {}; docs.forEach(function (d) { changes[d.id] = d; }); }
+    else {
+      sheets = {};
+      var version = "";
+      docs.forEach(function (d) { sheets[d.id] = d; if (String(d.version || "") > version) version = String(d.version); });
+      if (version) $("eyebrow").textContent = "Shared notebook · game v" + version;
+    }
+  }
+  var claude = window.claude;
+  if (!claude || typeof claude.use !== "function") { absent = true; clearTimeout(timer); renderAll(); return; }
+  Promise.all([claude.use("db"), claude.use("user"), claude.use("assets")]).then(function (found) {
+    db = found[0];
+    if (!db) { absent = true; clearTimeout(timer); renderAll(); return; }
+    var user = found[1];
+    assets = found[2];
+    (user ? user.can("data.write") : Promise.resolve(null)).then(function (answer) { canWrite = answer; renderAll(); });
+    NAMES.forEach(function (name) {
+      db.collection(name).onSnapshot(function (snap) {
+        apply(name, snap.docs.map(function (d) { return Object.assign({}, d.data() || {}, { id: d.id }); }));
+        if (!snap.metadata.fromCache) arrived(name);
+        if (name === "ideas") { if (view === "board") renderList(); }
+        else if (view === "game") renderGame();
+      }, function () { failed[name] = true; arrived(name); renderAll(); });
+    });
+    renderAll();
+  });
+})();
+</script>
