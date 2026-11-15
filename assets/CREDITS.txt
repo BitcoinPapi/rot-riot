@@ -22,6 +22,18 @@ SOUNDS  (assets/sfx/)
     ricochet_1..5.ogg       impactMining_000..004, cut to the first third of
                             a second and faded out
 
+GROUND  (assets/ground/)
+
+  From Poly Haven (polyhaven.com), CC0 - shrunk to 512 x 512
+    dirt.jpg                "Forest Ground 04"
+    leaves.jpg              "Leaves Forest Ground"
+    moss.jpg                "Brown Mud Leaves 01"
+
+NOT IN THIS PROJECT, on purpose: recordings whose licence allows using them
+in a game but not passing the files on (the Sonniss GDC bundle: a shotgun
+and its bolt). They live only in the player's save folder, in "sfx"
+(see the top of scripts/autoload/sfx.gd), never in the public project.
+
 NOT USED (yet): "Top-down Shooter" by Kenney, CC0 - bright cartoon houses,
 furniture and people. Kept out because its look does not fit the game's dark
 one; pieces of it may serve the themed maps later, recoloured.

@@ -37,6 +37,8 @@ class Chunk:
 	var dirty := false
 
 var ground_tint := Color(0, 0, 0, 0)   # the map's colour wash over the ground (set before the first frame)
+var ground_floor: String = Config.GROUND_FLOOR      # the picture the ground is made of (assets/ground/<name>.jpg)
+var ground_litter: Array = Config.GROUND_LITTER     # ...and the pictures of the soft patches on it
 var chunks_made := 0
 
 var _arena := Rect2(Vector2.ZERO, Config.ARENA_SIZE)   # the playable area
@@ -53,6 +55,8 @@ var _seed := 0
 var _splats: Array[Texture2D] = []
 var _dot: Texture2D
 var _glow: Texture2D
+var _floor_tex: Texture2D     # null = no picture: plain painted dirt
+var _litter_tex: Array[Texture2D] = []
 
 
 ## Say how big the map is. Call before the node enters the scene.
@@ -67,6 +71,11 @@ func _ready() -> void:
 	_dot = Art.t("dot")
 	_glow = Art.t("glow")
 	_seed = randi()
+	_floor_tex = _ground_picture(ground_floor)
+	for litter: Variant in ground_litter:
+		var picture := _ground_picture(String(litter))
+		if picture != null:
+			_litter_tex.append(picture)
 
 	_area = _arena.grow(_margin)
 	_cols = maxi(int(ceil(_area.size.x / Config.DECAL_CHUNK_SIZE)), 1)
@@ -143,6 +152,7 @@ func _chunk(cx: int, cy: int) -> Chunk:
 
 	c.stamper = DrawLayer.new()
 	c.stamper.painter = _paint.bind(c)
+	c.stamper.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED   # (the ground pictures repeat)
 	c.stamper.position = -c.rect.position * per_px
 	c.stamper.scale = per_px
 	c.viewport.add_child(c.stamper)
@@ -252,8 +262,27 @@ func _paint_ground(ci: CanvasItem, c: Chunk) -> void:
 	var here := c.rect.grow(2.0)
 	var rng := RandomNumberGenerator.new()
 
-	# Dusty dirt base.
-	ci.draw_rect(here, Color("5d5646"))
+	# The ground itself: a photo of forest floor, repeated. It is lined up
+	# with the MAP (not with this chunk), so neighbouring chunks join.
+	if _floor_tex != null:
+		var per_px := float(_floor_tex.get_width()) / Config.GROUND_TEXTURE_TILE
+		ci.draw_texture_rect_region(_floor_tex, here, Rect2(here.position * per_px, here.size * per_px), Config.GROUND_FLOOR_TINT)
+		# Soft-edged patches of leaf litter and moss: this chunk's and its
+		# neighbours' (they reach across the line).
+		var litter := int(round(Config.GROUND_LITTER_PER_MILLION * _chunk_size.x * _chunk_size.y / 1000000.0))
+		for ny in range(c.cy - 1, c.cy + 2):
+			for nx in range(c.cx - 1, c.cx + 2):
+				if nx < 0 or ny < 0 or nx >= _cols or ny >= _rows or _litter_tex.is_empty():
+					continue
+				rng.seed = _seed + nx * 49157 + ny * 786433 + 7
+				var corner := _area.position + Vector2(nx, ny) * _chunk_size
+				for i in litter:
+					var at := corner + Vector2(rng.randf(), rng.randf()) * _chunk_size
+					var radius := rng.randf_range(Config.GROUND_LITTER_RADIUS_MIN, Config.GROUND_LITTER_RADIUS_MAX)
+					_litter_patch(ci, _litter_tex[rng.randi() % _litter_tex.size()], at, radius, rng)
+	else:
+		# Dusty dirt base.
+		ci.draw_rect(here, Color("5d5646"))
 
 	# Big soft patches of darker / lighter dirt and grass: this chunk's and
 	# its neighbours' (they reach across the line).
@@ -272,9 +301,9 @@ func _paint_ground(ci: CanvasItem, c: Chunk) -> void:
 				ci.draw_texture_rect(_glow, Rect2(-size * 0.5, size), false, PATCH_COLORS[rng.randi() % PATCH_COLORS.size()])
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
-	# Grass tufts.
+	# Grass tufts and pebbles (the painted ground only: a photo has its own).
 	rng.seed = _seed + c.cx * 15485863 + c.cy * 32452843 + 1
-	var area_m := _chunk_size.x * _chunk_size.y / 1000000.0
+	var area_m := _chunk_size.x * _chunk_size.y / 1000000.0 if _floor_tex == null else 0.0
 	for i in int(round(TUFTS_PER_MILLION * area_m)):
 		var p := c.rect.position + Vector2(rng.randf(), rng.randf()) * _chunk_size
 		var col := Color(0.30, 0.38, 0.20, rng.randf_range(0.35, 0.8)) if rng.randf() < 0.7 else Color(0.40, 0.44, 0.24, 0.6)
@@ -316,6 +345,41 @@ func _paint_ground(ci: CanvasItem, c: Chunk) -> void:
 		_shadow_blob(ci, Vector2(arena.position.x, y), edge_shadow, near)
 		_shadow_blob(ci, Vector2(arena.end.x, y), edge_shadow, near)
 		y += step
+
+
+## A ground picture from assets/ground/ (null if it is not there).
+func _ground_picture(picture: String) -> Texture2D:
+	for ext: String in ["jpg", "png", "webp"]:
+		var path := "res://assets/ground/%s.%s" % [picture, ext]
+		if ResourceLoader.exists(path):
+			return load(path)
+	return null
+
+
+## One soft-edged, uneven patch of another ground picture: solid in the
+## middle, fading to nothing at the rim. Like the floor it is lined up with
+## the map, so the same patch painted by two chunks matches.
+func _litter_patch(ci: CanvasItem, picture: Texture2D, at: Vector2, radius: float, rng: RandomNumberGenerator) -> void:
+	var spokes := 16
+	var per_px := 1.0 / Config.GROUND_TEXTURE_TILE
+	var tint: Color = Config.GROUND_LITTER_TINT
+	var clear := Color(tint.r, tint.g, tint.b, 0.0)
+	var rim := PackedVector2Array()
+	for i in spokes:
+		rim.append(at + Vector2.from_angle(TAU * float(i) / float(spokes)) * radius * rng.randf_range(0.62, 1.0))
+	for i in spokes:
+		var a := rim[i]
+		var b := rim[(i + 1) % spokes]
+		var a_in := at.lerp(a, 0.5)
+		var b_in := at.lerp(b, 0.5)
+		# The solid middle...
+		ci.draw_primitive(PackedVector2Array([at, a_in, b_in]), PackedColorArray([tint, tint, tint]),
+				PackedVector2Array([at * per_px, a_in * per_px, b_in * per_px]), picture)
+		# ...and the ring around it that fades out.
+		ci.draw_primitive(PackedVector2Array([a_in, a, b]), PackedColorArray([tint, clear, clear]),
+				PackedVector2Array([a_in * per_px, a * per_px, b * per_px]), picture)
+		ci.draw_primitive(PackedVector2Array([a_in, b, b_in]), PackedColorArray([tint, clear, tint]),
+				PackedVector2Array([a_in * per_px, b * per_px, b_in * per_px]), picture)
 
 
 func _shadow_blob(ci: CanvasItem, pos: Vector2, color: Color, near: Rect2) -> void:

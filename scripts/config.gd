@@ -30,6 +30,18 @@ const OBSTACLE_RADIUS_MIN := 34.0
 const OBSTACLE_RADIUS_MAX := 58.0
 const OBSTACLE_SPACING := 240.0               # free ground between two of them, so hordes can flow around
 const OBSTACLE_START_CLEAR := 300.0           # none this close to where the player starts
+# The ground is a photo of forest floor, repeated, with soft patches of leaf
+# litter and moss over it (pictures in assets/ground/, see assets/CREDITS.txt).
+# A map may name its own with "floor" and "litter". Without the pictures the
+# ground is plain painted dirt, as it was before.
+const GROUND_FLOOR := "dirt"                  # the picture under everything
+const GROUND_LITTER := ["leaves", "leaves", "moss"]   # pictures for the soft patches (one is picked per patch)
+const GROUND_TEXTURE_TILE := 512.0            # one repeat of a ground picture covers this many px of the map
+const GROUND_FLOOR_TINT := Color(0.8, 0.78, 0.78)        # multiplied over the floor picture: darker = moodier, and blood shows better
+const GROUND_LITTER_TINT := Color(0.74, 0.7, 0.66, 0.85) # the same for the patches; the last number is how solid they are
+const GROUND_LITTER_PER_MILLION := 9.0        # patches per 1000 x 1000 px of map
+const GROUND_LITTER_RADIUS_MIN := 110.0
+const GROUND_LITTER_RADIUS_MAX := 300.0
 const DECAL_RESOLUTION := 1.0                 # 1.0 = full detail blood layer. Lower (0.5) for weak devices / mobile.
 const DECAL_CHUNK_SIZE := 1024.0              # the blood layer is cut into squares of about this size; a square is only made when first needed
 const DECAL_CHUNK_AHEAD := 260.0              # ...which is when the screen comes this close to it

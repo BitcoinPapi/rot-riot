@@ -663,6 +663,26 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   generated. Deleting a recording's files brings the generated sound back.
   **Changing only sounds or pictures does not change `GAME_VERSION`**: that
   number decides who may play together, and such copies still can.
+  **Private recordings**: the GitHub project is PUBLIC (the owner's updater
+  downloads it without a password), so only files that may be passed on
+  (CC0 and the like) go into it. Recordings whose licence forbids sharing
+  the files (the Sonniss GDC bundles, any bought pack) go into the player's
+  save folder instead, in `sfx/` (`Sfx.PRIVATE_FOLDER` = `user://sfx/`; on
+  the Mac `~/Library/Application Support/Godot/app_userdata/Rot Riot/sfx/`):
+  same names, same rules, they win over the project's files and survive
+  updates. Claude cuts and levels them and hands the owner a zip plus the
+  one command that unpacks it there. In use that way: `shotgun_1..6` and
+  `rack_1..3` from a Sonniss shotgun recording. Friends only hear them if
+  they get the same zip. Before BOUGHT art goes in, the project must be made
+  private (and the updater given a way in).
+- **Ground pictures** (`assets/ground/`, Poly Haven, CC0): the ground is a
+  photo of forest floor (`Config.GROUND_FLOOR`), repeated every
+  `GROUND_TEXTURE_TILE` px and darkened, with soft uneven patches of leaf
+  litter and moss (`GROUND_LITTER`) painted by `Decals._litter_patch`. All
+  of it is lined up with the map, not the chunk, so chunks join. A map may
+  name its own with `"floor"` / `"litter"`. Without the pictures the old
+  painted dirt comes back. The darkening keeps blood and zombies readable -
+  check that after changing a picture.
 - **Menus** are Controls built in code, themed by `UiKit.make_theme()`.
   `Main` keeps a stack of screen names; every screen may define `opened()`
   and `closed()`. Buttons grab focus on hover so mouse and gamepad share one
@@ -822,6 +842,13 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
 - After v0.9: "decrease the map size by 50%" -> 3000x2000 (half as wide and
   half as tall; chests now at least 600 px from the start). The big map
   was a first guess he had been asked about; this is his answer.
+- Sent three Poly Haven ground photos and a Sonniss shotgun recording
+  (files too heavy to attach: Claude gives him Terminal commands that cut
+  out and shrink what is needed into a small zip in `~/Desktop/rr-send`).
+  Ground photos are in the game (awaiting his eyes); the shotgun and bolt
+  sounds went to his private sound folder (awaiting his ears). The rifle
+  from the same bundle did not unpack on his Mac (odd letters in its file
+  names) - still to fetch if he wants it.
 - Asked which asset packs would polish the game, then sent three Kenney
   packs (CC0): Interface Sounds and Impact Sounds are in use for nine sounds
   (awaiting his ears - Claude chose them by name, length and loudness, not by

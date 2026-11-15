@@ -97,6 +97,8 @@ func _ready() -> void:
 	arena.tree_tint = map["trees"]
 	decals = Decals.new()
 	decals.ground_tint = map["ground"]
+	decals.ground_floor = String(map.get("floor", Config.GROUND_FLOOR))
+	decals.ground_litter = map.get("litter", Config.GROUND_LITTER)
 	decals.setup(arena.rect)
 	add_child(decals)          # ground + blood
 	add_child(arena)           # rocks and stumps

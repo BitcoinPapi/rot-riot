@@ -828,6 +828,23 @@ func _run_autotest() -> void:
 		if not Sfx.is_recording(sound_name):
 			recordings_ok = false
 	_check(recordings_ok, "the recordings in assets/sfx are all used (%s)" % ", ".join(recorded))
+	# Recordings that may not be shared live in the save folder (user://sfx/), if this player has any.
+	var private_dir := DirAccess.open(Sfx.PRIVATE_FOLDER)
+	if private_dir != null:
+		var private_ok := true
+		var private_sounds: Array[String] = []
+		for file_name: String in private_dir.get_files():
+			if not (file_name.get_extension() in ["ogg", "wav", "mp3"]):
+				continue
+			var private_name := file_name.get_basename()
+			var private_cut := private_name.rfind("_")
+			if private_cut > 0 and private_name.substr(private_cut + 1).is_valid_int():
+				private_name = private_name.substr(0, private_cut)
+			if not Sfx.RECIPES.has(private_name) or not Sfx.is_recording(private_name):
+				private_ok = false
+			elif not private_sounds.has(private_name):
+				private_sounds.append(private_name)
+		_check(private_ok, "private recordings in the save folder are used too (%s)" % ", ".join(private_sounds))
 	if recorded.has("zombie_hit"):
 		_check(Sfx.recording_count("zombie_hit") >= 3 and Sfx.is_recording("ui_click") and not Sfx.is_recording("pistol"),
 				"a sound with several recordings picks from them (%d zombie hits); sounds without a file stay generated" % Sfx.recording_count("zombie_hit"))
@@ -1547,6 +1564,8 @@ func _run_autotest() -> void:
 			"the map is several screens wide and high (%d x %d)" % [int(field.size.x), int(field.size.y)])
 	_check(game.decals.chunks_made > 0 and game.decals.chunks_made <= game.decals.chunk_count() and game.decals.has_ground(pl.pos),
 			"the ground is made in pieces, as the player gets near them (%d of %d so far)" % [game.decals.chunks_made, game.decals.chunk_count()])
+	_check(game.decals.get("_floor_tex") != null and (game.decals.get("_litter_tex") as Array).size() == Config.GROUND_LITTER.size(),
+			"the ground pictures are found (%s with patches of %s)" % [Config.GROUND_FLOOR, ", ".join(Config.GROUND_LITTER)])
 	var chests := game.pickups.chests
 	_check(chests.size() == Config.CHEST_COUNT, "%d treasure chests are hidden on the map" % Config.CHEST_COUNT)
 	var chests_ok := true

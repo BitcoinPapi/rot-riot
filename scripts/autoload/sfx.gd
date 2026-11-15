@@ -18,6 +18,11 @@ extends Node
 ##  are as loud as they can be without distorting (peak -1 dB); a recording
 ##  should be too, then the volumes below still fit.
 ##  Which recordings are in use and where they come from: assets/CREDITS.txt
+##  RECORDINGS THAT MAY NOT BE SHARED (bought sound packs, or free ones whose
+##  licence forbids passing the files on): they must not go into the game's
+##  public project. Put them in the game's own save folder instead, in a
+##  folder called "sfx" (user://sfx/, PRIVATE_FOLDER below) - same names, same
+##  rules. Files there win over everything else and survive every update.
 ## ============================================================================
 
 const SAMPLE_RATE := 32000
@@ -93,6 +98,7 @@ var RECIPES := {
 ## the volume in RECIPES. (Measured, not heard: average loudness against the
 ## generated sound's.)
 const RECORDING_GAIN := {
+	"shotgun": 3.0,          # a real shot is one sharp crack and a tail; the generated one was a full second of roar
 	"sledge_hit": 5.0,       # the big hit must stay the big hit
 	"crate_break": 2.0,
 	"ricochet": -5.0,
@@ -101,10 +107,14 @@ const RECORDING_GAIN := {
 	"ui_deny": 3.0,
 }
 
+const PRIVATE_FOLDER := "user://sfx/"    # recordings only this player has (see the top of this file)
+const SHARED_FOLDER := "res://assets/sfx/"
+
 var ready_to_play := false
 
 var _streams := {}        # name -> AudioStream
 var _variants := {}       # name -> Array of AudioStream: several recordings of one sound (one is picked each time)
+var _recorded := {}       # name -> true for every sound that is played from a recording
 var _last_played := {}    # name -> time in ms
 var _players: Array[AudioStreamPlayer] = []
 var _next_player := 0
@@ -123,18 +133,22 @@ func _ready() -> void:
 	# Real recordings in assets/sfx override the synth.
 	for sound: String in RECIPES.keys():
 		var found: Array[AudioStream] = []
-		var single := _recording("res://assets/sfx/%s" % sound)
-		if single != null:
-			found.append(single)
-		var number := 1
-		while true:
-			var next := _recording("res://assets/sfx/%s_%d" % [sound, number])
-			if next == null:
-				break
-			found.append(next)
-			number += 1
+		for folder: String in [PRIVATE_FOLDER, SHARED_FOLDER]:
+			var single := _recording(folder + sound)
+			if single != null:
+				found.append(single)
+			var number := 1
+			while true:
+				var next := _recording("%s%s_%d" % [folder, sound, number])
+				if next == null:
+					break
+				found.append(next)
+				number += 1
+			if not found.is_empty():
+				break                     # (the private folder wins)
 		if not found.is_empty():
 			_streams[sound] = found[0]
+			_recorded[sound] = true
 			if found.size() > 1:
 				_variants[sound] = found
 	_task_id = WorkerThreadPool.add_task(_generate_all, false, "Synthesising sound effects")
@@ -143,14 +157,28 @@ func _ready() -> void:
 ## The recording at `path` (without its ending), or null if there is none.
 func _recording(path: String) -> AudioStream:
 	for ext: String in ["wav", "ogg", "mp3"]:
-		if ResourceLoader.exists("%s.%s" % [path, ext]):
-			return load("%s.%s" % [path, ext])
+		var file := "%s.%s" % [path, ext]
+		if path.begins_with("user://"):
+			# (A plain file on the player's disk, read as it is.)
+			if not FileAccess.file_exists(file):
+				continue
+			match ext:
+				"ogg":
+					return AudioStreamOggVorbis.load_from_file(file)
+				"wav":
+					return AudioStreamWAV.load_from_file(file)
+				_:
+					var mp3 := AudioStreamMP3.new()
+					mp3.data = FileAccess.get_file_as_bytes(file)
+					return mp3
+		elif ResourceLoader.exists(file):
+			return load(file)
 	return null
 
 
-## True if `sound` is played from a recording in assets/sfx (not generated).
+## True if `sound` is played from a recording (not generated).
 func is_recording(sound: String) -> bool:
-	return _streams.has(sound) and not (_streams[sound] is AudioStreamWAV)
+	return _recorded.has(sound)
 
 
 ## How many recordings `sound` has to pick from (0 = it is generated).
@@ -210,7 +238,7 @@ func play_pitched(sound: String, pitch: float, volume_db: float = 0.0) -> void:
 		stream = (_variants[sound] as Array).pick_random()
 	player.stream = stream
 	player.volume_db = volume_db + float(recipe[1])
-	if not (stream is AudioStreamWAV):
+	if _recorded.has(sound):
 		player.volume_db += float(RECORDING_GAIN.get(sound, 0.0))
 	player.pitch_scale = clampf(pitch, 0.3, 3.0)
 	player.play()
