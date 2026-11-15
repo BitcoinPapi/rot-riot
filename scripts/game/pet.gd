@@ -24,6 +24,7 @@ var _walk := 0.0
 var _time := 0.0
 var _arrive := 0.0                  # pops in when it joins
 var _sprite := ""
+var _shore_way := 0.0           # walking round the pond: which way (1 / -1; 0 = not at its shore)
 var _size := 1.0
 
 
@@ -90,7 +91,8 @@ func tick(dt: float) -> void:
 		var step := minf(float(_def["speed"]) * dt, dist - reach)
 		if not chasing and _loot == null:
 			step = minf(step, dist * 9.0 * dt)       # ease in beside the owner instead of jittering
-		pos += to / dist * step
+		pos = game.arena.along_shore(pos, pos + to / dist * step, radius, goal, _shore_way, 1.0)      # (round the pond, not into it)
+		_shore_way = game.arena.shore_turn
 		_walk += step * 0.11
 		if dist > 6.0:
 			_facing = to / dist

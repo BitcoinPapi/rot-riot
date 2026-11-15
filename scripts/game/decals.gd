@@ -304,6 +304,40 @@ func _paint_ground(ci: CanvasItem, c: Chunk) -> void:
 				ci.draw_texture_rect(_glow, Rect2(-size * 0.5, size), false, PATCH_COLORS[rng.randi() % PATCH_COLORS.size()])
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
+	# More on the ground: grass, ferns, flowers, leaves, stones, twigs... This chunk's and
+	# its neighbours' - one that lies across the line is painted by both, in the same place.
+	var kinds: Array = Config.DETAIL_KINDS
+	var weight_sum := 0.0
+	for kind: Array in kinds:
+		weight_sum += float(kind[1])
+	var details := int(round(Config.DETAILS_PER_MILLION * _chunk_size.x * _chunk_size.y / 1000000.0))
+	var close := c.rect.grow(48.0)
+	for ny in range(c.cy - 1, c.cy + 2):
+		for nx in range(c.cx - 1, c.cx + 2):
+			if nx < 0 or ny < 0 or nx >= _cols or ny >= _rows:
+				continue
+			rng.seed = _seed + nx * 49979687 + ny * 86028121 + 5
+			var from := _area.position + Vector2(nx, ny) * _chunk_size
+			for i in details:
+				# (Always the same four numbers per detail, drawn or not, so both chunks agree.)
+				var p := from + Vector2(rng.randf(), rng.randf()) * _chunk_size
+				var pick := rng.randf() * weight_sum
+				var turn := rng.randf() * TAU
+				var grow := rng.randf()
+				if not close.has_point(p):
+					continue
+				var kind: Array = kinds[kinds.size() - 1]
+				for candidate: Array in kinds:
+					pick -= float(candidate[1])
+					if pick <= 0.0:
+						kind = candidate
+						break
+				var picture := String(kind[0])
+				var size: Vector2 = Art.size_of(picture) * lerpf(float(kind[2]), float(kind[3]), grow)
+				ci.draw_set_transform(p, turn, Vector2.ONE)
+				ci.draw_texture_rect(Art.t(picture), Rect2(-size * 0.5, size), false, Config.DETAIL_TINT)
+	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
 	# Grass tufts and pebbles (the painted ground only: a photo has its own).
 	rng.seed = _seed + c.cx * 15485863 + c.cy * 32452843 + 1
 	var area_m := _chunk_size.x * _chunk_size.y / 1000000.0 if _floor_tex == null else 0.0

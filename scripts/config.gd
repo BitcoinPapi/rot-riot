@@ -11,7 +11,7 @@ extends Node
 ## ============================================================================
 
 const GAME_TITLE := "HAITIAN GANG WARS"
-const GAME_VERSION := "0.16.0"
+const GAME_VERSION := "0.17.0"
 const HERO_NAME := "JANJAN"                   # the soldier you play, as everybody calls him...
 const HERO_FULL_NAME := "JEAN-BAPTISTE"       # ...and his real name
 const GAME_TAGLINE := "TAKE THE COUNTRY BACK"   # under the title on the main menu
@@ -45,6 +45,43 @@ const OBSTACLE_RADIUS_MIN := 34.0
 const OBSTACLE_RADIUS_MAX := 58.0
 const OBSTACLE_SPACING := 240.0               # free ground between two of them, so hordes can flow around
 const OBSTACLE_START_CLEAR := 300.0           # none this close to where the player starts
+# THE POND in the middle of the map (the owner: "a big pond in the middle of the map"):
+# water nobody can walk through. The player and the zombies go round it - a zombie that
+# reaches the shore walks along it; bullets, spit, rubble and grenades fly over it. The
+# player starts on its southern shore. A map may say "pond": false.
+const POND_SIZE := Vector2(560.0, 370.0)      # how wide and how tall
+const POND_WOBBLE := 0.07                     # how uneven its shore is (share of its size)
+const POND_START_GAP := 110.0                 # the player starts this far below its southern shore
+const POND_KEEP_CLEAR := 90.0                 # rocks keep this far from the shore, so there is always a way round
+const POND_SPAWN_CLEAR := 30.0                # zombies do not claw out of the ground closer to the water than this
+# How it looks (scripts/game/pond.gd). Only looks.
+const POND_SHORE_COLOR := Color(0.13, 0.1, 0.07, 0.5)      # the wet earth around it
+const POND_SHORE_WIDTH := 16.0
+const POND_RIM_COLOR := Color("47695c")       # the shallow water at the edge...
+const POND_WATER_COLOR := Color("35554e")     # ...the water...
+const POND_DEEP_COLOR := Color("27413f")      # ...and the deep middle
+const POND_EDGE_COLOR := Color(0.78, 0.88, 0.8, 0.35)      # the bright line where water meets land
+const POND_SHINE_COLOR := Color(0.85, 0.95, 0.9, 0.4)      # ripples and glints
+const POND_RIPPLES := 6                       # rings spreading on the water at any moment
+const POND_RIPPLE_TIME := 3.4                 # seconds a ring takes to spread and fade
+const POND_RIPPLE_SIZE := 30.0
+const POND_GLINTS := 14                       # small bright strokes drifting on the water
+const POND_FISH := 4                          # dark shapes swimming under the surface
+const POND_FISH_SPEED := 0.16                 # rounds of their loop per second
+const POND_LILIES := 11
+const POND_REEDS := 22                        # tufts of reeds along the shore
+const POND_STONES := 16                       # wet stones along the shore
+const MINIMAP_POND := Color(0.24, 0.45, 0.48) # the pond on the minimap
+# MORE ON THE GROUND (the owner: "and more details"): flat things painted with the
+# ground - grass, ferns, flowers, fallen leaves, stones, twigs, mushrooms, old bones,
+# puddles. Nothing of it gets in anybody's way.
+const DETAILS_PER_MILLION := 190.0            # how many per 1000 x 1000 px of map
+const DETAIL_KINDS := [                       # [picture, how often (a weight), smallest size, largest size (1 = as drawn)]
+	["detail_grass_0", 5.0, 0.8, 1.3], ["detail_grass_1", 5.0, 0.8, 1.3], ["detail_grass_2", 4.0, 0.8, 1.4],
+	["detail_fern", 2.0, 0.8, 1.3], ["detail_leaves", 3.5, 0.8, 1.3], ["detail_stones", 3.0, 0.7, 1.3],
+	["detail_flowers_red", 1.6, 0.8, 1.2], ["detail_flowers_yellow", 1.2, 0.8, 1.2], ["detail_twig", 2.0, 0.8, 1.3],
+	["detail_mushrooms", 0.9, 0.8, 1.2], ["detail_bones", 0.5, 0.9, 1.2], ["detail_puddle", 0.5, 0.9, 1.5]]
+const DETAIL_TINT := Color(0.74, 0.74, 0.7, 0.92)   # they are darkened like the ground, so zombies and blood still stand out
 # The ground is a photo of forest floor, repeated, with soft patches of leaf
 # litter and moss over it (pictures in assets/ground/, see assets/CREDITS.txt).
 # A map may name its own with "floor" and "litter". Without the pictures the

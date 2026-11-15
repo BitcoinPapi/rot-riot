@@ -338,6 +338,12 @@ func _draw_minimap(w: float, h: float) -> void:
 	var from := box.position - arena.position * k
 	draw_rect(box.grow(4.0), Color(0, 0, 0, 0.7))
 	draw_rect(box, Config.MINIMAP_GROUND)
+	if game.arena.pond:
+		# The pond (under the fog, like everything not seen yet).
+		var water := game.arena.pond_outline(28)
+		for i in water.size():
+			water[i] = from + water[i] * k
+		draw_colored_polygon(water, Config.MINIMAP_POND)
 
 	# Zombies: small red dots (the fog is drawn over them).
 	var red := Color(0.95, 0.2, 0.15, 0.9)

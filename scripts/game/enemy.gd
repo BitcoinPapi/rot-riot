@@ -43,6 +43,7 @@ var pet_marked := false         # the pet has bitten it
 var face := 0.0                 # facing angle
 var phase := 0.0                # walk wobble / zig-zag
 var flank := Vector2.ZERO       # personal flanking offset
+var shore_way := 0.0            # walking round the pond: which way (1 / -1; 0 = not at its shore)
 var entered := false            # has walked into the arena
 var cell := 0                   # spatial grid cell
 var crowd := 0                  # neighbours pressing on it this frame...

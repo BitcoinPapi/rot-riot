@@ -158,8 +158,8 @@ Other dev flags (all after `--`, see `scripts/dev/dev_tools.gd`): `--play`,
 these run perks), `--perks=N` (owe N perk choices half a second in, to look at the choice), `--pets=N` (own the first N pets;
 needs `--level=18` or more),
 `--fewer` (the FEWER EFFECTS switch on), `--stats` (the F3 frame-rate line shown),
-`--at=X,Y` (start the run at that spot of the map; the middle is 1050,700), `--no-fog` (whole map
-uncovered), `--show-chests` (a closed chest beside the player and an opened one),
+`--at=X,Y` (start the run at that spot of the map; the middle, 1050,700, is the pond), `--no-fog` (whole map
+uncovered), `--no-pond` (maps without their pond), `--show-chests` (a closed chest beside the player and an opened one),
 `--horde=KIND:N,KIND:N` (put zombies around the player: shambler, runner, brute, boss, gobber,
 chucker, gasbag, lunger, fighter - e.g. `--horde=gobber:3,gasbag:2`; a boss comes in the look of
 the map, so `--map=2 --horde=boss:1` shows the second map's boss),
@@ -206,6 +206,7 @@ scripts/autoload/
   art.gd                 placeholder sprites generated from SVG shapes at startup; the hero's
                          pieces (seen from above) and his menu picture are rebuilt from the gear he wears
 scripts/art/hero_art.gd  the drawings of the hero: the pieces of the puppet seen from above, and him from the front
+scripts/art/scenery_art.gd  small drawings for the map: what grows round the pond, and the details on the ground
   sfx.gd                 sounds synthesised at startup (worker thread) + pooled playback
   net.gd                 online co-op: hosting, joining (game codes, reply codes, getting through home
                          routers), who is in the game (slots), delivering messages
@@ -229,8 +230,10 @@ scripts/game/
   fx.gd                  particles, casings, corpses, muzzle flash, rings, floating text
   decals.gd              ground + permanent blood/bodies/casings (never-cleared SubViewports, one per
                          "chunk" of the map, made when first needed)
-  arena.gd               the big map: bounds, obstacles (in lookup buckets), tree ring, collision
-                         helpers, "a free spot near the player", "a spawn spot out of sight"
+  arena.gd               the map: bounds, obstacles (in lookup buckets), the pond (its shape, keeping
+                         everybody out of it, walking round it), tree ring, collision helpers, "a free
+                         spot near the player", "a spawn spot out of sight"
+  pond.gd                the pond as you see it: water, shore, reeds, lily pads, fish, ripples
   fog.gd                 fog of war: which squares of the map have been seen this run, the misty
                          overlay (a small shader), the picture the minimap draws
   coop.gd                the co-op part of a run: what the computers tell each other (events,
@@ -348,8 +351,52 @@ AREA it would be about 2510x1670). Everything below follows the size by
 itself, except two numbers that were moved with it: chests keep 480 px from
 the start instead of 600, and a zombie counts as "left behind" 300 px
 sooner (`ENEMY_LEASH_EXTRA`; on this map nothing could get as far away as
-the old distance). The player starts in the middle. Camera zoom
-1.2, may look 110 px past the edge.
+the old distance). Camera zoom 1.2, may look 110 px past the edge.
+- *The pond* (v0.17; the owner: "add a big pond in the middle of the map";
+  Config: THE POND). 560x370, an oval with an uneven shore, a little
+  different every run (`Arena.pond_edge(angle)` = how far the shore is from
+  the pond's middle in that direction). **It is water nobody can walk
+  through** (Claude's reading - he did not say; wading through it slowly
+  would be a small change): the player and the zombies go round it;
+  bullets, spit, rubble and grenades fly over it. How:
+  - `Arena.resolve()` pushes everything out of it (`out_of_water`), so the
+    player, the pet, pickups, coins and a boss can never be in it;
+    `is_free()` and `spawn_point_around()` refuse it, so chests, crates,
+    rocks and rising zombies are always on land (rocks keep
+    `POND_KEEP_CLEAR` from the shore, so there is always a way round).
+    `segment_hit()` does not know the pond: shots cross it.
+  - A zombie whose step would take it into the water **walks along the
+    shore instead** (`Arena.along_shore`, called for every ground zombie,
+    the boss and the pet): the shorter way round to its target, and it
+    keeps to that way (`Enemy.shore_way`) unless the other becomes clearly
+    shorter - without this a zombie pressing on the shore would hardly
+    move, and one that chose anew at every dent of the shore walked to and
+    fro (both seen in the tests). A boss's charge ends at the bank like at
+    the trees (wall slam, dazed).
+  - **The player starts on its southern shore** (`Arena.start`; everything
+    that used to mean "the middle of the map" for a start uses it: rocks
+    kept clear, chest distance, the co-op spots).
+  - Co-op: the host sends the pond as six numbers with the rocks
+    (`Arena.pond_data()`, "pond" in the run's start message); a joiner
+    builds the same shore from them.
+  - The picture is `scripts/game/pond.gd`, a node between the ground (and
+    its blood) and everything that walks: wet earth, three shades of water,
+    reeds and stones on the shore, lily pads, fish going round under the
+    surface, rings and glints (those two are left out with FEWER EFFECTS).
+    A body or a shell case that ends up in the pond is under water: gone.
+    The minimap shows it. A map may say `"pond": false`.
+  - The playthrough test runs most of its checks on maps WITHOUT the pond
+    (`Arena.ponds = false`, so that "the middle of the map" stays open
+    ground for them) and then checks the pond by itself; the co-op tests
+    and bot runs have it.
+- *Details on the ground* (v0.17; the owner: "and more details"): about 560
+  flat things painted with the ground - grass, ferns, flowers, fallen
+  leaves, stones, twigs, mushrooms, old bones, puddles (`Config.
+  DETAIL_KINDS`, `DETAILS_PER_MILLION`; drawings in
+  `scripts/art/scenery_art.gd`; painted by `Decals._paint_ground` from the
+  run's seed, a detail on the line between two chunks by both). They are
+  darkened like the ground (`DETAIL_TINT`) so zombies and blood stand out,
+  and nothing of them gets in anybody's way.
 - *Zombies hunt the player wherever they are.* A pack claws out of the
   ground (`rising`) in a ring around the middle of the screen, just out of
   sight: `Game.spawn_min` = screen centre-to-corner + aim lead +
@@ -784,8 +831,8 @@ The game auto-pauses when the window loses focus.
   and sent as `E_HURT`; the joiner's own computer applies defense, evasion
   and safety time. Spit and rubble fly on every computer and each one only
   checks its own player. **The host's map is sent as it is**: when a run
-  starts the host sends the finished list of rocks (`Arena.rocks()`) and the
-  chest spots; a joiner never works the map out for itself. (Until v0.9.0
+  starts the host sends the finished list of rocks (`Arena.rocks()`), the
+  pond (`Arena.pond_data()`) and the chest spots; a joiner never works the map out for itself. (Until v0.9.0
   both built the rocks from a shared number - a Mac and a PC do not always
   round numbers the same way, so they could have ended up with different
   maps.) Rule: never rely on two computers computing the same thing; send
@@ -1032,6 +1079,11 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   before (ask the owner; `CHEST_COUNT`).
 - The Skills page and the Character screen with a real mouse / trackpad /
   gamepad (only simulated input was tested).
+- The pond and the ground details (v0.17): only still pictures and the
+  tests. Unknown: how fighting round a pond feels (it turns the map into a
+  ring: is it too easy to keep the water between you and the horde? do
+  zombies streaming round both sides look right?), whether the details make
+  the ground too busy, how the moving water looks.
 - The new drawn JanJan (v0.16) to a human eye and IN MOTION: only still
   pictures of single poses were looked at. Unknown: whether his arms on
   the gun, his steps, the reload hand and the fall look natural when they
@@ -1263,6 +1315,11 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   were taken as the model) -> v0.16.0: the drawn puppet, see "JanJan's
   look". Awaiting his eyes: he gave up a painting he made for it. In the
   same sitting: "make the map 30% smaller" -> 2100x1400.
+- After v0.16: "lets add a big pond in the middle of the map. and more
+  details" -> v0.17.0: the pond (see "The map") and about 560 details
+  painted on the ground. Claude's choices to ask about: the pond cannot be
+  walked through; the details are nature only (the camp's own things -
+  tents, sandbags, wire - belong to the themed maps, roadmap 6).
 - **v0.15.0, built in one sitting, item by item** ("build the changes and
   implement the ideas. Ask me one by one and i will tell you to go ahead";
   then "ask me the items here instead of my phone" - he wants questions as
@@ -1301,7 +1358,8 @@ Build one stage at a time; the owner plays each before the next starts.
    Progression. Ideas if the owner wants more: more pets per rarity, pets as
    rare boss drops, a pet that flies and fetches from far away.
 4. **Big map. DONE; then halved at the owner's request (3000x2000), then
-   made 30% smaller again (2100x1400).** A map
+   made 30% smaller again (2100x1400), then given a pond in the middle and
+   details on the ground (v0.17).** A map
    several screens wide, fog of
    war, a minimap, four treasure chests per run that give gear; zombies rise
    around the player wherever they are. See "The map" above. Ideas if the

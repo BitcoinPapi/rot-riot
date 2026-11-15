@@ -23,6 +23,7 @@ var is_client := false          # true on the joiner's computer: the world is th
 
 var arena: Arena
 var decals: Decals
+var pond: Pond                  # the pond's picture (null on a map without one)
 var enemies: EnemyManager
 var pickups: Pickups
 var player: Player
@@ -93,7 +94,8 @@ func _ready() -> void:
 	enemy_xp_mult = float(map["xp"])
 
 	# Children are added bottom layer first.
-	arena = Arena.new(map.get("size", Config.ARENA_SIZE), 0, net.get("rocks") if is_client else null)
+	arena = Arena.new(map.get("size", Config.ARENA_SIZE), 0, net.get("rocks") if is_client else null,
+			bool(map.get("pond", true)), net.get("pond") if is_client else null)
 	arena.tree_tint = map["trees"]
 	decals = Decals.new()
 	decals.ground_tint = map["ground"]
@@ -101,6 +103,10 @@ func _ready() -> void:
 	decals.ground_litter = map.get("litter", Config.GROUND_LITTER)
 	decals.setup(arena.rect)
 	add_child(decals)          # ground + blood
+	if arena.pond:
+		pond = Pond.new()      # the water lies over the ground: what falls into it is gone
+		pond.setup(self)
+		add_child(pond)
 	add_child(arena)           # rocks and stumps
 
 	player = Player.new()
@@ -115,10 +121,10 @@ func _ready() -> void:
 	enemies.setup(self)
 
 	add_child(player)
-	player.place(arena.rect.get_center())
+	player.place(arena.start)
 	if not net.is_empty():
-		# Together: everybody starts in the middle, each on their own spot.
-		player.place(arena.rect.get_center() + Config.COOP_START_SPOTS[Net.slot % Config.COOP_START_SPOTS.size()])
+		# Together: everybody starts at the same place, each on their own spot.
+		player.place(arena.resolve(arena.start + Config.COOP_START_SPOTS[Net.slot % Config.COOP_START_SPOTS.size()], player.radius))
 		coop = Coop.new()
 		coop.setup(self, not is_client)
 		add_child(coop)

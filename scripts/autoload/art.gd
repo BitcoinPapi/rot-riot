@@ -304,6 +304,23 @@ func _build() -> void:
 	_svg("rock", 120, 120, SVG_ROCK)
 	_svg("stump", 120, 120, SVG_STUMP)
 	_svg("canopy", 220, 220, SVG_CANOPY)
+	# The pond's reeds, lily pads, stones and fish, and the details painted on the ground.
+	_svg("pond_reeds", 32, 32, SceneryArt.reeds())
+	_svg("pond_lily", 22, 22, SceneryArt.lily())
+	_svg("pond_flower", 12, 12, SceneryArt.lily_flower())
+	_svg("pond_stone", 18, 16, SceneryArt.stone())
+	_svg("pond_fish", 22, 12, SceneryArt.fish())
+	for i in 3:
+		_svg("detail_grass_%d" % i, 24, 24, SceneryArt.grass(40 + i))
+	_svg("detail_fern", 30, 30, SceneryArt.fern())
+	_svg("detail_leaves", 28, 24, SceneryArt.leaves())
+	_svg("detail_stones", 28, 22, SceneryArt.stones())
+	_svg("detail_flowers_red", 22, 22, SceneryArt.flowers(61, "#c8322b", "#f3d27a"))
+	_svg("detail_flowers_yellow", 22, 22, SceneryArt.flowers(62, "#e2b83a", "#8a5a1a"))
+	_svg("detail_twig", 40, 16, SceneryArt.twig())
+	_svg("detail_mushrooms", 18, 16, SceneryArt.mushrooms())
+	_svg("detail_bones", 28, 20, SceneryArt.bones())
+	_svg("detail_puddle", 44, 30, SceneryArt.puddle())
 
 	# --- effects (white, tinted when drawn) ---
 	_svg("splat_0", 72, 72, SVG_SPLAT_0)

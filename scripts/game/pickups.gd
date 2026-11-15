@@ -415,6 +415,8 @@ func tick(dt: float) -> void:
 		if not gone:
 			var v := _coin_vel[i]
 			p += v * dt
+			if v.length_squared() > 1.0:
+				p = game.arena.out_of_water(p, 8.0)      # (a coin does not roll into the pond: nobody could fetch it)
 			_coin_vel[i] = v * keep
 			# It flies to whichever player is nearer.
 			var to := ppos - p

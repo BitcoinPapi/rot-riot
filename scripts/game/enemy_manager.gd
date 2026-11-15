@@ -113,7 +113,8 @@ func spawn(kind: int, at: Vector2, hp_mult: float = 1.0, speed_mult: float = 1.0
 	e.burn_slot = -1
 	if not remote:
 		_by_id[e.net_id] = e
-	e.pos = at
+	e.pos = at if remote else game.arena.out_of_water(at, float(c["radius"]))      # (nothing rises out of the pond)
+	e.shore_way = 0.0
 	e.kb = Vector2.ZERO
 	e.max_hp = float(c["hp"]) * hp_mult
 	e.hp = e.max_hp
@@ -232,6 +233,9 @@ func tick(dt: float) -> void:
 	var push_total := Vector2.ZERO
 	var has_bigs := not bigs.is_empty()
 	var leash := game.leash_dist
+	var has_pond := arena.pond
+	var pond_at := arena.pond_at
+	var pond_box := arena.pond_box
 
 	for i in n:
 		var e := active[i]
@@ -332,6 +336,13 @@ func tick(dt: float) -> void:
 				e.attack_t = e.attack_cd
 				_hurt(t_mate, e.damage, epos)
 
+		# The pond: a zombie that would walk into it walks along its shore instead.
+		if has_pond and absf(epos.x - pond_at.x) < pond_box.x + er and absf(epos.y - pond_at.y) < pond_box.y + er:
+			epos = arena.along_shore(e.pos, epos, er, tpos, e.shore_way, 1.0 if e.net_id % 2 == 1 else -1.0)
+			e.shore_way = arena.shore_turn
+		else:
+			e.shore_way = 0.0
+
 		# Knockback slide.
 		if e.kb != Vector2.ZERO:
 			epos += e.kb * dt
@@ -392,6 +403,8 @@ func tick(dt: float) -> void:
 			var oi := _cell_obstacle[c]
 			if oi >= 0:
 				epos = arena.push_out_of(oi, epos, er)
+			if has_pond and absf(epos.x - pond_at.x) < pond_box.x + er and absf(epos.y - pond_at.y) < pond_box.y + er:
+				epos = arena.out_of_water(epos, er)      # (shoved in by the crowd or a blast: back out)
 			epos.x = clampf(epos.x, min_x + er, max_x - er)
 			epos.y = clampf(epos.y, min_y + er, max_y - er)
 		elif epos.x > min_x + er and epos.x < max_x - er and epos.y > min_y + er and epos.y < max_y - er:
@@ -483,7 +496,8 @@ func _tick_boss(e: Enemy, dt: float) -> void:
 				_relocate_boss(e)
 				return
 			if dist > reach:
-				e.pos += dirp * (e.speed * dt)
+				e.pos = arena.along_shore(e.pos, e.pos + dirp * (e.speed * dt), e.radius, tpos, e.shore_way, 1.0)      # (round the pond, not into it)
+				e.shore_way = arena.shore_turn
 			e.face = lerp_angle(e.face, dirp.angle(), turn)
 			e.attack_t -= dt
 			if dist <= reach and e.attack_t <= 0.0 and t_ok:
@@ -531,7 +545,7 @@ func _tick_boss(e: Enemy, dt: float) -> void:
 		B_CHARGE:
 			e.state_t -= dt
 			var before := e.pos + e.charge_dir * (float(cfg["charge_speed"]) * dt)
-			e.pos = arena.clamp_inside(before, e.radius)
+			e.pos = arena.out_of_water(arena.clamp_inside(before, e.radius), e.radius)      # (the pond's bank stops a charge like the trees do)
 			game.fx.dust(e.pos - e.charge_dir * e.radius, 2)
 			if not e.charge_hit and dist < e.radius + player.radius + 8.0 and t_ok:
 				e.charge_hit = true

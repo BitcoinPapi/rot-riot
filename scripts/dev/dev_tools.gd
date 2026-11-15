@@ -43,6 +43,8 @@ extends Node
 ##   --no-crates        no weapon crates appear (works with --bot too)
 ##   --gallery=PREFIX   show every generated sprite whose name starts with PREFIX, enlarged
 ##                      (--gallery-scale=N to change the size) - for checking art
+##   --no-pond          maps without their pond (the playthrough test also runs most of its
+##                      checks without one, and then looks at the pond by itself)
 ##   --hero-show=WHAT   the hero (a puppet put together from pieces) enlarged, in many poses:
 ##                      guns = holding every gun, moves = walking, reloading, hit, down,
 ##                      front = his picture for the menus;
@@ -95,6 +97,8 @@ func _ready() -> void:
 			if _args.has("stun"):
 				Net.stun_servers = Array(String(_args["stun"]).split(","))
 			SaveData.settings["player_name"] = String(_args.get("name", "HOSTY" if String(_args["coop"]) == "host" else "JOINY"))
+		if _args.has("no-pond") or _args.has("autotest"):
+			Arena.ponds = false
 		if _args.has("fewer"):
 			SaveData.settings["fewer_effects"] = true       # the FEWER EFFECTS switch of the Settings screen
 		if _args.has("stats"):
@@ -281,7 +285,7 @@ func _run_cooptest() -> void:
 	var count := game.players_now()               # 2 or 3 copies are playing
 	var three := count >= 3
 	var me := game.player
-	var middle := game.arena.rect.get_center()
+	var middle := game.arena.start                # where everybody starts: the pond's southern shore (open ground lies to the south)
 	var spots: Array = Config.COOP_START_SPOTS
 	print("COOPTEST start (slot %d of %d players)" % [slot, count])
 	game.director.intermission = 99999.0
@@ -300,7 +304,7 @@ func _run_cooptest() -> void:
 		if mate.pos.distance_to(middle + spots[other]) > 6.0:
 			in_place = false
 	_check(all_here, "the other %d player(s) are here" % (count - 1))
-	_check(in_place, "everybody starts on their own spot in the middle")
+	_check(in_place, "everybody starts on their own spot, on dry ground beside the pond")
 	if not all_here:
 		_cooptest_done()
 		return
@@ -316,14 +320,18 @@ func _run_cooptest() -> void:
 	var chest_sum := 0
 	for chest: Pickups.Chest in game.pickups.chests:
 		chest_sum += int(chest.pos.x) * 3 + int(chest.pos.y)
-	print("SAME world rocks=%d chests=%d count=%d" % [rocks, chest_sum, game.pickups.chests.size()])
+	var pond_sum := 0
+	for number: Variant in game.arena.pond_data():
+		pond_sum += int(float(number) * 1000.0)
+	print("SAME world rocks=%d chests=%d count=%d pond=%d" % [rocks, chest_sum, game.pickups.chests.size(), pond_sum])
+	_check(game.arena.pond and not game.arena.in_water(me.pos, me.radius - 1.0), "the pond is here too, and nobody starts in it")
 	_check(is_equal_approx(game.strength_hp(), Config.COOP_ENEMY_HP[count - 1]) and game.strength_hp() > 1.0,
 			"zombies are tougher with %d players (health x%.2f)" % [count, game.strength_hp()])
 
 	# --- a boss's blade: the warning fan the host starts shows on every computer (out of everybody's way) ---
 	await _at(1.2)
 	if host:
-		game.enemy_shots.sweep(middle + Vector2(0.0, 430.0), PI * 0.5, Config.boss_move(1), 1.0)
+		game.enemy_shots.sweep(middle + Vector2(0.0, -430.0), -PI * 0.5, Config.boss_move(1), 1.0)      # (out over the pond)
 	await _at(1.7)
 	_check(game.enemy_shots.sweeps.size() == 1 and is_equal_approx(game.enemy_shots.sweeps[0].radius, float(Config.boss_move(1)["sweep_radius"])),
 			"the red fan of a boss's sweep shows on every computer")
@@ -333,13 +341,13 @@ func _run_cooptest() -> void:
 	if host:
 		for i in 6:
 			# (Weak ones, so that the test does not depend on how well the bot shoots.)
-			game.enemies.spawn(Config.SHAMBLER, middle + Vector2(-100.0 + 40.0 * i, -260.0), 0.4, game.enemy_speed_mult)
+			game.enemies.spawn(Config.SHAMBLER, middle + Vector2(-100.0 + 40.0 * i, 260.0), 0.4, game.enemy_speed_mult)
 	await _at(3.0)
 	_check(game.enemies.alive_count == 6, "six zombies on every computer (%d here)" % game.enemies.alive_count)
 	if not host:
 		var near_right_place := true
 		for e: Enemy in game.enemies.active:
-			if e.alive and e.pos.distance_to(middle + Vector2(0.0, -230.0)) > 220.0:
+			if e.alive and e.pos.distance_to(middle + Vector2(0.0, 230.0)) > 220.0:
 				near_right_place = false
 		_check(near_right_place, "...and the copies are where the host put them")
 	_keep_alive = true
@@ -2414,6 +2422,94 @@ func _run_autotest() -> void:
 	await _frames(3)
 	app.quit_to_menu()
 	await _frames(5)
+
+	# --- the pond in the middle of the map (everything above ran on maps without one, so that
+	#     "the middle of the map" stayed open ground for those checks) ---
+	Arena.ponds = true
+	var pond_bot_was := _auto_bot
+	_auto_bot = false          # (the player stands still for this: a zombie is to walk round to them)
+	GameInput.set_virtual_input(Vector2.ZERO, Vector2.RIGHT, false)
+	app.start_run(0, 1)
+	await _frames(10)
+	game = app.game
+	game.director.intermission = 99999.0
+	game.enemies.clear_all()
+	var pond_map := game.arena
+	var pond_hero := game.player
+	var pond_south := pond_map.pond_point(PI * 0.5)
+	_check(pond_map.pond and game.pond != null and pond_map.in_water(pond_map.rect.get_center()) and pond_map.pond_at == pond_map.rect.get_center(),
+			"the map has a pond in its middle (%d x %d)" % [int(pond_map.pond_half.x * 2.0), int(pond_map.pond_half.y * 2.0)])
+	_check(not pond_map.in_water(pond_hero.pos, pond_hero.radius) and pond_hero.pos.y > pond_south.y + Config.POND_START_GAP * 0.5
+			and pond_hero.pos.distance_to(pond_map.start) < 80.0,
+			"the player starts on dry ground at its southern shore")
+	var pond_land_ok := true
+	for i in pond_map.obs_pos.size():
+		if pond_map.in_water(pond_map.obs_pos[i], pond_map.obs_radius[i] + Config.POND_KEEP_CLEAR - 1.0):
+			pond_land_ok = false
+	for pond_chest: Pickups.Chest in game.pickups.chests:
+		if pond_map.in_water(pond_chest.pos, 30.0):
+			pond_land_ok = false
+	for i in 80:
+		var pond_rise: Vector2 = pond_map.spawn_point_around(pond_hero.pos, 300.0, 700.0, randf() * TAU)
+		var pond_crate: Vector2 = game.pickups.call("_random_crate_spot")
+		if pond_map.in_water(pond_rise, Config.POND_SPAWN_CLEAR - 1.0) or pond_map.in_water(pond_crate, 10.0):
+			pond_land_ok = false
+	_check(pond_land_ok and game.pickups.chests.size() == Config.CHEST_COUNT,
+			"no rock, chest, weapon crate or rising zombie is ever in the water (%d rocks, %d chests, 80 spots each)" % [pond_map.obs_pos.size(), game.pickups.chests.size()])
+	var pond_west := pond_map.pond_point(PI, 30.0)
+	var pond_east := pond_map.pond_point(0.0, 30.0)
+	_check(pond_map.segment_hit(pond_west, pond_east) > 1.0 and pond_map.in_water((pond_west + pond_east) * 0.5),
+			"bullets fly over the pond (nothing stops a shot from one shore to the other)")
+	pond_hero.place(pond_map.pond_at + Vector2(20.0, 10.0))
+	await _frames(3)
+	_check(not pond_map.in_water(pond_hero.pos, pond_hero.radius - 1.0), "nobody can be in the water: a player put into the middle of it is back on the shore at once")
+	var pond_swimmer := game.enemies.spawn(Config.SHAMBLER, pond_map.pond_at + Vector2(-30.0, 0.0))
+	_check(not pond_map.in_water(pond_swimmer.pos, pond_swimmer.radius - 1.0), "a zombie never rises out of the pond")
+	pond_swimmer.hp = 1.0
+	game.enemies.clear_all()
+	# A zombie on the far shore walks round the pond to get at the player, at its full pace.
+	pond_hero.place(pond_map.start)
+	game.cam.snap_to(pond_hero.pos)
+	var pond_walker := game.enemies.spawn(Config.SHAMBLER, pond_map.pond_point(-PI * 0.5 + 0.2, 40.0))
+	pond_walker.entered = true
+	var pond_walk_from := pond_walker.pos
+	var pond_wet := false
+	var pond_walked := 0.0
+	var pond_step_from := pond_walker.pos
+	for i in 150:
+		await _frames(1)
+		if not pond_walker.alive:
+			break
+		pond_walked += pond_walker.pos.distance_to(pond_step_from)
+		pond_step_from = pond_walker.pos
+		if pond_map.in_water(pond_walker.pos, pond_walker.radius - 2.0):
+			pond_wet = true
+	var pond_pace := pond_walker.speed * 150.0 / 60.0
+	_check(pond_walker.alive and not pond_wet and pond_walked > pond_pace * 0.6 and pond_walker.pos.distance_to(pond_walk_from) > pond_pace * 0.4,
+			"a zombie on the far shore walks round the pond instead of pressing against it (%d px in 2.5 s, of %d at full pace; it ends %d px from where it began%s)" % [
+			int(pond_walked), int(pond_pace), int(pond_walker.pos.distance_to(pond_walk_from)), ", and got into the water" if pond_wet else ""])
+	game.enemies.clear_all()
+	# Co-op: the host's pond is sent as numbers, and a joiner's map is the same.
+	var sent_pond := pond_map.pond_data()
+	var joined_map := Arena.new(pond_map.rect.size, 0, pond_map.rocks(), false, sent_pond)
+	var same_pond := joined_map.pond and joined_map.start.distance_to(pond_map.start) < 0.01 and joined_map.obs_pos.size() == pond_map.obs_pos.size()
+	for i in 12:
+		if absf(joined_map.pond_edge(TAU * i / 12.0) - pond_map.pond_edge(TAU * i / 12.0)) > 0.01:
+			same_pond = false
+	var dry_map := Arena.new(pond_map.rect.size, 0, pond_map.rocks(), false, [])
+	_check(same_pond and sent_pond.size() == 6 and not dry_map.pond and dry_map.start == dry_map.rect.get_center(),
+			"a joiner builds the pond from the host's numbers - the same shore, the same starting spot (and none, if the host has none)")
+	joined_map.canopy.free()
+	joined_map.free()
+	dry_map.canopy.free()
+	dry_map.free()
+	Arena.ponds = false
+	_auto_bot = pond_bot_was
+	app.pause_game()
+	await _frames(3)
+	app.quit_to_menu()
+	await _frames(5)
+	SaveData.select_map(1, 1)          # (as the run before this one left it; the save checks below expect that)
 
 	# --- XP earned in play ---
 	_check(SaveData.weapon_xp("pistol") > 0 or SaveData.weapon_level("pistol") > 1, "kills give the weapon that made them XP")
