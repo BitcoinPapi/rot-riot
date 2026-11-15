@@ -7,7 +7,9 @@
    on the left; a narrow reference column beside it (under it on a phone).
    THE GAME: every part of the game as an item (its name, then a grid of
    labelled numbers that line up from item to item like a table, then a strip
-   of inspiration pictures). The list of wanted changes sits above it. */
+   of inspiration pictures). A section about several things (gear: the pieces,
+   the tiers, how it is found) shows them one under the other, each under a
+   gold heading. The list of wanted changes sits above it. */
 :root {
   --bg: #12160f; --panel: #1b2117; --panel-2: #232a1d; --line: #353e2c;
   --fg: #ece7d5; --dim: #a5a08c; --gold: #ffc531; --blood: #e0503f; --leaf: #9bd15a; --sky: #7fbfe0;
@@ -134,10 +136,15 @@ aside.ref li { margin: 2px 0; }
 .sheet { display: flex; flex-direction: column; gap: 14px; }
 .sheet-head { display: flex; flex-direction: column; gap: 4px; }
 .sheet-head p { margin: 0; max-width: 78ch; }
+.partnav { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 4px; }
+.part-head { display: flex; flex-direction: column; gap: 2px; margin-top: 14px; padding-top: 16px; border-top: 2px solid var(--line); }
+.part-head h3 { font-family: var(--display); font-weight: 700; font-size: 22px; line-height: 1.1; letter-spacing: .04em; text-transform: uppercase; margin: 0; color: var(--gold); }
+.part-head p { margin: 0; max-width: 78ch; }
+.part-head + .item { border-top: 0; padding-top: 2px; }
 .item { border-top: 1px solid var(--line); padding-top: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .item.drop { outline: 2px dashed var(--gold); outline-offset: 6px; }
 .item-head { display: flex; flex-wrap: wrap; gap: 2px 12px; align-items: baseline; }
-.item-head h3 { font-family: var(--display); font-weight: 700; font-size: 26px; line-height: 1.05; letter-spacing: .03em; text-transform: uppercase; margin: 0; overflow-wrap: anywhere; }
+.item-head h3, .item-head h4 { font-family: var(--display); font-weight: 700; font-size: 26px; line-height: 1.05; letter-spacing: .03em; text-transform: uppercase; margin: 0; overflow-wrap: anywhere; }
 .item-head .sub { color: var(--dim); font-size: 14px; overflow-wrap: anywhere; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 8px; }
 .tile { display: flex; flex-direction: column; justify-content: space-between; gap: 6px; text-align: left; min-height: 72px; min-width: 0;
@@ -163,7 +170,7 @@ button.tile:hover { border-color: var(--gold); }
 .edit-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
 .item.single { display: grid; grid-template-columns: minmax(0, 1fr) minmax(104px, 150px); gap: 6px 14px; align-items: center; padding-top: 10px; }
 .item.single .item-head { flex-direction: column; align-items: flex-start; gap: 0; }
-.item.single .item-head h3 { font-size: 20px; }
+.item.single .item-head h3, .item.single .item-head h4 { font-size: 20px; }
 .item.single .tiles { grid-template-columns: minmax(0, 1fr); }
 .item.single .tile { min-height: 0; }
 .item.single .tile .label { display: none; }
@@ -566,8 +573,22 @@ dialog.viewer::backdrop { background: rgba(0, 0, 0, .72); }
   function sheetOrder() {
     return Object.keys(sheets).sort(function (a, b) { return (Number(sheets[a].order) || 0) - (Number(sheets[b].order) || 0) || (a < b ? -1 : 1); });
   }
-  function rowsOf(sec) { return Array.isArray(sec.rows) ? sec.rows : []; }
-  function colsOf(sec) { return Array.isArray(sec.columns) ? sec.columns : []; }
+  /* A section is one table, or several ("parts") shown one under the other. */
+  function partsOf(sec) {
+    var parts = Array.isArray(sec.parts) ? sec.parts.filter(function (p) { return p && typeof p === "object"; }) : [];
+    return parts.length ? parts : [sec];
+  }
+  function rowsOf(part) { return Array.isArray(part.rows) ? part.rows : []; }
+  function colsOf(part) { return Array.isArray(part.columns) ? part.columns : []; }
+  function findRow(sec, rowId) {
+    var parts = partsOf(sec);
+    for (var i = 0; i < parts.length; i++) {
+      var row = rowsOf(parts[i]).filter(function (r) { return r && String(r.id) === String(rowId); })[0];
+      if (row) return { part: parts[i], row: row };
+    }
+    return null;
+  }
+  function wantsPictures(sec, part) { return (part.pictures != null ? part.pictures : sec.pictures) !== false; }
   /* One number or name of one item: the column's settings, with what this row says differently. */
   function cellOf(sec, row, col) {
     var c = {}, own = (row.meta && row.meta[col.key]) || {};
@@ -594,9 +615,9 @@ dialog.viewer::backdrop { background: rgba(0, 0, 0, .72); }
   function findCell(ch) {
     var sec = sheets[ch.section];
     if (!sec) return null;
-    var row = rowsOf(sec).filter(function (r) { return String(r.id) === String(ch.row); })[0];
-    var col = colsOf(sec).filter(function (k) { return k.key === ch.col; })[0];
-    return row && col ? cellOf(sec, row, col) : null;
+    var at = findRow(sec, ch.row);
+    var col = at ? colsOf(at.part).filter(function (k) { return k.key === ch.col; })[0] : null;
+    return col ? cellOf(sec, at.row, col) : null;
   }
   /* A change counts until the game's own number says the same. */
   function isWaiting(ch) {
@@ -867,8 +888,8 @@ dialog.viewer::backdrop { background: rgba(0, 0, 0, .72); }
   function renderViewer() {
     var p = pics.filter(function (x) { return x.id === viewing; })[0];
     if (!p) { if (viewing) closeViewer(); return; }
-    var sec = sheets[p.section], row = sec ? rowsOf(sec).filter(function (r) { return String(r.id) === String(p.row); })[0] : null;
-    var name = row ? String(row.name || row.id) : String(p.row);
+    var sec = sheets[p.section], at = sec ? findRow(sec, p.row) : null;
+    var name = at ? String(at.row.name || at.row.id) : String(p.row);
     var img = $("viewerImg"), src = "/_blob/" + p.asset;
     if (img.getAttribute("src") !== src) img.src = src;
     img.alt = "Picture for " + name;
@@ -897,17 +918,17 @@ dialog.viewer::backdrop { background: rgba(0, 0, 0, .72); }
     }
   }
 
-  function item(sec, row) {
+  function item(sec, part, row) {
     var a = el("article", "item"); a.id = "item-" + sec.id + "." + row.id;
-    if (colsOf(sec).length === 1 && String(editing || "").indexOf(sec.id + "." + row.id + ".") !== 0) a.className = "item single";
+    if (colsOf(part).length === 1 && String(editing || "").indexOf(sec.id + "." + row.id + ".") !== 0) a.className = "item single";
     var head = el("div", "item-head");
-    head.appendChild(el("h3", null, String(row.name || row.id)));
+    head.appendChild(el(part === sec ? "h3" : "h4", null, String(row.name || row.id)));
     if (row.sub) head.appendChild(el("span", "sub", String(row.sub)));
     a.appendChild(head);
     var tiles = el("div", "tiles");
-    colsOf(sec).forEach(function (col) { tiles.appendChild(tile(sec, row, col)); });
+    colsOf(part).forEach(function (col) { tiles.appendChild(tile(sec, row, col)); });
     a.appendChild(tiles);
-    if (sec.pictures !== false) {
+    if (wantsPictures(sec, part)) {
       a.appendChild(strip(sec, row));
       if (canUpload()) {
         a.addEventListener("dragover", function (ev) { if (hasFiles(ev)) { ev.preventDefault(); a.classList.add("drop"); } });
@@ -935,12 +956,31 @@ dialog.viewer::backdrop { background: rgba(0, 0, 0, .72); }
       head.appendChild(el("h2", null, String(sec.title || sec.id)));
       if (sec.intro) head.appendChild(el("p", null, String(sec.intro)));
       (Array.isArray(sec.notes) ? sec.notes : []).forEach(function (n) { head.appendChild(el("p", "hint", String(n))); });
-      if (sec.pictures !== false) {
+      var parts = partsOf(sec);
+      if (parts.some(function (part) { return wantsPictures(sec, part); })) {
         if (canUpload()) head.appendChild(el("p", "hint", "Pictures: press “+ picture” under an item, or drop a file on it, to show how you imagine it. They are ideas for the look. The game's own art is always drawn new, never copied."));
         else if (canWrite === true && got.game) head.appendChild(el("p", "hint", "To add pictures here, ask the owner to invite you as an Editor."));
       }
+      if (parts.length > 1) {
+        var nav = el("div", "partnav");
+        nav.appendChild(el("span", "label", "Jump to"));
+        parts.forEach(function (part, i) {
+          var b = el("button", "chip", String(part.title || "Part " + (i + 1))); b.type = "button"; b.id = "part-go-" + i;
+          b.addEventListener("click", function () { var t = $("part-" + i); if (t) t.scrollIntoView({ block: "start" }); });
+          nav.appendChild(b);
+        });
+        head.appendChild(nav);
+      }
       host.appendChild(head);
-      rowsOf(sec).forEach(function (row) { if (row && row.id != null) host.appendChild(item(sec, row)); });
+      parts.forEach(function (part, i) {
+        if (part !== sec) {
+          var ph = el("div", "part-head"); ph.id = "part-" + i;
+          ph.appendChild(el("h3", null, String(part.title || "")));
+          if (part.intro) ph.appendChild(el("p", "hint", String(part.intro)));
+          host.appendChild(ph);
+        }
+        rowsOf(part).forEach(function (row) { if (row && row.id != null) host.appendChild(item(sec, part, row)); });
+      });
       host.appendChild(el("p", "ver", "Numbers from game v" + String(sec.version || "?") + (sec.synced ? ", put here on " + when(Number(sec.synced)) : "") + "."));
     });
   }

@@ -84,6 +84,8 @@ const server = http.createServer((req, res) => {
   };
   const sideways = (page) => page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   const id = (s) => `[id="${s}"]`;
+  const chip = (name) => `#sectionChips .chip:text-matches("^${name}( · [0-9]+)?$")`;
+  const sections = Object.keys(game).length;
 
   // --- the ideas page still works ---
   {
@@ -129,7 +131,7 @@ const server = http.createServer((req, res) => {
     say('tile now:', (await page.textContent(id('t-weapons.smg.damage'))).replace(/\s+/g, ' '), '| waiting', await page.textContent('#waitCount'));
 
     // a share shown as percent keeps the game's own number beside it
-    await page.click('#sectionChips .chip >> nth=1');
+    await page.click(chip('Villains'));
     await page.click(id('t-villains.RUNNER.share'));
     await page.fill('#edit-input', '50');
     await page.keyboard.press('Enter');
@@ -137,7 +139,7 @@ const server = http.createServer((req, res) => {
     say('empty cells are not buttons:', await page.locator('.item >> nth=0').locator('div.tile.none').count());
 
     // a name
-    await page.click('#sectionChips .chip >> nth=2');
+    await page.click(chip('Gang maps'));
     await page.click(id('t-gangs.0.boss'));
     await page.fill('#edit-input', '  Kòk   Wouj ');
     await page.click('#edit-save');
@@ -170,9 +172,43 @@ const server = http.createServer((req, res) => {
     await page.waitForTimeout(200);
     say('removed: doc gone', await page.evaluate(() => !window.__store.pics.p1), '| asset erased', JSON.stringify(await page.evaluate(() => window.__deleted)),
       '| viewer closed', await page.evaluate(() => !document.getElementById('viewer').open));
-    say('rules have no picture places:', await (async () => { await page.click('#sectionChips .chip >> nth=6'); return (await page.locator('.pics').count()) === 0 && (await page.locator('.item').count()); })());
+    say('rules have no picture places:', await (async () => { await page.click(chip('Levels & rules')); return (await page.locator('.pics').count()) === 0 && (await page.locator('.item').count()); })());
     await page.screenshot({ path: path.join(shots, 'game-rules.png') });
-    for (let i = 0; i < 7; i++) { await page.click('#sectionChips .chip >> nth=' + i); if (await sideways(page)) say('SIDEWAYS SCROLL in section', i); }
+
+    // a section made of several tables: gear = the pieces, the tiers, how it is found
+    await page.click(chip('Gear'));
+    say('gear: parts', await page.locator('.part-head h3').allTextContents(), '| items', await page.locator('.item').count(),
+      '| picture places', await page.locator('.addpic').count(), '| plain list rows', await page.locator('.item.single').count());
+    say('gear: a piece reads', (await page.textContent(id('item-gear.riot_helmet') + ' .tiles')).replace(/\s+/g, ' '));
+    await page.screenshot({ path: path.join(shots, 'game-gear.png') });
+    await page.click(id('t-gear.hard_hat.first'));
+    await page.fill('#edit-input', '3');
+    await page.click('#edit-save');
+    await page.click(id('t-gear.3.chance'));
+    await page.fill('#edit-input', '55');
+    await page.click('#edit-save');
+    await page.click(id('t-gear.gear_drop_chance_brute.value'));
+    await page.fill('#edit-input', '6,5');
+    await page.click('#edit-save');
+    say('gear changes:', JSON.stringify(await page.evaluate(() => ['gear.hard_hat.first', 'gear.3.chance', 'gear.gear_drop_chance_brute.value'].map(k => { var c = window.__store.changes[k]; return c && [c.item, c.label, c.from, c.to, c.raw, c.path]; }))));
+    await page.click('#part-go-1');
+    await page.waitForTimeout(100);
+    await page.screenshot({ path: path.join(shots, 'game-gear-tiers.png') });
+    await page.click(chip('Weapon perks'));
+    say('weapon perks: items', await page.locator('.item').count(), '| first reads', (await page.textContent(id('item-wperks.pistol_1'))).replace(/\s+/g, ' ').slice(0, 150));
+    await page.click(id('t-wperks.shotgun_1.first'));
+    await page.click('#edit-more');
+    await page.click('#edit-save');
+    await page.click(id('t-wperks.weapon_perk_levels_0.value'));
+    await page.fill('#edit-input', '3');
+    await page.click('#edit-save');
+    say('weapon perk changes:', JSON.stringify(await page.evaluate(() => ['wperks.shotgun_1.first', 'wperks.weapon_perk_levels_0.value'].map(k => { var c = window.__store.changes[k]; return c && [c.item, c.label, c.from, c.to, c.raw, c.path, c.unit]; }))));
+    await page.screenshot({ path: path.join(shots, 'game-wperks.png') });
+    await page.click(chip('Weapon upgrades'));
+    say('weapon upgrades: parts', await page.locator('.part-head h3').allTextContents(), '| items', await page.locator('.item').count());
+    await page.click(id('go-gear.3.chance'));
+    say('jump to a row of a part: section', await page.textContent('.sheet-head h2'), '| waiting', await page.textContent('#waitCount'));
+    for (let i = 0; i < sections; i++) { await page.click('#sectionChips .chip >> nth=' + i); if (await sideways(page)) say('SIDEWAYS SCROLL in section', i); }
     await page.click('#tab-board');
     say('back to ideas: board shown', await page.isVisible('#view-board'), '| address', await page.evaluate(() => location.hash));
     await ctx.close();
@@ -183,7 +219,9 @@ const server = http.createServer((req, res) => {
     const { ctx, page } = await open('phone', 400, 1100, 'light', '/#game');
     await page.screenshot({ path: path.join(shots, 'game-phone-light.png') });
     let wide = [];
-    for (let i = 0; i < 7; i++) { await page.click('#sectionChips .chip >> nth=' + i); if (await sideways(page)) wide.push(i); }
+    for (let i = 0; i < sections; i++) { await page.click('#sectionChips .chip >> nth=' + i); if (await sideways(page)) wide.push(i); }
+    await page.click(chip('Gear'));
+    await page.screenshot({ path: path.join(shots, 'game-phone-gear.png') });
     await page.click('#sectionChips .chip >> nth=0');
     await page.fill('#who', 'Henry');
     await page.click(id('t-weapons.pistol.interval'));

@@ -45,23 +45,30 @@ Kosta and Tatoni all use. It has two pages:
 - **THE GAME** (the dashboard; owner: "see all the components of the game
   (skills, levels, pets, villains, weapons, perks) and change them directly
   on the artifact", then "next to each item leave a space where we can
-  upload inspiration pictures"). Seven tables - weapons, villains, gang
-  maps, pets, skills, perks, levels & rules - each item with its numbers and
-  names as tiles and a strip of pictures.
+  upload inspiration pictures", then "add gear, weapon upgrades and weapon
+  perks"). Ten sections - weapons, weapon upgrades, weapon perks, villains,
+  gang maps, gear, pets, skills, run perks, levels & rules - each item with
+  its numbers and names as tiles and a strip of pictures. A section about
+  several things has "parts", shown one under the other (gear: the pieces,
+  the five tiers and the forge, finding gear).
   - *The tables* are written by the game itself:
     `godot --headless -- --dump-game=DIR` (`scripts/dev/game_sheet.gd`)
     writes DIR/<section>.json; put them in collection `game` (doc id = the
     section's id) with one ArtifactData `batch` of `set` + `file_path` (pin
     each with `if_version` from a `list` first). **Do this after every
     change to a number or name that is on the dashboard**, or it shows old
-    numbers. A new kind of thing (say, gear) = a new function in
-    `game_sheet.gd`; the page needs no change.
+    numbers. A new kind of thing = a new function in `game_sheet.gd` (see
+    the format at the top of that file); the page needs no change. A weapon
+    perk's sentence (`"desc"`) is not on the page: when its number changes,
+    rewrite the sentence in config.gd to match.
   - *A change typed there does NOT reach the game.* It becomes a document in
     collection `changes` (id `section.row.column`): `{section, row, col,
     item, label, from, to, raw, path, unit, kind, by, at}`. `path` says
     where the number lives in config.gd (`WEAPONS.pistol.damage`,
     `ENEMIES[GOBBER].shot_damage`, `ENEMY_MIX[kind=RUNNER].max`,
-    `MAPS[0].boss`, `PET_RARITIES.common.damage`, a plain constant name) and
+    `MAPS[0].boss`, `PET_RARITIES.common.damage`,
+    `WEAPON_PERKS.pistol[0].mods.knockback[1]`, `GEAR_TIERS[3].chance`,
+    `GEAR_DROP_CHANCE[BRUTE]`, a plain constant name) and
     `raw` is the value to write there (a share shown as 50% has raw 0.5).
     When the owner says "build the changes": read `changes`, tell him what
     is on the list, change `scripts/config.gd` by hand, run the tests, raise
@@ -973,9 +980,10 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   leave a space where we can upload inspiration pictures" -> the board's
   second page, THE GAME (see "The idea board" at the top; awaiting his
   eyes). Claude's choices to ask about: a change waits on a list until he
-  says "build the changes" (a web page cannot reach into the game); gear,
-  weapon upgrades and weapon perks are not on the dashboard yet. The board
-  is in use: Kosta and the owner have added ideas of their own.
+  says "build the changes" (a web page cannot reach into the game). Then:
+  "add gear, weapon upgrades and weapon perks to the dashboard" -> done.
+  The board is in use: Kosta and the owner have added ideas of their own,
+  and the owner has started putting changes on the list.
 - The owner's Mac: browser downloads do not work there, so updates go through
   Terminal (curl) or the double-click updater. Always give the full update
   command and say plainly that Return must be pressed.

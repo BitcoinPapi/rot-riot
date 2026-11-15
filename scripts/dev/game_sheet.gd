@@ -13,7 +13,9 @@ extends RefCounted
 ## A section is {id, title, intro, notes, columns, rows} plus, added when it is
 ## written out: "version" (the game's), "order" (its place in the list),
 ## "synced" (when, in milliseconds) and "pictures" (false = its rows get no
-## place for inspiration pictures):
+## place for inspiration pictures). A section about more than one thing has
+## "parts" instead of its own columns and rows: [{title, intro, columns, rows,
+## pictures}], shown one under the other; row ids are unique in the section:
 ##   column  {key, label, kind "number"|"text", unit, help, min, max, step, scale, path}
 ##   row     {id, name, sub, values: {column key: what is shown, or null},
 ##            meta: {column key: {anything of a column, for this one cell}}}
@@ -36,7 +38,7 @@ const SPECIALS := {
 
 
 static func sections() -> Array:
-	return [_weapons(), _villains(), _gangs(), _pets(), _skills(), _perks(), _rules()]
+	return [_weapons(), _upgrades(), _weapon_perks(), _villains(), _gangs(), _gear(), _pets(), _skills(), _perks(), _rules()]
 
 
 ## Write every section as DIR/<id>.json. Returns how many were written.
@@ -48,7 +50,8 @@ static func write(dir: String) -> int:
 		section["version"] = Config.GAME_VERSION
 		section["order"] = count
 		section["synced"] = now
-		section["pictures"] = String(section["id"]) != "rules"    # (a rule is a number, not a thing to draw)
+		if not section.has("pictures"):
+			section["pictures"] = true
 		var file := FileAccess.open("%s/%s.json" % [dir, String(section["id"])], FileAccess.WRITE)
 		if file == null:
 			continue
@@ -168,6 +171,8 @@ static func _gangs() -> Dictionary:
 		_col("speed", "Zombie speed", {"unit": "x", "min": 0.5, "max": 3.0, "step": 0.01, "path": "MAPS[{id}].speed"}),
 		_col("xp", "XP", {"unit": "x", "min": 0.1, "max": 100.0, "step": 0.25, "path": "MAPS[{id}].xp"}),
 		_col("coins", "A coin is worth", {"min": 1.0, "max": 1000.0, "path": "MAPS[{id}].coins"}),
+		_col("gear", "Gear drops", {"unit": "x", "min": 0.0, "max": 50.0, "step": 0.1, "path": "MAPS[{id}].gear"}),
+		_col("gear_up", "Chance of gear one tier better", {"unit": "%", "max": 100.0, "scale": 100.0, "path": "MAPS[{id}].gear_up"}),
 	]
 	var rows: Array = []
 	for i in Config.MAPS.size():
@@ -175,7 +180,7 @@ static func _gangs() -> Dictionary:
 		rows.append({"id": str(i), "name": "MAP %d" % (i + 1), "sub": String(m["story"]), "values": {
 				"name": String(m["name"]), "gang": String(m.get("gang", "")), "boss": String(m.get("boss", "")),
 				"hp": _shown(m["hp"]), "damage": _shown(m["damage"]), "speed": _shown(m["speed"]), "xp": _shown(m["xp"]),
-				"coins": _shown(m["coins"])}})
+				"coins": _shown(m["coins"]), "gear": _shown(m["gear"]), "gear_up": _shown(m["gear_up"], 100.0)}})
 	return {"id": "gangs", "title": "Gang maps", "intro": "Five maps, each one gang's ground with its own boss. The numbers multiply every zombie on that map.",
 			"notes": ["Gang and boss names are invented. Real gangs and real people do not go into the game."],
 			"columns": columns, "rows": rows}
@@ -260,8 +265,165 @@ static func _perks() -> Dictionary:
 		rows.append({"id": id, "name": String(p["name"]), "sub": Config.run_perk_text(id, 1), "values": {
 				"name": String(p["name"]), "value": _shown(p["value"], 100.0 if share else 1.0), "max": _shown(p["max"])},
 				"meta": {"value": {"scale": 100.0 if share else 1.0, "unit": "%" if share else ""}}})
-	return {"id": "perks", "title": "Perks", "intro": "After every boss you choose one of three. A perk lasts until that run ends.",
-			"notes": [], "columns": columns, "rows": rows}
+	return {"id": "perks", "title": "Run perks", "intro": "After every boss you choose one of three. A perk lasts until that run ends.",
+			"notes": ["A weapon's own perks, bought in the Armory, are under Weapon perks."], "columns": columns, "rows": rows}
+
+
+const TRACK_NEEDS := {"": "every weapon", "ranged": "every weapon but the chainsaw", "burst": "every weapon but the launcher",
+		"mag": "every weapon that reloads", "crate": "every weapon that comes in a crate"}
+## What a weapon perk changes, in words (the keys are numbers of a weapon in config.gd).
+const MOD_NAMES := {"knockback": "Knockback", "stagger": "Stun", "mag": "Magazine", "pierce": "Goes through", "move_mult": "Your speed",
+		"pellets": "Pellets", "blast_radius": "Blast size", "blast_knockback": "Blast knockback", "blast_stagger": "Blast stun",
+		"burn_time": "Burning lasts", "burn_dps": "Burn damage", "range": "Reach", "arc_deg": "Width of the bite"}
+const ORDINALS := ["1st", "2nd", "3rd", "4th", "5th"]
+const GEAR_FROM := {"zombies": "any zombie can drop it", "brutes": "brutes, chuckers and bosses drop it", "bosses": "only bosses drop it"}
+
+
+static func _upgrades() -> Dictionary:
+	var columns := [
+		_text("name", "Name", "WEAPON_TRACKS.{id}.name", 18),
+		_col("each", "Each rank gives", {"unit": "%", "max": 100.0, "step": 0.5, "scale": 100.0}),
+		_col("most", "The most it can ever give", {"unit": "%", "max": 500.0, "scale": 100.0}),
+		_col("half", "Ranks to reach half of that", {"min": 1.0, "max": 500.0}),
+	]
+	var rows: Array = []
+	for id: String in Config.WEAPON_TRACK_ORDER:
+		var t: Dictionary = Config.WEAPON_TRACKS[id]
+		var values := {"name": String(t["name"]), "each": null, "most": null, "half": null}
+		var meta := {}
+		if String(t["kind"]) == "linear":
+			values["each"] = _shown(t["per_rank"], 100.0)
+			meta["each"] = {"path": "WEAPON_TRACKS.%s.per_rank" % id}
+		else:
+			values["most"] = _shown(t["max"], 100.0)
+			values["half"] = _shown(t["half"])
+			meta["most"] = {"path": "WEAPON_TRACKS.%s.max" % id}
+			meta["half"] = {"path": "WEAPON_TRACKS.%s.half" % id}
+		rows.append({"id": id, "name": String(t["name"]), "sub": "%s. For %s." % [String(t["desc"]), String(TRACK_NEEDS.get(String(t["needs"]), "every weapon"))],
+				"values": values, "meta": meta})
+	var levels := _list([
+		["WEAPON_XP_BASE", Config.WEAPON_XP_BASE, "Weapon XP needed for weapon level 2", {"min": 1.0, "max": 100000.0}],
+		["WEAPON_XP_EXPONENT", Config.WEAPON_XP_EXPONENT, "How steeply that grows", {"min": 1.0, "max": 4.0, "step": 0.05,
+				"help": "XP needed = the number above x weapon level, this many times over"}],
+		["WEAPON_POINTS_PER_LEVEL", Config.WEAPON_POINTS_PER_LEVEL, "Weapon points per weapon level", {"min": 1.0, "max": 10.0}],
+		["WEAPON_RANK_COST_STEP", Config.WEAPON_RANK_COST_STEP, "A rank costs one more point after every", {"unit": "ranks", "min": 1.0, "max": 100.0}],
+		["WEAPON_RESPEC_COST_PER_LEVEL", Config.WEAPON_RESPEC_COST_PER_LEVEL, "Taking a weapon's points back costs", {"unit": "coins per weapon level", "max": 10000.0}],
+	])
+	return {"id": "upgrades", "title": "Weapon upgrades", "intro": "What a weapon's points buy in the Armory. A weapon earns its own XP from the kills made with it.",
+			"notes": ["Ranks have no limit. A weapon only has the upgrades that make sense for it."],
+			"parts": [
+				{"id": "tracks", "title": "The six upgrades", "intro": "", "columns": columns, "rows": rows},
+				{"id": "levels", "title": "Weapon levels and points", "intro": "", "columns": levels["columns"], "rows": levels["rows"], "pictures": false},
+			]}
+
+
+static func _weapon_perks() -> Dictionary:
+	var columns := [
+		_text("name", "Name", "", 22),
+		_col("first", "It changes", {"min": 0.0, "max": 50.0, "step": 0.05}),
+		_col("second", "And also", {"min": 0.0, "max": 50.0, "step": 0.05}),
+	]
+	var rows: Array = []
+	for weapon: String in Config.WEAPON_ORDER:
+		var perks: Array = Config.WEAPON_PERKS.get(weapon, [])
+		for i in perks.size():
+			var perk: Dictionary = perks[i]
+			var mods: Dictionary = perk["mods"]
+			var values := {"name": String(perk["name"]), "first": null, "second": null}
+			var meta := {"name": {"path": "WEAPON_PERKS.%s[%d].name" % [weapon, i]}}
+			var slot := 0
+			for key: String in mods.keys():
+				if slot > 1:
+					break
+				var change: Array = mods[key]
+				var adds := String(change[0]) == "add"
+				var cell: String = ["first", "second"][slot]
+				values[cell] = _shown(change[1])
+				meta[cell] = {"label": String(MOD_NAMES.get(key, key)), "unit": "more" if adds else "x", "step": 1.0 if adds else 0.05,
+						"path": "WEAPON_PERKS.%s[%d].mods.%s[1]" % [weapon, i, key],
+						"help": "added to the weapon's own number" if adds else "the weapon's own number times this (1.5 = half as much again)"}
+				slot += 1
+			rows.append({"id": "%s_%d" % [weapon, i + 1], "name": String(perk["name"]),
+					"sub": "%s, %s perk: %s" % [String(Config.WEAPONS[weapon]["name"]), String(ORDINALS[i]), String(perk["desc"])],
+					"values": values, "meta": meta})
+	var opens: Array = []
+	for i in Config.WEAPON_PERK_LEVELS.size():
+		opens.append(["WEAPON_PERK_LEVELS[%d]" % i, Config.WEAPON_PERK_LEVELS[i], "The %s perk opens at weapon level" % String(ORDINALS[i]), {"min": 1.0, "max": 200.0}])
+	for i in Config.WEAPON_PERK_COST.size():
+		opens.append(["WEAPON_PERK_COST[%d]" % i, Config.WEAPON_PERK_COST[i], "The %s perk costs" % String(ORDINALS[i]), {"unit": "weapon points", "min": 0.0, "max": 100.0}])
+	var when := _list(opens)
+	return {"id": "wperks", "title": "Weapon perks", "intro": "Every weapon has three perks of its own, bought in the Armory with that weapon's points. They are kept for good.",
+			"notes": ["When a number here changes, the sentence under the perk's name is rewritten to match."],
+			"parts": [
+				{"id": "perks", "title": "The perks", "intro": "", "columns": columns, "rows": rows},
+				{"id": "opens", "title": "When they open and what they cost", "intro": "", "columns": when["columns"], "rows": when["rows"], "pictures": false},
+			]}
+
+
+static func _gear() -> Dictionary:
+	var columns := [
+		_text("name", "Name", "GEAR_ITEMS.{id}.name", 20),
+		_col("first", "It gives", {"unit": "ranks", "min": 0.0, "max": 50.0}),
+		_col("second", "And also", {"unit": "ranks", "min": 0.0, "max": 50.0}),
+		_col("map", "First found on map", {"min": 1.0, "max": float(Config.MAPS.size()), "path": "GEAR_ITEMS.{id}.map"}),
+	]
+	var rows: Array = []
+	for id: String in Config.GEAR_ORDER:
+		var g: Dictionary = Config.GEAR_ITEMS[id]
+		var stats: Dictionary = g["stats"]
+		var values := {"name": String(g["name"]), "first": null, "second": null, "map": _shown(g["map"])}
+		var meta := {}
+		var slot := 0
+		for stat: String in stats.keys():
+			if slot > 1:
+				break
+			var cell: String = ["first", "second"][slot]
+			values[cell] = _shown(stats[stat])
+			meta[cell] = {"label": String(Config.PASSIVES[stat]["name"]), "path": "GEAR_ITEMS.%s.stats.%s" % [id, stat],
+					"help": "ranks of this skill, as a COMMON piece"}
+			slot += 1
+		rows.append({"id": id, "name": String(g["name"]), "sub": "%s: %s" % [String(Config.GEAR_TYPE_NAMES[String(g["type"])]).to_lower(),
+				String(GEAR_FROM.get(String(g["from"]), ""))], "values": values, "meta": meta})
+
+	var tier_columns := [
+		_text("name", "Name", "GEAR_TIERS[{id}].name", 12),
+		_col("mult", "Its ranks are multiplied by", {"unit": "x", "min": 1.0, "max": 100.0, "step": 0.5, "path": "GEAR_TIERS[{id}].mult"}),
+		_col("chance", "Forging two into it works", {"unit": "%", "max": 100.0, "scale": 100.0, "path": "GEAR_TIERS[{id}].chance"}),
+		_col("break", "If it fails, both are lost", {"unit": "%", "max": 100.0, "scale": 100.0, "path": "GEAR_TIERS[{id}].break",
+				"help": "a failed try always uses up one of the two pieces; this is the chance the other one goes too"}),
+	]
+	var tier_rows: Array = []
+	for i in Config.GEAR_TIERS.size():
+		var t: Dictionary = Config.GEAR_TIERS[i]
+		var made := i > 0                         # (the first tier is found, never forged)
+		tier_rows.append({"id": str(i), "name": String(t["name"]), "sub": "tier %d of %d" % [i + 1, Config.GEAR_TIERS.size()], "values": {
+				"name": String(t["name"]), "mult": _shown(t["mult"]), "chance": _maybe(made, _shown(t["chance"], 100.0)),
+				"break": _maybe(made, _shown(t["break"], 100.0))}})
+
+	var finding: Array = []
+	for kind: int in VILLAIN_ORDER:
+		finding.append(["GEAR_DROP_CHANCE[%s]" % String(KIND_NAMES[kind]), Config.GEAR_DROP_CHANCE.get(kind, 0.0),
+				"A killed %s drops a piece" % String(Config.ENEMIES[kind]["name"]).to_lower(), {"unit": "%", "scale": 100.0, "max": 100.0, "step": 0.1}])
+	finding.append(["GEAR_BOSS_EXTRA_CHANCE", Config.GEAR_BOSS_EXTRA_CHANCE, "A boss drops a second piece", {"unit": "%", "scale": 100.0, "max": 100.0,
+			"help": "his first piece is always a ring or an amulet"}])
+	finding.append(["GEAR_LUCK_FACTOR", Config.GEAR_LUCK_FACTOR, "How much of the LUCK skill counts for gear", {"unit": "%", "scale": 100.0, "max": 200.0}])
+	finding.append(["GEAR_MAX_ON_FIELD", Config.GEAR_MAX_ON_FIELD, "Most pieces lying on the ground at once", {"min": 1.0, "max": 20.0}])
+	finding.append(["GEAR_LIFETIME", Config.GEAR_LIFETIME, "A dropped piece waits for", {"unit": "s", "min": 5.0, "max": 600.0, "step": 5.0}])
+	for i in Config.CHEST_TIER_WEIGHTS.size():
+		finding.append(["CHEST_TIER_WEIGHTS[%d]" % i, Config.CHEST_TIER_WEIGHTS[i], "A chest holds a %s piece" % String(Config.GEAR_TIERS[i]["name"]),
+				{"unit": "%", "scale": 100.0, "max": 100.0}])
+	finding.append(["CHEST_TIER_UP_PER_WAVE", Config.CHEST_TIER_UP_PER_WAVE, "Per wave of the run, a chest's piece is one tier better", {"unit": "%", "scale": 100.0, "max": 100.0, "step": 0.5}])
+	finding.append(["CHEST_TIER_UP_MAX", Config.CHEST_TIER_UP_MAX, "...but at most", {"unit": "%", "scale": 100.0, "max": 100.0}])
+	var found := _list(finding)
+	return {"id": "gear", "title": "Gear", "intro": "What JanJan wears: nine slots, 32 pieces. A piece adds ranks to one or two skills.",
+			"notes": ["The ranks shown are for a COMMON piece. Better tiers multiply them.", "Each gang map also changes how much gear drops (see Gang maps)."],
+			"parts": [
+				{"id": "pieces", "title": "The pieces", "intro": "", "columns": columns, "rows": rows},
+				{"id": "tiers", "title": "The five tiers and the forge", "intro": "Two identical pieces of one tier are forged into one piece of the next.",
+						"columns": tier_columns, "rows": tier_rows, "pictures": false},
+				{"id": "finding", "title": "Finding gear", "intro": "", "columns": found["columns"], "rows": found["rows"], "pictures": false},
+			]}
+
 
 
 static func _rules() -> Dictionary:
@@ -290,18 +452,24 @@ static func _rules() -> Dictionary:
 		["MAX_ENEMIES_ALIVE", Config.MAX_ENEMIES_ALIVE, "Most zombies alive at once", {"min": 10.0, "max": 400.0, "step": 10.0}],
 		["CHEST_COUNT", Config.CHEST_COUNT, "Treasure chests per run", {"max": 12.0}],
 	]
+	var table := _list(list)
+	return {"id": "rules", "title": "Levels & rules", "pictures": false, "intro": "How the character grows, and the few numbers that shape a whole run.",
+			"notes": ["From level 1 to level %d takes %s XP in all." % [Config.LEVEL_CAP, _grouped(total)],
+			"A boss comes every %d waves, and a perk choice follows him." % Config.BOSS_EVERY],
+			"columns": table["columns"], "rows": table["rows"]}
+
+
+## A list of single numbers (one "Value" each): [constant or path, the number, what it is called, {settings}].
+static func _list(items: Array) -> Dictionary:
 	var rows: Array = []
-	for item: Array in list:
+	for item: Array in items:
 		var more: Dictionary = item[3]
 		var cell := {"path": String(item[0])}
 		for k: String in more.keys():
 			cell[k] = more[k]
-		rows.append({"id": String(item[0]).to_lower(), "name": String(item[2]), "sub": String(more.get("help", "")),
-				"values": {"value": _shown(item[1], float(more.get("scale", 1.0)))}, "meta": {"value": cell}})
-	return {"id": "rules", "title": "Levels & rules", "intro": "How the character grows, and the few numbers that shape a whole run.",
-			"notes": ["From level 1 to level %d takes %s XP in all." % [Config.LEVEL_CAP, _grouped(total)],
-			"A boss comes every %d waves, and a perk choice follows him." % Config.BOSS_EVERY],
-			"columns": [_col("value", "Value")], "rows": rows}
+		rows.append({"id": String(item[0]).to_lower().replace("[", "_").replace("]", ""), "name": String(item[2]),
+				"sub": String(more.get("help", "")), "values": {"value": _shown(item[1], float(more.get("scale", 1.0)))}, "meta": {"value": cell}})
+	return {"columns": [_col("value", "Value")], "rows": rows, "pictures": false}
 
 
 ## 26880000 -> "26,880,000"

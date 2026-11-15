@@ -1367,31 +1367,40 @@ func _run_autotest() -> void:
 
 	# --- the tables for the idea board's dashboard: every part of the game is in them, and every
 	#     number that can be changed there says where it lives in config.gd ---
-	var sheet_rows := 0
+	var sheet_rows := {}
 	var sheet_cells := 0
 	var sheet_ok := true
 	var sheet_ids: Array = []
 	for table: Dictionary in GameSheet.sections():
 		sheet_ids.append(String(table["id"]))
-		var sheet_keys := {}
-		for column: Dictionary in table["columns"]:
-			sheet_keys[String(column["key"])] = column
-		for sheet_row: Dictionary in table["rows"]:
-			sheet_rows += 1
-			var row_values: Dictionary = sheet_row["values"]
-			var row_meta: Dictionary = sheet_row.get("meta", {})
-			for key: String in row_values.keys():
-				if not sheet_keys.has(key):
-					sheet_ok = false
-				elif row_values[key] != null:
-					sheet_cells += 1
-					var where := String(row_meta.get(key, {}).get("path", sheet_keys[key]["path"]))
-					if where == "":
+		var seen_rows := {}
+		for part: Dictionary in table.get("parts", [table]):
+			var sheet_keys := {}
+			for column: Dictionary in part["columns"]:
+				sheet_keys[String(column["key"])] = column
+			for sheet_row: Dictionary in part["rows"]:
+				if seen_rows.has(String(sheet_row["id"])):
+					sheet_ok = false          # (a row's id must be the only one of its kind in the section)
+				seen_rows[String(sheet_row["id"])] = true
+				var row_values: Dictionary = sheet_row["values"]
+				var row_meta: Dictionary = sheet_row.get("meta", {})
+				for key: String in row_values.keys():
+					if not sheet_keys.has(key):
 						sheet_ok = false
-	_check(sheet_ok and sheet_ids == ["weapons", "villains", "gangs", "pets", "skills", "perks", "rules"]
-			and sheet_rows == Config.WEAPON_ORDER.size() + Config.ENEMIES.size() + Config.MAPS.size() + Config.PETS.size()
-			+ Config.PASSIVE_ORDER.size() + Config.RUN_PERK_ORDER.size() + 19,
-			"the dashboard's tables hold every weapon, villain, map, pet, skill and perk (%d rows, %d numbers and names)" % [sheet_rows, sheet_cells])
+					elif row_values[key] != null:
+						sheet_cells += 1
+						var where := String(row_meta.get(key, {}).get("path", sheet_keys[key]["path"]))
+						if where == "":
+							sheet_ok = false
+		sheet_rows[String(table["id"])] = seen_rows.size()
+	_check(sheet_ok and sheet_ids == ["weapons", "upgrades", "wperks", "villains", "gangs", "gear", "pets", "skills", "perks", "rules"]
+			and int(sheet_rows["weapons"]) == Config.WEAPON_ORDER.size() and int(sheet_rows["villains"]) == Config.ENEMIES.size()
+			and int(sheet_rows["gangs"]) == Config.MAPS.size() and int(sheet_rows["pets"]) == Config.PETS.size()
+			and int(sheet_rows["skills"]) == Config.PASSIVE_ORDER.size() and int(sheet_rows["perks"]) == Config.RUN_PERK_ORDER.size()
+			and int(sheet_rows["upgrades"]) == Config.WEAPON_TRACK_ORDER.size() + 5
+			and int(sheet_rows["wperks"]) == Config.WEAPON_ORDER.size() * 3 + Config.WEAPON_PERK_LEVELS.size() + Config.WEAPON_PERK_COST.size()
+			and int(sheet_rows["gear"]) == Config.GEAR_ORDER.size() + Config.GEAR_TIERS.size() + Config.ENEMIES.size() + 9,
+			"the dashboard's tables hold every weapon, upgrade, weapon perk, villain, map, piece of gear, pet, skill and perk (%d numbers and names)" % sheet_cells)
 
 	# --- there is no rage in the game any more: Space, the right mouse button and LB do nothing ---
 	_check(not InputMap.has_action("rage") and not game.has_method("try_activate_rage"), "rage is gone from the game")
