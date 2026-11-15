@@ -11,7 +11,7 @@ extends Node
 ## ============================================================================
 
 const GAME_TITLE := "HAITIAN GANG WARS"
-const GAME_VERSION := "0.14.0"
+const GAME_VERSION := "0.15.0"
 const HERO_NAME := "JANJAN"                   # the soldier you play, as everybody calls him...
 const HERO_FULL_NAME := "JEAN-BAPTISTE"       # ...and his real name
 const GAME_TAGLINE := "TAKE THE COUNTRY BACK"   # under the title on the main menu
@@ -441,6 +441,28 @@ const ENEMIES := {
 	},
 }
 
+# What each map's boss does BESIDES the charge and the summoning they all share
+# (the boss's "variant" = the map, see wave_director). Every move warns first.
+#   "double"  Kòk Batay: he charges again right after his charge, then lies dazed longer
+#             (a charge that ends against a wall stops him as it stops any boss)
+#   "sweep"   Machwè Fè: he plants his feet and sweeps his blade across a wide arc in
+#             front of him; a red fan on the ground shows where, and how soon
+#   "dirt"    Papa Zo: he calls up more dead, more often, and throws shovel-loads of
+#             grave dirt that land like a Chucker's rubble (same red rings)
+# "hint" is added to the boss's announcement. {} = no move of his own yet.
+const BOSS_MOVES := [
+	{"move": "double", "hint": "he charges twice", "charges": 2, "again_windup": 0.5, "recover_mult": 1.5},
+	{"move": "sweep", "hint": "stay out of his blade's arc",
+		"sweep_cooldown": 5.0, "sweep_range": 235.0, "sweep_windup": 0.95, "sweep_radius": 250.0,
+		"sweep_half_deg": 62.0, "sweep_damage": 34.0, "sweep_recover": 0.75, "sweep_shake": 0.5},
+	{"move": "dirt", "hint": "he raises the dead and throws grave dirt",
+		"summon_count": 9, "summon_cooldown": 6.5,
+		"dirt_cooldown": 6.0, "dirt_range_min": 170.0, "dirt_range_max": 720.0, "dirt_windup": 0.7,
+		"dirt_lumps": 3, "dirt_spread": 125.0, "dirt_damage": 22.0},
+	{},
+	{},
+]
+
 # Things thrown and spat at the player.
 const ENEMY_SHOT_CRATE_DAMAGE := 20.0   # what a glob of spit does to a weapon crate in its way
 const LOB_CRATE_DAMAGE := 60.0          # ...and a lump of rubble landing beside one
@@ -579,7 +601,7 @@ const RUN_PERKS := {
 	"tough": {"name": "THICK SKIN", "text": "+%s max health", "value": 25.0, "max": 0, "icon": "stat_vitality", "color": Color(0.45, 0.9, 0.4)},
 	"armor": {"name": "PADDED VEST", "text": "take %s%% less damage", "value": 0.08, "max": 0, "icon": "stat_defense", "color": Color(0.45, 0.9, 0.4)},
 	"dodge": {"name": "SLIPPERY", "text": "+%s%% chance to dodge a hit", "value": 0.05, "max": 6, "icon": "stat_evasion", "color": Color(0.45, 0.9, 0.4)},
-	"medic": {"name": "FIELD DRESSING", "text": "every cleared wave heals %s%% of your health", "value": 0.2, "max": 4, "icon": "perk_medic", "color": Color(0.45, 0.9, 0.4)},
+	"medic": {"name": "FIELD DRESSING", "text": "every cleared wave heals %s%% of your health", "value": 0.2, "max": 2, "icon": "perk_medic", "color": Color(0.45, 0.9, 0.4)},
 	"leech": {"name": "PAYBACK", "text": "every %s kills heal 2 health", "value": 8.0, "max": 3, "icon": "perk_leech", "color": Color(0.45, 0.9, 0.4)},
 	"power": {"name": "HARD HITTER", "text": "+%s%% damage", "value": 0.12, "max": 0, "icon": "stat_strength", "color": Color(1.0, 0.45, 0.35)},
 	"rapid": {"name": "QUICK TRIGGER", "text": "+%s%% attack speed", "value": 0.1, "max": 0, "icon": "stat_dexterity", "color": Color(1.0, 0.45, 0.35)},
@@ -1135,6 +1157,11 @@ func wave_enemy_count(wave: int) -> int:
 func boss_name(map_index: int) -> String:
 	var map: Dictionary = MAPS[clampi(map_index, 0, MAPS.size() - 1)]
 	return String(map.get("boss", ENEMIES[BOSS]["name"]))
+
+
+## The move of his own that the boss in this look has ({} = none).
+func boss_move(variant: int) -> Dictionary:
+	return BOSS_MOVES[variant] if variant >= 0 and variant < BOSS_MOVES.size() else {}
 
 
 func is_boss_wave(wave: int) -> bool:

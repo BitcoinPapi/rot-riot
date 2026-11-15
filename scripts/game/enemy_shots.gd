@@ -6,6 +6,8 @@ extends Node2D
 ##   lobs   - a Chucker's lump of rubble: sails over everything and lands
 ##            where the player stood when it was thrown; a red ring on the
 ##            ground shows where, and how soon
+##   sweeps - a boss's blade coming round: a red fan on the ground in front of
+##            him shows where it will cut and fills up as it comes
 ## Plain data moved by one loop and drawn by this one node, like the
 ## player's bullets.
 
@@ -28,9 +30,21 @@ class Lob:
 	var shake := 0.3
 	var spin := 0.0
 
+class Sweep:
+	var from := Vector2.ZERO
+	var angle := 0.0            # the middle of the fan
+	var half := 1.0             # half its width, in radians
+	var radius := 200.0
+	var t := 0.0
+	var time := 1.0
+	var damage := 0.0
+	var shake := 0.4
+
 var game: Game
 var spits: Array[Spit] = []
 var lobs: Array[Lob] = []
+var sweeps: Array[Sweep] = []
+var sweep_hits := 0            # how often a sweep has cut the player on this computer (tests look at it)
 
 var _time := 0.0
 var _glow: Texture2D
@@ -81,6 +95,28 @@ func lob(from: Vector2, target: Vector2, c: Dictionary, damage: float) -> void:
 	Sfx.play("lob_throw", -2.0, 0.12)
 	if game.coop != null and not game.is_client:
 		game.coop.send([Coop.E_LOB, from.x, from.y, l.target.x, l.target.y, damage])
+
+
+## A boss's blade about to come round: it cuts everything in the fan that opens from
+## `from` around `angle`, when its warning time is up. `c` is the boss's move (Config.BOSS_MOVES).
+func sweep(from: Vector2, angle: float, c: Dictionary, damage: float) -> void:
+	add_sweep(from, angle, deg_to_rad(float(c["sweep_half_deg"])), float(c["sweep_radius"]), float(c["sweep_windup"]),
+			float(c["sweep_shake"]), damage)
+
+
+## The same from plain numbers (this is what the host tells the other players).
+func add_sweep(from: Vector2, angle: float, half: float, radius: float, time: float, shake: float, damage: float) -> void:
+	var w := Sweep.new()
+	w.from = from
+	w.angle = angle
+	w.half = clampf(half, 0.05, PI)
+	w.radius = clampf(radius, 10.0, 2000.0)
+	w.time = clampf(time, 0.1, 10.0)
+	w.shake = shake
+	w.damage = damage
+	sweeps.append(w)
+	if game.coop != null and not game.is_client:
+		game.coop.send([Coop.E_SWEEP, from.x, from.y, angle, w.half, w.radius, w.time, shake, damage])
 
 
 # ----------------------------------------------------------------------------
@@ -145,7 +181,56 @@ func tick(dt: float) -> void:
 			lobs.pop_back()
 		else:
 			i += 1
+
+	i = 0
+	while i < sweeps.size():
+		var w := sweeps[i]
+		w.t += dt
+		if w.t >= w.time:
+			_cut(w)
+			sweeps[i] = sweeps[sweeps.size() - 1]
+			sweeps.pop_back()
+		else:
+			i += 1
 	queue_redraw()
+
+
+## Is this spot inside the fan of a sweep? (`extra` = the size of whoever stands there)
+func in_sweep(w: Sweep, at: Vector2, extra: float = 0.0) -> bool:
+	var to := at - w.from
+	var dist := to.length()
+	if dist > w.radius + extra:
+		return false
+	if dist < extra + 1.0:
+		return true
+	# (the body's own width counts: a little wider close up)
+	return absf(angle_difference(w.angle, to.angle())) <= w.half + asin(clampf(extra / dist, 0.0, 1.0))
+
+
+## The blade comes round: whoever stands in the fan is cut.
+func _cut(w: Sweep) -> void:
+	var player := game.player
+	if player.alive and in_sweep(w, player.pos, player.radius):
+		sweep_hits += 1
+		game.damage_player(w.damage, w.from)
+	for k in 9:
+		var a := w.angle + w.half * (float(k) / 4.0 - 1.0)
+		var at := w.from + Vector2.from_angle(a) * w.radius * randf_range(0.55, 1.0)
+		game.fx.dust(at, 4)
+	game.fx.ring(w.from, w.radius * 0.4, w.radius, 0.25, Color(1.0, 0.85, 0.7, 0.6))
+	if player.pos.distance_to(w.from) < 800.0:
+		game.shake(w.shake)
+	Sfx.play("boss_slam", -2.0, 0.1)
+
+
+## A filled slice of a circle. (One or two on screen at most, so the plain polygon is fine.)
+func _fan(from: Vector2, angle: float, half: float, radius: float, color: Color) -> void:
+	if radius < 2.0:
+		return
+	var points := PackedVector2Array([from])
+	for k in 17:
+		points.append(from + Vector2.from_angle(angle + half * (float(k) / 8.0 - 1.0)) * radius)
+	draw_colored_polygon(points, color)
 
 
 ## Where along the segment a->b (0..1) a moving dot first comes within `reach`
@@ -202,6 +287,18 @@ func _land(l: Lob) -> void:
 #  Drawing
 # ----------------------------------------------------------------------------
 func _draw() -> void:
+	# Where a blade is about to cut: a red fan that fills up from the boss outwards.
+	for w: Sweep in sweeps:
+		var f := clampf(w.t / w.time, 0.0, 1.0)
+		var blink := 0.75 + 0.25 * sin(_time * 18.0)
+		_fan(w.from, w.angle, w.half, w.radius, Color(1.0, 0.15, 0.1, 0.13 + 0.07 * f))
+		_fan(w.from, w.angle, w.half, w.radius * f, Color(1.0, 0.12, 0.08, 0.2 + 0.16 * f))
+		var edge := PackedVector2Array([w.from])
+		for k in 17:
+			edge.append(w.from + Vector2.from_angle(w.angle + w.half * (float(k) / 8.0 - 1.0)) * w.radius)
+		edge.append(w.from)
+		draw_polyline(edge, Color(1.0, 0.25, 0.18, (0.5 + 0.4 * f) * blink), 3.0)
+
 	# Where rubble is about to land: a red ring that fills up as it comes down.
 	for l: Lob in lobs:
 		var f := clampf(l.t / l.time, 0.0, 1.0)

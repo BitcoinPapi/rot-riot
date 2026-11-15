@@ -44,6 +44,7 @@ const E_PAUSE := 19        # [paused]
 const E_REVIVE := 20       # [slot]   that player has been picked up
 const E_FIRE := 21         # [slot, weapon number, x, y, angle, both hands]
 const E_LEFT := 22         # [slot]   that player has left this run
+const E_SWEEP := 23        # [x, y, angle, half width, radius, seconds, shake, damage]   a boss's blade is about to come round
 # Events from the joiner.
 const C_HITS := 30         # [[id, amount, dir x, dir y, knockback, stagger, crit, weapon number, hit stop], ...]
 const C_IGNITE := 31       # [id, seconds, damage per second, weapon number]
@@ -53,7 +54,7 @@ const C_CRATE_HIT := 33    # [id, amount, dir x, dir y]
 # How long each message must be at least (anything shorter is thrown away).
 const SIZES := {E_KILL: 13, E_HURT: 4, E_WAVE_START: 3, E_WAVE_CLEAR: 3, E_BOSS: 1, E_CRATE_ADD: 5, E_CRATE_HP: 3,
 	E_CRATE_GONE: 4, E_MEDKIT_ADD: 4, E_MEDKIT_GONE: 3, E_LOOT_ADD: 5, E_LOOT_GONE: 3, E_COINS: 4, E_CHEST: 3, E_SPIT: 6,
-	E_LOB: 6, E_BURST: 3, E_OVER: 2, E_PAUSE: 2, E_REVIVE: 2, E_FIRE: 7, E_LEFT: 2, C_HITS: 2, C_IGNITE: 5, C_KNOCK: 6,
+	E_LOB: 6, E_BURST: 3, E_OVER: 2, E_PAUSE: 2, E_REVIVE: 2, E_FIRE: 7, E_LEFT: 2, E_SWEEP: 9, C_HITS: 2, C_IGNITE: 5, C_KNOCK: 6,
 	C_CRATE_HIT: 5}
 
 var game: Game
@@ -542,6 +543,9 @@ func _handle_from_host(code: int, ev: Array) -> void:
 					Config.ENEMIES[Config.CHUCKER], float(ev[5]))
 		E_BURST:
 			game.enemies.burst_fx(Vector2(float(ev[1]), float(ev[2])))
+		E_SWEEP:
+			game.enemy_shots.add_sweep(Vector2(float(ev[1]), float(ev[2])), float(ev[3]), float(ev[4]), float(ev[5]), float(ev[6]),
+					float(ev[7]), float(ev[8]))
 		E_OVER:
 			if typeof(ev[1]) == TYPE_DICTIONARY:
 				shared = ev[1]

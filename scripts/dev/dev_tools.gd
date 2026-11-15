@@ -304,6 +304,14 @@ func _run_cooptest() -> void:
 	_check(is_equal_approx(game.strength_hp(), Config.COOP_ENEMY_HP[count - 1]) and game.strength_hp() > 1.0,
 			"zombies are tougher with %d players (health x%.2f)" % [count, game.strength_hp()])
 
+	# --- a boss's blade: the warning fan the host starts shows on every computer (out of everybody's way) ---
+	await _at(1.2)
+	if host:
+		game.enemy_shots.sweep(middle + Vector2(0.0, 430.0), PI * 0.5, Config.boss_move(1), 1.0)
+	await _at(1.7)
+	_check(game.enemy_shots.sweeps.size() == 1 and is_equal_approx(game.enemy_shots.sweeps[0].radius, float(Config.boss_move(1)["sweep_radius"])),
+			"the red fan of a boss's sweep shows on every computer")
+
 	# --- the host's zombies show on every screen; the first joiner's bullets kill them ---
 	await _at(2.0)
 	if host:
@@ -1836,6 +1844,81 @@ func _run_autotest() -> void:
 	game.cam.snap_to(pl.pos)
 	game.fog.reveal(pl.pos, 1.5)
 	pl.stats.evasion = 0.0
+	pl.hp = pl.max_hp
+	await _frames(3)
+
+	# --- the bosses' own moves (Config.BOSS_MOVES): each warns, then does what its hint says ---
+	var bm_boss_cfg: Dictionary = Config.ENEMIES[Config.BOSS]
+	# Kòk Batay charges, turns and charges again.
+	var bm_twice := game.enemies.spawn(Config.BOSS, stand + Vector2(-330.0, 0.0), 1.0, 1.0, false, 0)
+	bm_twice.summon_cd = 99.0
+	bm_twice.charge_cd = 0.0
+	await _until(func() -> bool: return bm_twice.state == EnemyManager.B_CHARGE, 150)
+	var bm_first_charge := bm_twice.state == EnemyManager.B_CHARGE and bm_twice.combo == 1
+	await _until(func() -> bool: return bm_twice.state == EnemyManager.B_WINDUP, 150)
+	var bm_turns := bm_twice.state == EnemyManager.B_WINDUP and bm_twice.combo == 0
+	await _until(func() -> bool: return bm_twice.state == EnemyManager.B_CHARGE, 120)
+	var bm_second_charge := bm_twice.state == EnemyManager.B_CHARGE
+	await _until(func() -> bool: return bm_twice.state == EnemyManager.B_RECOVER, 150)
+	_check(bm_first_charge and bm_turns and bm_second_charge and bm_twice.state == EnemyManager.B_RECOVER
+			and bm_twice.state_t > float(bm_boss_cfg["charge_recover"]),
+			"Kòk Batay charges, turns and charges again, then lies dazed longer than the others")
+	game.enemies.clear_all()
+
+	# Machwè Fè: a red fan in front of him, then the blade cuts whoever still stands in it.
+	pl.place(stand)
+	pl.hp = pl.max_hp
+	var bm_cutter := game.enemies.spawn(Config.BOSS, stand + Vector2(-200.0, 0.0), 1.0, 1.0, false, 1)
+	bm_cutter.summon_cd = 99.0
+	bm_cutter.charge_cd = 99.0
+	bm_cutter.move_cd = 0.0
+	await _until(func() -> bool: return bm_cutter.state == EnemyManager.B_SWEEP, 90)
+	var bm_fan_up := bm_cutter.state == EnemyManager.B_SWEEP and shots.sweeps.size() == 1
+	var bm_cuts := shots.sweep_hits
+	pl.invuln = 0.0
+	await _until(func() -> bool: return shots.sweeps.is_empty(), 150)
+	_check(bm_fan_up and shots.sweep_hits == bm_cuts + 1, "Machwè Fè shows a red fan, then his blade cuts the player standing in it")
+	await _until(func() -> bool: return bm_cutter.state == EnemyManager.B_CHASE, 150)
+	bm_cutter.move_cd = 0.0
+	bm_cutter.charge_cd = 99.0
+	await _until(func() -> bool: return bm_cutter.state == EnemyManager.B_SWEEP and not shots.sweeps.is_empty(), 150)
+	var bm_fan: EnemyShots.Sweep = null
+	if not shots.sweeps.is_empty():
+		bm_fan = shots.sweeps[0]
+		pl.place(bm_fan.from - Vector2.from_angle(bm_fan.angle) * 160.0)       # (behind him)
+	bm_cuts = shots.sweep_hits
+	pl.invuln = 0.0
+	await _until(func() -> bool: return shots.sweeps.is_empty(), 150)
+	_check(bm_fan != null and shots.sweep_hits == bm_cuts, "...and misses a player who got behind him in time")
+	game.enemies.clear_all()
+	shots.sweeps.clear()
+
+	# Papa Zo: grave dirt from a distance, and more dead out of the ground than the others call.
+	var bm_dirt: Dictionary = Config.boss_move(2)
+	pl.place(stand)
+	pl.hp = pl.max_hp
+	var bm_digger := game.enemies.spawn(Config.BOSS, stand + Vector2(-400.0, 0.0), 1.0, 1.0, false, 2)
+	bm_digger.summon_cd = 99.0
+	bm_digger.charge_cd = 99.0
+	bm_digger.move_cd = 0.0
+	await _until(func() -> bool: return bm_digger.state == EnemyManager.B_THROW, 90)
+	var bm_warned := bm_digger.state == EnemyManager.B_THROW and shots.lobs.is_empty()
+	await _until(func() -> bool: return not shots.lobs.is_empty(), 120)
+	_check(bm_warned and shots.lobs.size() == int(bm_dirt["dirt_lumps"]), "Papa Zo warns, then throws %d shovel-loads of grave dirt" % shots.lobs.size())
+	shots.lobs.clear()
+	var bm_dead_before := game.enemies.alive_count
+	bm_digger.move_cd = 99.0
+	bm_digger.summon_cd = 0.0
+	await _until(func() -> bool: return game.enemies.alive_count >= bm_dead_before + int(bm_dirt["summon_count"]), 180)
+	_check(game.enemies.alive_count == bm_dead_before + int(bm_dirt["summon_count"]) and int(bm_dirt["summon_count"]) > int(bm_boss_cfg["summon_count"]),
+			"...and calls up %d dead at a time, more than the other bosses" % int(bm_dirt["summon_count"]))
+	_check(Config.boss_move(0).has("hint") and Config.boss_move(1).has("hint") and bm_dirt.has("hint")
+			and Config.boss_move(3).is_empty() and Config.boss_move(4).is_empty(),
+			"the three painted bosses have a move of their own and a hint for it; the last two not yet")
+	game.enemies.clear_all()
+	shots.lobs.clear()
+	shots.sweeps.clear()
+	pl.place(stand)
 	pl.hp = pl.max_hp
 	await _frames(3)
 

@@ -20,6 +20,10 @@ const B_WINDUP := 1
 const B_CHARGE := 2
 const B_RECOVER := 3
 const B_SUMMON := 4
+# A boss's own move (Config.BOSS_MOVES). Only the lowest two bits of a state travel to
+# joining players, so both of these are shown there as a wind-up (1): the boss blinks.
+const B_SWEEP := 5     # Machwè Fè: feet planted while the red fan fills, then the blade comes round
+const B_THROW := 9     # Papa Zo: about to throw his shovel-loads of grave dirt
 
 var game: Game
 var active: Array[Enemy] = []       # everything spawned (dead ones are removed at the start of the next frame)
@@ -154,8 +158,11 @@ func spawn(kind: int, at: Vector2, hp_mult: float = 1.0, speed_mult: float = 1.0
 	elif e.ai == Config.AI_LEAPER:
 		e.charge_cd = float(c["leap_cooldown"]) * randf_range(0.15, 0.6)
 	if e.is_big:
+		var own: Dictionary = Config.boss_move(e.variant)
 		e.charge_cd = float(c["charge_cooldown"]) * 0.6
-		e.summon_cd = float(c["summon_cooldown"]) * 0.5
+		e.summon_cd = float(own.get("summon_cooldown", c["summon_cooldown"])) * 0.5
+		e.move_cd = float(own.get("sweep_cooldown", own.get("dirt_cooldown", 0.0))) * 0.6
+		e.combo = 0
 		bigs.append(e)
 	e.tex_normal = Art.enemy_tex(kind, e.variant)
 	e.tex_flash = Art.enemy_flash_tex(kind, e.variant)
@@ -438,6 +445,8 @@ func _compact() -> void:
 # ----------------------------------------------------------------------------
 func _tick_boss(e: Enemy, dt: float) -> void:
 	var cfg: Dictionary = Config.ENEMIES[Config.BOSS]
+	var move: Dictionary = Config.boss_move(e.variant)     # (what this map's boss does besides charging and summoning)
+	var own := String(move.get("move", ""))
 	var player := game.player
 	var arena := game.arena
 	# Who it is after: the nearer player who is still on their feet.
@@ -476,15 +485,28 @@ func _tick_boss(e: Enemy, dt: float) -> void:
 			if e.entered and t_ok:
 				e.charge_cd -= dt
 				e.summon_cd -= dt
+				e.move_cd -= dt
 				if e.summon_cd <= 0.0:
 					e.state = B_SUMMON
 					e.state_t = cfg["summon_windup"]
 					Sfx.play("boss_roar")
 					game.shake(float(cfg["roar_shake"]))
 					game.fx.ring(e.pos, e.radius, 260.0, 0.5, Color(1.0, 0.3, 0.2, 0.7))
+				elif own == "sweep" and e.move_cd <= 0.0 and dist < float(move["sweep_range"]):
+					# The red fan is the warning; it opens where he looks NOW and does not follow the player.
+					e.state = B_SWEEP
+					e.state_t = move["sweep_windup"]
+					e.face = dirp.angle()
+					game.enemy_shots.sweep(e.pos, e.face, move, float(move["sweep_damage"]) * game.enemy_damage_mult)
+					Sfx.play("boss_charge")
+				elif own == "dirt" and e.move_cd <= 0.0 and dist > float(move["dirt_range_min"]) and dist < float(move["dirt_range_max"]):
+					e.state = B_THROW
+					e.state_t = move["dirt_windup"]
+					Sfx.play("boss_charge")
 				elif e.charge_cd <= 0.0 and dist > float(cfg["charge_range_min"]) and dist < float(cfg["charge_range_max"]):
 					e.state = B_WINDUP
 					e.state_t = cfg["charge_windup"]
+					e.combo = int(move.get("charges", 1)) - 1
 					Sfx.play("boss_charge")
 		B_WINDUP:
 			# Warning: it shakes and flashes while it locks on.
@@ -513,21 +535,59 @@ func _tick_boss(e: Enemy, dt: float) -> void:
 				game.fx.ring(e.pos, e.radius, 200.0, 0.35, Color(1, 1, 1, 0.5))
 				Sfx.play("boss_slam")
 			if e.state_t <= 0.0 or hit_wall:
-				e.state = B_RECOVER
-				e.state_t = cfg["charge_recover"]
+				if e.combo > 0 and not hit_wall:
+					# (Kòk Batay) no rest: he turns on you and charges again.
+					e.combo -= 1
+					e.state = B_WINDUP
+					e.state_t = move["again_windup"]
+					Sfx.play("boss_charge")
+				else:
+					e.combo = 0
+					e.state = B_RECOVER
+					e.state_t = float(cfg["charge_recover"]) * float(move.get("recover_mult", 1.0))
 		B_RECOVER:
 			e.state_t -= dt
 			e.modulate = Color(0.75, 0.75, 0.85)
 			if e.state_t <= 0.0:
 				e.state = B_CHASE
 				e.charge_cd = cfg["charge_cooldown"]
+		B_SWEEP:
+			# (Machwè Fè) He stands where he is while the fan fills; the cutting is done by
+			# EnemyShots, on every computer for its own player.
+			e.state_t -= dt
+			var glare := 0.5 + 0.5 * sin(_time * 40.0)
+			e.modulate = Color(1.0, 1.0 - glare * 0.6, 1.0 - glare * 0.6)
+			e.phase += dt * 40.0
+			if e.state_t <= 0.0:
+				e.state = B_RECOVER
+				e.state_t = move["sweep_recover"]
+				e.move_cd = move["sweep_cooldown"]
+		B_THROW:
+			# (Papa Zo) A moment of warning, then shovel-loads of grave dirt: one on the
+			# player's spot and the others beside it, so stepping sideways is not enough.
+			e.state_t -= dt
+			e.face = lerp_angle(e.face, dirp.angle(), minf(dt * 10.0, 1.0))
+			var flush := 0.5 + 0.5 * sin(_time * 40.0)
+			e.modulate = Color(1.0, 1.0 - flush * 0.6, 1.0 - flush * 0.6)
+			e.phase += dt * 40.0
+			if e.state_t <= 0.0:
+				e.state = B_CHASE
+				e.move_cd = move["dirt_cooldown"]
+				var lump: Dictionary = Config.ENEMIES[Config.CHUCKER]      # (they fly and land like a Chucker's rubble)
+				var side := Vector2(-dirp.y, dirp.x)
+				var lumps := int(move["dirt_lumps"])
+				for k in lumps:
+					var beside := side * (float(move["dirt_spread"]) * (float(k) - float(lumps - 1) * 0.5))
+					var off := Vector2.from_angle(randf() * TAU) * (randf() * float(lump["lob_aim_error"]))
+					game.enemy_shots.lob(e.pos + dirp * e.radius, tpos + beside + off, lump,
+							float(move["dirt_damage"]) * game.enemy_damage_mult)
 		B_SUMMON:
 			e.state_t -= dt
 			e.phase += dt * 30.0
 			if e.state_t <= 0.0:
 				e.state = B_CHASE
-				e.summon_cd = cfg["summon_cooldown"]
-				var count: int = cfg["summon_count"]
+				e.summon_cd = float(move.get("summon_cooldown", cfg["summon_cooldown"]))
+				var count := int(move.get("summon_count", cfg["summon_count"]))
 				for k in count:
 					if alive_count >= Config.MAX_ENEMIES_ALIVE:
 						break

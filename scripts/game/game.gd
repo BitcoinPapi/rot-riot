@@ -519,7 +519,10 @@ func _map_cleared() -> void:
 func _on_boss_spawned(_boss: Enemy) -> void:
 	if coop != null and not is_client:
 		coop.send([Coop.E_BOSS])
-	hud.announce(Config.boss_name(map_index), "boss of the %s gang" % String(map.get("gang", "")), Color(1.0, 0.25, 0.2), 2.6)
+	# (His own move is named with him: one short hint, like the tip a new kind of zombie gets.)
+	var hint := String(Config.boss_move(map_index % Art.BOSS_VARIANTS).get("hint", ""))
+	var under := "boss of the %s gang" % String(map.get("gang", ""))
+	hud.announce(Config.boss_name(map_index), under if hint == "" else "%s  -  %s" % [under, hint], Color(1.0, 0.25, 0.2), 3.2 if hint != "" else 2.6)
 
 
 ## A zombie died (on the computer that runs the zombies). `killer` = the slot
@@ -582,6 +585,7 @@ func _kill_feel(e: Enemy, dir: Vector2, kill_hitstop: float, mine: bool) -> void
 
 
 func _boss_killed(e: Enemy) -> void:
+	enemy_shots.sweeps.clear()      # (a dead boss does not finish his swing)
 	# A boss death is an event: slow motion, a huge burst, and a reward crate.
 	for k in 5:
 		var at := e.pos + Vector2.from_angle(randf() * TAU) * randf_range(10.0, 60.0)
