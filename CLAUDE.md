@@ -158,7 +158,7 @@ Other dev flags (all after `--`, see `scripts/dev/dev_tools.gd`): `--play`,
 these run perks), `--perks=N` (owe N perk choices half a second in, to look at the choice), `--pets=N` (own the first N pets;
 needs `--level=18` or more),
 `--fewer` (the FEWER EFFECTS switch on), `--stats` (the F3 frame-rate line shown),
-`--at=X,Y` (start the run at that spot of the map; the middle is 1500,1000), `--no-fog` (whole map
+`--at=X,Y` (start the run at that spot of the map; the middle is 1050,700), `--no-fog` (whole map
 uncovered), `--show-chests` (a closed chest beside the player and an opened one),
 `--horde=KIND:N,KIND:N` (put zombies around the player: shambler, runner, brute, boss, gobber,
 chucker, gasbag, lunger, fighter - e.g. `--horde=gobber:3,gasbag:2`; a boss comes in the look of
@@ -332,13 +332,18 @@ pointer. Left / right walk the zones, down leaves the map for START. The
 rules did not change. The input test checks that every pin lies on land
 and inside the picture.
 
-**The map** (THE MAP section of config.gd): one clearing of **3000x2000**
-ringed by trees (the screen shows about 1070x600 of it, so the map is
-roughly three screens each way), with about 15 random rocks/stumps. It was
-6000x4000 at first; after playing it the owner asked to "decrease the map
-size by 50%" - done as half the width and half the height (`ARENA_SIZE`; if
-he meant half the AREA it would be about 4240x2830). Everything below
-follows the size by itself. The player starts in the middle. Camera zoom
+**The map** (THE MAP section of config.gd): one clearing of **2100x1400**
+ringed by trees (the screen shows about 1070x600 of it, so the map is about
+two screens wide and a little over two high), with about 7 random
+rocks/stumps. It was 6000x4000 at first; after playing it the owner asked to
+"decrease the map size by 50%" - done as half the width and half the height
+(3000x2000, v0.10 - v0.15) - and later to "make the map 30% smaller" - done
+the same way, each side x 0.7 (`ARENA_SIZE`, v0.16; if he meant 30% less
+AREA it would be about 2510x1670). Everything below follows the size by
+itself, except two numbers that were moved with it: chests keep 480 px from
+the start instead of 600, and a zombie counts as "left behind" 300 px
+sooner (`ENEMY_LEASH_EXTRA`; on this map nothing could get as far away as
+the old distance). The player starts in the middle. Camera zoom
 1.2, may look 110 px past the edge.
 - *Zombies hunt the player wherever they are.* A pack claws out of the
   ground (`rising`) in a ring around the middle of the screen, just out of
@@ -360,7 +365,7 @@ follows the size by itself. The player starts in the middle. Camera zoom
   zombies as red dots under the fog; over it the chests already seen (gold),
   opened chests (dim), weapon crates, gear, the boss, the screen's outline
   and the player's arrow. Above it: chests opened / total and "% explored".
-- *Treasure chests* (`CHEST_*`): 4 are hidden each run, at least 600 px
+- *Treasure chests* (`CHEST_*`): 4 are hidden each run, at least 480 px
   from the start and spread out. A chest shows (and gets a minimap mark, and
   an edge arrow when off-screen) once the fog over it clears; walking into
   it opens it: a piece of gear straight into the bag (kept even if you die)
@@ -828,8 +833,8 @@ The game auto-pauses when the window loses focus.
   SubViewports that are never cleared, then stamps blood, bodies and casings
   onto them (a viewport is set to UPDATE_ONCE for the frames that have
   stamps). Tens of thousands of decals cost the same as none. A big map is too
-  much for one picture, so it is cut into chunks (4x3 of about 825x770 px on
-  the 3000x2000 map; six of them are made in the first frames of a run); a
+  much for one picture, so it is cut into chunks (3x2 of about 800x850 px on
+  the 2100x1400 map; most of them are made in the first frames of a run); a
   chunk is only made when the screen comes within `DECAL_CHUNK_AHEAD` of it
   (one per frame at most) or something is stamped on it. Whatever can lie
   across the line between two chunks (the big soft ground patches, the edge
@@ -1128,6 +1133,10 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
 - After v0.9: "decrease the map size by 50%" -> 3000x2000 (half as wide and
   half as tall; chests now at least 600 px from the start). The big map
   was a first guess he had been asked about; this is his answer.
+  After v0.15: "make the map 30% smaller" -> 2100x1400 (v0.16.0; each side
+  x 0.7, chests at least 480 px from the start). With four chests on so
+  little ground they are found quickly - ask him about `CHEST_COUNT` if
+  gear comes too fast.
 - Sent three Poly Haven ground photos and a Sonniss shotgun recording
   (files too heavy to attach: Claude gives him Terminal commands that cut
   out and shrink what is needed into a small zip in `~/Desktop/rr-send`).
@@ -1275,7 +1284,8 @@ Build one stage at a time; the owner plays each before the next starts.
 3b. **Pets. DONE (awaiting the owner's playtest).** See "Pets" under
    Progression. Ideas if the owner wants more: more pets per rarity, pets as
    rare boss drops, a pet that flies and fetches from far away.
-4. **Big map. DONE; then halved at the owner's request (3000x2000).** A map
+4. **Big map. DONE; then halved at the owner's request (3000x2000), then
+   made 30% smaller again (2100x1400).** A map
    several screens wide, fog of
    war, a minimap, four treasure chests per run that give gear; zombies rise
    around the player wherever they are. See "The map" above. Ideas if the

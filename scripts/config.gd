@@ -11,7 +11,7 @@ extends Node
 ## ============================================================================
 
 const GAME_TITLE := "HAITIAN GANG WARS"
-const GAME_VERSION := "0.15.0"
+const GAME_VERSION := "0.16.0"
 const HERO_NAME := "JANJAN"                   # the soldier you play, as everybody calls him...
 const HERO_FULL_NAME := "JEAN-BAPTISTE"       # ...and his real name
 const GAME_TAGLINE := "TAKE THE COUNTRY BACK"   # under the title on the main menu
@@ -20,11 +20,13 @@ const HERO_LOOK := {"skin": "#7a5032", "skin_dark": "#5b3a24", "hair": "#14100d"
 	"strap": "#2f2b22", "pants": "#3f4c2e", "pads": "#1f231a", "boots": "#17181b", "belt": "#2c2a22", "pouch": "#7b6c49", "metal": "#b9bec4"}
 
 # ----------------------------------------------------------------------------
-#  THE MAP - one clearing in the woods, about three screens wide and three
-#  high (a screen shows about 1070 x 600 of it). A map may set its own "size".
-#  (It was 6000 x 4000 until v0.10; the owner asked for half of that.)
+#  THE MAP - one clearing in the woods, about two screens wide and a little
+#  over two high (a screen shows about 1070 x 600 of it). A map may set its
+#  own "size".
+#  (It was 6000 x 4000 until v0.10, then 3000 x 2000 until v0.15: the owner
+#  asked for half of the first and then for 30% less - each side x 0.7.)
 # ----------------------------------------------------------------------------
-const ARENA_SIZE := Vector2(3000.0, 2000.0)   # the playable area
+const ARENA_SIZE := Vector2(2100.0, 1400.0)   # the playable area
 const ARENA_OUTER_MARGIN := 150.0             # painted ground beyond the playable edge
 const CAMERA_EDGE_MARGIN := 110.0             # how far past the edge the camera may look
 const OBSTACLES_PER_MILLION := 2.5            # rocks / stumps per 1000 x 1000 px of map
@@ -52,8 +54,9 @@ const DECAL_CHUNK_AHEAD := 260.0              # ...which is when the screen come
 # player, just out of sight, wherever on the map the player is.
 const SPAWN_RING_MARGIN := 70.0               # the ring starts this far beyond the corner of the screen
 const SPAWN_RING_DEPTH := 240.0               # ...and is this deep
-const ENEMY_LEASH_EXTRA := 450.0              # a zombie left this far beyond the ring gives up and comes back with a later pack
-const BOSS_LEASH_EXTRA := 300.0               # a boss left this far beyond the ring digs through the ground and bursts out near you
+const ENEMY_LEASH_EXTRA := 150.0              # a zombie left this far beyond the ring gives up and comes back with a later pack
+                                              # (450 on the bigger maps; on this one nothing could be that far away)
+const BOSS_LEASH_EXTRA := 50.0                # a boss left this far beyond the ring digs through the ground and bursts out near you
 
 # Fog of war: the map starts hidden and clears, for the rest of the run,
 # wherever the player has been.
@@ -75,8 +78,8 @@ const MINIMAP_FOG := Color(0.03, 0.04, 0.04, 0.95)
 # Treasure chests: a few are hidden on the map every run. Walk into one to
 # open it: a piece of gear (kept even if you die) and a handful of coins.
 const CHEST_COUNT := 4
-const CHEST_MIN_DIST_FROM_START := 600.0      # never right beside the starting spot (just past what the first look around uncovers)
-const CHEST_EDGE_MARGIN := 220.0              # ...or right at the edge of the map
+const CHEST_MIN_DIST_FROM_START := 480.0      # never right beside the starting spot (just past what the first look around uncovers)
+const CHEST_EDGE_MARGIN := 180.0              # ...or right at the edge of the map
 const CHEST_PLACE_TRIES := 12                 # more = chests spread more evenly over the map
 const CHEST_OPEN_RADIUS := 30.0
 const CHEST_SIZE := 72.0                      # how big it is drawn

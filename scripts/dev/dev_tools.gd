@@ -20,7 +20,7 @@ extends Node
 ##   --keep-weapon      ...and it never runs out
 ##   --cycle            the bot is handed each weapon in turn every 6 seconds
 ##   --wave=N           jump straight to wave N
-##   --at=X,Y           start the run at this spot of the map (the middle is 1500,1000)
+##   --at=X,Y           start the run at this spot of the map (the middle is 1050,700)
 ##   --perk=ID:N,ID:N   start the run with these run perks (Config.RUN_PERKS), N times each
 ##   --perks=N          owe N perk choices half a second into the run (to look at the choice)
 ##   --no-fog           the whole map is uncovered from the start
@@ -1837,8 +1837,8 @@ func _run_autotest() -> void:
 	# (What a real screen shows; a test without a window has a square one.)
 	var screen_size: Vector2 = Vector2(float(ProjectSettings.get_setting("display/window/size/viewport_width")),
 			float(ProjectSettings.get_setting("display/window/size/viewport_height"))) / Config.CAM_ZOOM
-	_check(field.size.x >= screen_size.x * 2.5 and field.size.y >= screen_size.y * 2.5,
-			"the map is several screens wide and high (%d x %d)" % [int(field.size.x), int(field.size.y)])
+	_check(field.size.x >= screen_size.x * 1.8 and field.size.y >= screen_size.y * 1.8,
+			"the map is about two screens wide and high, or more (%d x %d)" % [int(field.size.x), int(field.size.y)])
 	_check(game.decals.chunks_made > 0 and game.decals.chunks_made <= game.decals.chunk_count() and game.decals.has_ground(pl.pos),
 			"the ground is made in pieces, as the player gets near them (%d of %d so far)" % [game.decals.chunks_made, game.decals.chunk_count()])
 	_check(game.decals.get("_floor_tex") != null and (game.decals.get("_litter_tex") as Array).size() == Config.GROUND_LITTER.size(),
