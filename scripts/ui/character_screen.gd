@@ -377,7 +377,7 @@ func _on_forge_pressed() -> void:
 #  Display
 # ----------------------------------------------------------------------------
 func _refresh() -> void:
-	_title.text = "%s   -   LEVEL %d" % [Config.HERO_NAME, SaveData.level]
+	_title.text = "%s \"%s\"   -   LEVEL %d" % [Config.HERO_FULL_NAME, Config.HERO_NAME, SaveData.level]
 	_coins.text = "%d" % SaveData.coins
 	_hero.texture = Art.t("hero_front")
 	var focus: Button = null

@@ -1,6 +1,6 @@
 extends Node
 ## ============================================================================
-##  ROT RIOT - CONFIG
+##  HAITIAN GANG WARS (first called ROT RIOT) - CONFIG
 ##
 ##  Every balance number (speeds, health, prices, wave sizes) and every
 ##  game-feel value (screen shake, hit stop, knockback, recoil) lives in THIS
@@ -10,12 +10,14 @@ extends Node
 ##  "shake" values are "trauma" from 0 (none) to 1 (maximum earthquake).
 ## ============================================================================
 
-const GAME_TITLE := "ROT RIOT"
-const GAME_VERSION := "0.11.0"
-const HERO_NAME := "CLIFF"                    # the survivor you play
+const GAME_TITLE := "HAITIAN GANG WARS"
+const GAME_VERSION := "0.12.0"
+const HERO_NAME := "JANJAN"                   # the soldier you play, as everybody calls him...
+const HERO_FULL_NAME := "JEAN-BAPTISTE"       # ...and his real name
+const GAME_TAGLINE := "TAKE THE COUNTRY BACK"   # under the title on the main menu
 # How he looks with nothing equipped (his gear is drawn over this, see scripts/autoload/art.gd).
-const HERO_LOOK := {"skin": "#dfae88", "skin_dark": "#b98660", "hair": "#3a2a1e", "shirt": "#23262b", "shirt_light": "#33373d",
-	"strap": "#6b4a2e", "pants": "#2c2f34", "pads": "#1a1c20", "boots": "#17181b", "belt": "#3a3d42", "pouch": "#3f4a2c", "metal": "#b9bec4"}
+const HERO_LOOK := {"skin": "#7a5032", "skin_dark": "#5b3a24", "hair": "#14100d", "shirt": "#4d5c36", "shirt_light": "#607246",
+	"strap": "#2f2b22", "pants": "#3f4c2e", "pads": "#1f231a", "boots": "#17181b", "belt": "#2c2a22", "pouch": "#7b6c49", "metal": "#b9bec4"}
 
 # ----------------------------------------------------------------------------
 #  THE MAP - one clearing in the woods, about three screens wide and three
@@ -334,7 +336,7 @@ const ENEMIES := {
 		"hitstop_mult": 2.6, "shake_mult": 4.0, "blood": 2.5,
 	},
 	BOSS: {
-		"name": "THE GORGER", "hp": 1700.0, "speed": 72.0, "speed_var": 0.0, "radius": 52.0,
+		"name": "GANG BOSS", "hp": 1700.0, "speed": 72.0, "speed_var": 0.0, "radius": 52.0,
 		"damage": 30.0, "attack_cd": 1.0, "score": 1000, "xp": 350,
 		"coin_chance": 1.0, "coins_min": 25, "coins_max": 25, "medkit_chance": 1.0,
 		"kb_mult": 0.04, "stagger_mult": 0.0, "mass": 60.0, "push_player": 2.5,
@@ -481,19 +483,24 @@ const MAP_CLEAR_COINS := 300            # bonus for clearing the last wave (time
 const MAP_CLEAR_XP := 3000              # ...and XP (times the map's "xp")
 const MAP_CLEAR_CELEBRATION := 3.2      # seconds of slow-motion glory before the results screen
 const MAPS := [
-	{"name": "FOREST CAMP", "story": "A weekend in the woods. Nobody else came back to the fire.",
+	{"name": "HILL CAMP", "gang": "ZEPON", "boss": "KÒK BATAY",
+		"story": "Kòk Batay's Zepon gang took the army post in the hills. Their dead do not stay down.",
 		"hp": 1.0, "damage": 1.0, "speed": 1.0, "xp": 1.0, "coins": 1, "gear": 1.0, "gear_up": 0.0,
 		"color": Color(0.62, 0.82, 0.38), "ground": Color(0.0, 0.0, 0.0, 0.0), "trees": Color(1.0, 1.0, 1.0)},
-	{"name": "DEAD FARM", "story": "The harvest was left to rot. So were the farmhands.",
+	{"name": "CANE FIELDS", "gang": "BAZ MACHWÈ", "boss": "MACHWÈ FÈ",
+		"story": "The cane was never cut. Machwè Fè's men guard it - the living ones, and the others.",
 		"hp": 4.0, "damage": 1.8, "speed": 1.04, "xp": 1.5, "coins": 2, "gear": 1.3, "gear_up": 0.08,
 		"color": Color(0.93, 0.76, 0.32), "ground": Color(0.62, 0.47, 0.16, 0.30), "trees": Color(1.0, 0.86, 0.5)},
-	{"name": "GRAVEYARD", "story": "The old graves are open. The new ones were never filled.",
+	{"name": "GRAND CEMETERY", "gang": "LAME ZO", "boss": "PAPA ZO",
+		"story": "Papa Zo paid the bòkò well. The graves have been empty ever since.",
 		"hp": 12.0, "damage": 3.0, "speed": 1.08, "xp": 2.0, "coins": 4, "gear": 1.7, "gear_up": 0.16,
 		"color": Color(0.62, 0.72, 0.9), "ground": Color(0.16, 0.2, 0.34, 0.42), "trees": Color(0.62, 0.7, 0.86)},
-	{"name": "CONVOY CRASH", "story": "The evacuation convoy made it nine miles.",
+	{"name": "NATIONAL ROAD", "gang": "WOUT KRAZE", "boss": "GWO KAMYON",
+		"story": "Gwo Kamyon's roadblock stopped the last convoy out of the city. Nobody has moved it.",
 		"hp": 35.0, "damage": 5.0, "speed": 1.12, "xp": 2.75, "coins": 7, "gear": 2.2, "gear_up": 0.25,
 		"color": Color(0.95, 0.5, 0.3), "ground": Color(0.1, 0.1, 0.11, 0.5), "trees": Color(0.78, 0.6, 0.5)},
-	{"name": "QUARANTINE LAB", "story": "This is where it started. Something down here is still running.",
+	{"name": "THE DOCKS", "gang": "LANNWIT", "boss": "WA LANNWIT",
+		"story": "This is where the powder comes ashore. Wa Lannwit rules here, and he is waiting for you.",
 		"hp": 100.0, "damage": 8.0, "speed": 1.16, "xp": 3.5, "coins": 12, "gear": 3.0, "gear_up": 0.35,
 		"color": Color(0.4, 0.95, 0.85), "ground": Color(0.08, 0.3, 0.3, 0.42), "trees": Color(0.5, 0.9, 0.84)},
 ]
@@ -1120,6 +1127,12 @@ func wave_enemy_count(wave: int) -> int:
 	if is_boss_wave(wave):
 		count *= BOSS_WAVE_COUNT_MULT
 	return mini(int(round(count)), WAVE_MAX_COUNT)
+
+
+## The gang leader who rules map number `map_index` (every map has its own).
+func boss_name(map_index: int) -> String:
+	var map: Dictionary = MAPS[clampi(map_index, 0, MAPS.size() - 1)]
+	return String(map.get("boss", ENEMIES[BOSS]["name"]))
 
 
 func is_boss_wave(wave: int) -> bool:

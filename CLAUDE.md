@@ -1,4 +1,4 @@
-# Rot Riot - project notes for Claude
+# Haitian Gang Wars (first called Rot Riot) - project notes for Claude
 
 Original 2D top-down twin-stick zombie arena shooter. Godot 4 (developed on
 4.7.2, also verified on 4.5.1), GDScript only, GL Compatibility renderer.
@@ -7,7 +7,32 @@ Target: PC (Windows + Mac) on Steam first, mobile later.
 The owner is a beginner who does not write code: Claude writes everything,
 the owner plays the result and gives feedback. Explain things in plain words.
 
-The hero is called **Cliff** (`Config.HERO_NAME`). The owner sends reference
+**The game's identity** (the owner's rebrand, after v0.11): the title is
+**HAITIAN GANG WARS** (`Config.GAME_TITLE`). You play a Haitian soldier,
+**Jean-Baptiste, called JanJan** (`HERO_FULL_NAME` / `HERO_NAME`; he was
+"Cliff" before - older notes below that say Cliff mean him), taking the
+country back from gangs whose leaders bought zombie powder from a bòkò (a
+sorcerer of Haitian folklore, where the zonbi comes from) and now field
+armies of the dead. Each of the five maps is one gang's ground and its boss
+is that gang's leader (`"gang"` / `"boss"` in `Config.MAPS`,
+`Config.boss_name`). Same mechanics as before; only names, texts and the
+hero's look changed.
+- **The gang leaders are invented** (Kòk Batay, Machwè Fè, Papa Zo, Gwo
+  Kamyon, Wa Lannwit - Creole nicknames checked against news of real gangs).
+  The owner asked for "the leaders of the gangs in Haiti"; Claude does not
+  put real, living people into the game as targets, and told him so. Keep
+  it that way: no real gang names, no real leaders' names or nicknames.
+- Haiti is a real country in a real crisis: JanJan is a Haitian defending
+  his home, the enemy is the gangs' undead, and ordinary Haitians are never
+  the joke. Vodou is a living religion - its spirits (lwa) are not villains
+  here; the bòkò of folklore is.
+- **Inside, the project is still called "Rot Riot"** (`project.godot`
+  `config/name`, the GitHub project, file names like RotRiot.exe): that
+  name decides where saves and private sounds live, so changing it would
+  hide everybody's progress. The window title is set in `main.gd`. A proper
+  rename with a save move is a job for before the Steam release.
+
+The hero is JanJan (`Config.HERO_NAME`). The owner sends reference
 pictures from other games and artists for the LAYOUT or the GENERAL LOOK he
 wants (an upgrade page, an equipment screen with the character
 in the middle, a tactical-looking hero). Follow the structure and the mood;
@@ -16,9 +41,9 @@ never copy the art, names, icons or exact look (rule 1).
 ## Rules (from the owner - always follow)
 
 1. **Everything is original.** No names, characters, art or sounds from any
-   existing game. The genre is the inspiration, nothing else. "Rot Riot" is a
-   working title (no Steam game with that exact name was found in Nov 2026;
-   re-check before release).
+   existing game, and no real people. The genre is the inspiration, nothing
+   else. "Haitian Gang Wars" is the owner's title (not yet checked against
+   Steam; re-check before release).
 2. **Build in stages.** After each stage run the project headless from the
    command line and fix every error before moving on.
 3. **One config file.** Every balance number (speeds, health, prices, wave
@@ -312,7 +337,7 @@ show the damage.
   die); real play punishes short range.
 
 **Enemies** (`Config.ENEMIES`): Shambler (basic), Runner (fast, zig-zags),
-Brute (tank, resists knockback and stagger), boss "The Gorger" every 5th wave
+Brute (tank, resists knockback and stagger), the map's gang boss every 5th wave
 (charge with a telegraphed wind-up, dazed afterwards; summons shamblers out of
 the ground; +60% HP each time it returns), and four kinds with an attack of
 their own (owner: "more enemies including some that shoot from range"):
@@ -858,6 +883,13 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   opengameart.org forbid AI tools in their robots.txt - the owner downloads
   and attaches them. Next most useful: gun / zombie voice recordings (e.g.
   a Sonniss GDC bundle) and music (the game has none).
+- After v0.11: "keep the same core mechanics ... rebrand the game as Haitian
+  Gang Wars, where we are a soldier called JanJan or Jean Batist and we are
+  shooting haitian zombies. The bosses will be the leaders of the gangs in
+  haiti." -> done as v0.12.0 (title, hero name and look, five gang maps
+  with invented leaders); see "The game's identity" at the top. Still to
+  follow the new theme if he wants: scenery (roadmap 6 becomes Haitian
+  places), zombie looks, gear and pet names, music.
 - The owner's Mac: browser downloads do not work there, so updates go through
   Terminal (curl) or the double-click updater. Always give the full update
   command and say plainly that Return must be pressed.
@@ -892,8 +924,8 @@ Build one stage at a time; the owner plays each before the next starts.
    above. More can be added the same way (ideas: a shielded zombie that must
    be flanked, a screamer that speeds up the horde, a second boss).
 6. **Five themed maps** - LAST, by the owner's order - each telling a story
-   through its scenery: forest campsite, abandoned farm, graveyard,
-   crashed-convoy highway, quarantine lab. (Map select, unlock order and
+   through its scenery. Since the rebrand: hill army camp, cane fields,
+   grand cemetery, national road with a roadblock, the docks. (Map select, unlock order and
    difficulty already exist; this step is the scenery.)
 
 Design rule from the owner: progression must feel incremental and endless.

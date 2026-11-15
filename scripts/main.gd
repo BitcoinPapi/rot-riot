@@ -32,6 +32,9 @@ var _quitting := false
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	get_tree().set_auto_accept_quit(false)   # we close the window ourselves, see quit_game()
+	# (The project is still called "Rot Riot" inside, so that saves made
+	# under the old name are found; the window shows the game's name.)
+	get_window().title = Config.GAME_TITLE.capitalize()
 	_build_ui()
 	GameInput.pause_pressed.connect(_on_pause_pressed)
 	GameInput.back_pressed.connect(_on_back_pressed)

@@ -524,7 +524,7 @@ func _open_door() -> void:
 	var address := ""
 	if router.discover(2000, 2, "InternetGatewayDevice") == UPNP.UPNP_RESULT_SUCCESS \
 			and router.get_gateway() != null and router.get_gateway().is_valid_gateway():
-		if router.add_port_mapping(Config.NET_PORT, Config.NET_PORT, "Rot Riot", "UDP", 0) == UPNP.UPNP_RESULT_SUCCESS:
+		if router.add_port_mapping(Config.NET_PORT, Config.NET_PORT, "Haitian Gang Wars", "UDP", 0) == UPNP.UPNP_RESULT_SUCCESS:
 			address = router.query_external_address()
 	_door_answer.call_deferred(router, address)
 

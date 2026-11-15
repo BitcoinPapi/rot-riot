@@ -1,4 +1,11 @@
-# ROT RIOT
+# HAITIAN GANG WARS
+
+(First called "Rot Riot" - some file names still say so.)
+
+You are **Jean-Baptiste, "JanJan"**, a Haitian soldier. The gangs bought a
+sorcerer's powder and now send armies of the dead. Take the country back,
+one gang's ground at a time: every map has its own gang, and its leader is
+the boss. The gangs and their leaders are invented.
 
 A top-down twin-stick zombie arena shooter. First playable draft, made in
 Godot 4 with GDScript. All art is placeholder shapes and all sounds are
@@ -113,7 +120,7 @@ works on 4.5 and later.
   - **Lunger** (thin, blue-grey, claws) - crouches, then leaps at you in a
     straight line. Step aside and shoot it while it lies dazed.
   Zombies that attack from a distance only do so when you can see them.
-- You play **Cliff**. He starts with a pistol. **Crates** drop near you
+- You play **JanJan**. He starts with a pistol. **Crates** drop near you
   with a better weapon that lasts about 20 seconds: SMG, shotgun, machine
   gun, rifle, sledgehammer, launcher, flamethrower or chainsaw. The crate
   shows a big picture of the weapon, and its name underneath in the colour
@@ -147,10 +154,10 @@ works on 4.5 and later.
   pillar of light in the colour of its quality, and an arrow at the edge of
   the screen points to it. Walk over it and it is yours for good, even if you
   die. Rings and amulets only drop from bosses.
-- The **Character** screen shows Cliff in the middle with his nine slots on
+- The **Character** screen shows JanJan in the middle with his nine slots on
   either side (helmet, chest, gloves, pants, boots; amulet, two rings, belt),
   his stats underneath and your **inventory** on the right. Click a piece in
-  the inventory to wear it; click a slot to take it off. Cliff changes with
+  the inventory to wear it; click a slot to take it off. JanJan changes with
   what he wears - on this screen and in the game.
 - **Forging.** FORGE in the inventory opens the forge. Two identical pieces
   of the same quality can be forged into one of the next quality: common
@@ -176,7 +183,7 @@ Close Godot, then double-click **Update Rot Riot.command** inside the project
 folder. A Terminal window opens, downloads the latest version and replaces the
 folder. Your coins, level and upgrades are stored elsewhere and are kept.
 Then open the project in Godot again. The version number is shown in the
-bottom right corner of the main menu (now v0.11.0).
+bottom right corner of the main menu (now v0.12.0).
 
 After an update that changes the upgrade screens, points you had already
 spent are handed back so you can place them again in the new trees.
@@ -195,7 +202,7 @@ Change a number, press F5, try it.
 
 - Sprite: put a PNG named like the sprite in `assets/sprites/`
   (for example `shambler_0.png`, `player.png`, `boss_0.png`), drawn facing
-  right at twice the size listed in `scripts/autoload/art.gd`. (Cliff's own
+  right at twice the size listed in `scripts/autoload/art.gd`. (JanJan's own
   pictures, `player.png` and `hero_front.png`, are normally drawn from the
   gear he wears; a PNG replaces that with one fixed picture.)
 - Sound: put a `.wav` or `.ogg` named like the sound in `assets/sfx/`

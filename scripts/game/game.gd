@@ -351,7 +351,7 @@ func _on_wave_started(wave: int, is_boss: bool) -> void:
 	if coop != null and not is_client:
 		coop.send([Coop.E_WAVE_START, wave, is_boss])
 	if is_boss:
-		hud.announce("BOSS WAVE", "wave %d - something big is coming" % wave, Color(1.0, 0.3, 0.2), 3.0)
+		hud.announce("BOSS WAVE", "wave %d - the gang's boss is coming for you" % wave, Color(1.0, 0.3, 0.2), 3.0)
 	else:
 		hud.announce("WAVE %d" % wave, "", Color(1.0, 0.95, 0.85))
 
@@ -519,8 +519,7 @@ func _map_cleared() -> void:
 func _on_boss_spawned(_boss: Enemy) -> void:
 	if coop != null and not is_client:
 		coop.send([Coop.E_BOSS])
-	var boss_name: String = Config.ENEMIES[Config.BOSS]["name"]
-	hud.announce(boss_name, "", Color(1.0, 0.25, 0.2), 2.6)
+	hud.announce(Config.boss_name(map_index), "boss of the %s gang" % String(map.get("gang", "")), Color(1.0, 0.25, 0.2), 2.6)
 
 
 ## A zombie died (on the computer that runs the zombies). `killer` = the slot

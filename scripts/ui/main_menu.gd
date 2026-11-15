@@ -24,13 +24,13 @@ func _init() -> void:
 	col.alignment = BoxContainer.ALIGNMENT_CENTER
 	add_child(UiKit.centered(col))
 
-	var title := UiKit.heading(Config.GAME_TITLE, 108, Color("efe6cf"))
+	var title := UiKit.heading(Config.GAME_TITLE, 84, Color("efe6cf"))
 	title.add_theme_color_override("font_shadow_color", Color(0.6, 0.06, 0.05))
 	title.add_theme_constant_override("shadow_offset_x", 6)
 	title.add_theme_constant_override("shadow_offset_y", 7)
 	title.add_theme_constant_override("shadow_outline_size", 20)
 	col.add_child(title)
-	col.add_child(UiKit.heading("SURVIVE THE HORDE", 22, UiKit.GOLD))
+	col.add_child(UiKit.heading(Config.GAME_TAGLINE, 22, UiKit.GOLD))
 	col.add_child(UiKit.spacer(4))
 
 	_first = _add_button(col, "PLAY", func() -> void: main.open_screen("maps"), 510.0)

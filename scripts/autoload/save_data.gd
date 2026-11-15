@@ -163,6 +163,9 @@ func load_game() -> void:
 						settings[key] = text
 				else:
 					settings[key] = clampf(float(value), 0.0, 1.0)
+	# (The hero was called Cliff until v0.11: a co-op name that was simply left at that follows the new one.)
+	if String(settings["player_name"]) == "CLIFF":
+		settings["player_name"] = Config.HERO_NAME
 
 	# Saves from before the progression rework: coins and the old upgrades are
 	# wiped once (agreed with the owner), everything else is kept.

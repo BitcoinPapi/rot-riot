@@ -314,8 +314,7 @@ func _draw_wave(w: float) -> void:
 		draw_rect(Rect2(bx, by, bw, 14), Color(0.2, 0.04, 0.04))
 		draw_rect(Rect2(bx, by, bw * frac, 14), Color(0.85, 0.12, 0.1))
 		draw_rect(Rect2(bx, by, bw * frac, 5), Color(1, 1, 1, 0.18))
-		var boss_name: String = Config.ENEMIES[Config.BOSS]["name"]
-		_text(Vector2(cx, by + 36), boss_name, 16, Color(1.0, 0.5, 0.4), 1)
+		_text(Vector2(cx, by + 36), Config.boss_name(game.map_index), 16, Color(1.0, 0.5, 0.4), 1)
 
 
 ## The whole map in the corner: where you have been (the rest is fog), where
