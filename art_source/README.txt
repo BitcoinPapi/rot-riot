@@ -22,6 +22,11 @@ centres below were found by looking at the result in the game
   boss_machwe_fe.webp   boss_1         168    500,560    (map 2's boss)
   boss_papa_zo.webp     boss_2         168    480,580    (map 3's boss)
 
+  janjan_no_guns.webp   player          62    600,500    --turn -90   (the hero in a run: he was
+                                                         drawn walking DOWN the picture; the game draws
+                                                         the gun he holds, so this one has empty hands)
+  janjan.webp           hero_front      --portrait 380   (the hero in the menus, with his guns)
+
 Each also has NAME_hurt, made with the same line plus --wounds (blood painted
 on), because no wounded pictures were sent. A kind's other looks (brute_1,
 gobber_1...) use the first look's picture; so do the bosses of maps 4 and 5

@@ -1052,8 +1052,13 @@ func _run_autotest() -> void:
 	sheet.call("_on_bag_pressed", "hard_hat:1")
 	_check(SaveData.gear_in_slot("helmet") == "hard_hat:1" and SaveData.gear_count("hard_hat:1") == 1
 			and SaveData.passive_rank("defense") == defense_before + 2, "clicking a piece in the inventory wears it and adds its stat ranks")
-	_check(Art.t("player") != bare_top and Art.t("hero_front") != bare_front and Art.t("player_flash") != null,
-			"the hero is redrawn with what he wears, in the menu and in the game")
+	if ResourceLoader.exists("res://assets/sprites/player.png"):
+		# (A painted hero is one picture: it cannot put a helmet on. Without the PNGs the drawn hero is back.)
+		_check(Art.t("player") == bare_top and Art.t("hero_front") == bare_front and Art.t("player_flash") != null,
+				"the hero is a painted picture: he looks the same whatever he wears")
+	else:
+		_check(Art.t("player") != bare_top and Art.t("hero_front") != bare_front and Art.t("player_flash") != null,
+				"the hero is redrawn with what he wears, in the menu and in the game")
 	_check(PlayerStats.current().damage_taken_mult < 1.0, "gear reaches the numbers the game uses")
 	SaveData.add_gear("gas_mask:1")
 	SaveData.wear_gear("gas_mask:1")
@@ -1792,6 +1797,16 @@ func _run_autotest() -> void:
 		if not Config.GEAR_DROP_CHANCE.has(kind):
 			looks_ok = false
 	_check(looks_ok and Art.BOSS_VARIANTS == Config.MAPS.size(), "all %d kinds of zombie have their pictures, and every map's boss a look of his own" % Config.ENEMIES.size())
+
+	# --- the hero: his pictures are there (painted or drawn), also the wounded and the flash one,
+	#     and another player's figure is built without trouble ---
+	Art.build_mate({}, "mate_test")
+	var hero_ok := true
+	for hero_sprite: String in ["player", "player_hurt", "player_flash", "hero_front", "mate_test", "mate_test_hurt", "mate_test_flash"]:
+		if not Art.tex.has(hero_sprite) or Art.t(hero_sprite) == null or Art.size_of(hero_sprite).x < 20.0:
+			hero_ok = false
+	_check(hero_ok and Art.size_of("player") == Art.size_of("player_hurt") and Art.size_of("player") == Art.size_of("player_flash"),
+			"the hero has all his pictures (%s), and so does another player's figure" % ("painted" if ResourceLoader.exists("res://assets/sprites/player.png") else "drawn"))
 
 	# --- the Gang Fighter: a plain walker, quicker and tougher than a Shambler, with a harder hit ---
 	var fighter_cfg: Dictionary = Config.ENEMIES[Config.FIGHTER]

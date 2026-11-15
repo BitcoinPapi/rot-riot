@@ -8,7 +8,8 @@ figure out, puts the middle of its body in the middle of the sprite, shrinks it 
 the game's size and saves it there.
 
     tools/make_sprite.py PICTURE NAME --length 58 [--center X,Y] [--turn DEG] [--main-only]
-                         [--hue DEG] [--wounds] [--no-shadow]
+                         [--erase "X,Y X,Y X,Y; X,Y ..."] [--hue DEG] [--wounds] [--no-shadow]
+    tools/make_sprite.py PICTURE NAME --portrait 380      (a standing picture for the menus)
 
     PICTURE     the big picture (png / webp / jpg); a plain white background is removed
     NAME        the sprite's name, e.g. runner_0 or runner_0_hurt
@@ -22,6 +23,11 @@ the game's size and saves it there.
                 picture as it was sent.
     --main-only keep only the figure itself: loose bits around it (flying drops, wisps
                 of gas) are dropped, so they do not turn with the zombie or make it small
+    --erase     rub out parts of the picture first: one or more shapes, each a list of
+                corner points in the PICTURE's own pixels, shapes separated by ";"
+                (the hero's picture came holding two guns; the game draws his gun itself)
+    --portrait  no sprite: just the figure, cut to its edges and stored so that it is
+                this many game pixels tall (hero_front, the hero in the menus)
     --hue       turn the strong colours by this many degrees (a second look of the same
                 character: another shirt colour)
     --wounds    paint blood and gashes on it (for NAME_hurt when there is no painted
@@ -146,7 +152,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("picture")
     ap.add_argument("name")
-    ap.add_argument("--length", type=float, required=True)
+    ap.add_argument("--length", type=float, default=0.0)
+    ap.add_argument("--portrait", type=float, default=0.0)
+    ap.add_argument("--erase", default="")
     ap.add_argument("--center", default="")
     ap.add_argument("--turn", type=float, default=0.0)
     ap.add_argument("--main-only", action="store_true")
@@ -157,6 +165,29 @@ def main() -> int:
     args = ap.parse_args()
 
     im = cut_out(Image.open(args.picture))
+    if args.erase:
+        hole = Image.new("L", im.size, 255)
+        for shape in args.erase.split(";"):
+            corners = [tuple(float(v) for v in pt.split(",")) for pt in shape.split()]
+            if len(corners) >= 3:
+                ImageDraw.Draw(hole).polygon(corners, fill=0)
+        hole = hole.filter(ImageFilter.GaussianBlur(1.2))
+        a = np.array(im)
+        a[..., 3] = (a[..., 3].astype(np.float32) * np.array(hole).astype(np.float32) / 255.0).astype(np.uint8)
+        im = Image.fromarray(a, "RGBA")
+    if args.portrait > 0.0:
+        box = im.getchannel("A").point(lambda v: 255 if v > 25 else 0).getbbox()
+        figure = im.crop(box)
+        tall = int(round(args.portrait * PX))
+        figure = shrink(figure, (max(1, round(figure.width * tall / figure.height)), tall))
+        os.makedirs(args.out, exist_ok=True)
+        path = os.path.join(args.out, args.name + ".png")
+        figure.save(path)
+        print("%s: %dx%d stored = %dx%d in the game" % (os.path.normpath(path), figure.width, figure.height, figure.width // PX, figure.height // PX))
+        return 0
+    if args.length <= 0.0:
+        print("say how long the figure is in the game: --length")
+        return 1
     spot = [float(v) for v in args.center.split(",")] if args.center else None
     if args.turn:
         old = (im.width / 2.0, im.height / 2.0)

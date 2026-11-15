@@ -617,6 +617,18 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   of gear needs a `"look"`; a new style needs drawing code in both
   `_hero_top_svg` and `_hero_front_svg`. A PNG `assets/sprites/player.png`
   or `hero_front.png` still replaces the generated picture.
+  **Since v0.14 JanJan IS such a picture** (the owner's, made with ChatGPT):
+  `player.png` / `player_hurt.png` in a run - from the picture WITHOUT guns
+  (`art_source/janjan_no_guns.webp`; he was drawn walking down the picture,
+  so it is turned with `--turn -90`; his fists are at his sides and the game
+  draws the gun he holds in front of him, as before) - and `hero_front.png`
+  in the menus, from the picture WITH his guns. The price, told to the
+  owner: **a painted picture cannot wear gear**, so what he puts on no
+  longer shows on him (the slots, stats and inventory work as before), and
+  in co-op every player is shown as the same JanJan (`Art.build_mate`; ring
+  and name tell them apart). Deleting the three PNGs brings the drawn,
+  gear-wearing hero back. To get gear on a painted hero one day he would
+  need separate pictures per piece (helmet, vest...) laid over the body.
 - *Pets* (Pets screen; PETS section of config.gd). The feature opens at
   character level 18 (`PET_UNLOCK_LEVEL`): the first pet, SCRAPS the stray
   dog, joins by itself (mid-run if that is where the level is reached). Five
@@ -788,8 +800,8 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   nothing for one that is the same on both sides (the Brute). Real
   animation needs several pictures of the same figure in different poses,
   which AI image tools rarely keep alike.
-  Painted so far: Runner, Gang Fighter, Brute, Gobber, Chucker, Gasbag,
-  Lunger and the bosses of maps 1-3 (Kòk Batay, Machwè Fè, Papa Zo). Still
+  Painted so far: the hero (see "Cliff's look"), Runner, Gang Fighter,
+  Brute, Gobber, Chucker, Gasbag, Lunger and the bosses of maps 1-3 (Kòk Batay, Machwè Fè, Papa Zo). Still
   shapes: the **Shambler**. Maps 4 and 5 (Gwo Kamyon, Wa Lannwit) show
   Kòk Batay's picture until theirs arrive: save them as `boss_3` / `boss_4`.
   All wounded looks are painted-on blood so far.
@@ -1062,6 +1074,11 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   and became a villain of his own, so the Shambler has no picture yet; a
   prompt for it was given. Still to come from him: the Shambler, the bosses
   of maps 4 and 5, wounded pictures if he wants better than painted blood.
+  Then: "this is our main character janjan. can we use him as a main
+  character in game?" with a picture of JanJan holding a pistol and a rifle,
+  and a minute later the same JanJan with empty hands -> both in (the armed
+  one in the menus, the empty-handed one in the fight). His gear no longer
+  shows on him - he was told; ask whether he minds.
 - The owner's Mac: browser downloads do not work there, so updates go through
   Terminal (curl) or the double-click updater. Always give the full update
   command and say plainly that Return must be pressed.

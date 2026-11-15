@@ -312,6 +312,13 @@ func refresh_hero() -> void:
 ## Another co-op player seen from above, wearing their own gear. `sprite` is
 ## the name the pictures get: "mate1" also makes "mate1_hurt" and "mate1_flash".
 func build_mate(worn: Dictionary, sprite: String) -> void:
+	if _painted("player") != "":
+		# The hero is a painted picture now: every player is shown as him (their ring
+		# and their name tell them apart). A picture cannot wear each player's gear.
+		for tail: String in ["", "_hurt", "_flash"]:
+			tex[sprite + tail] = tex["player" + tail]
+			sizes[sprite + tail] = sizes["player" + tail]
+		return
 	var top := _hero_top_svg(worn)
 	_svg(sprite, 56, 56, top)
 	_svg(sprite + "_hurt", 56, 56, top + WOUNDS_PLAYER)
