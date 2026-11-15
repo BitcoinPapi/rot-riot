@@ -98,6 +98,7 @@ var RECIPES := {
 ## generated sound's.)
 const RECORDING_GAIN := {
 	"shotgun": 3.0,          # a real shot is one sharp crack and a tail; the generated one was a full second of roar
+	"rifle": 3.0,            # the same: mostly bass, so at the same peak it sounds weaker than the generated crack
 	"boss_slam": 5.0,        # the boss hitting a wall must stay a big hit
 	"crate_break": 2.0,
 	"ricochet": -5.0,
