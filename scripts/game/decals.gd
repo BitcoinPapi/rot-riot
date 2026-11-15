@@ -40,6 +40,7 @@ var ground_tint := Color(0, 0, 0, 0)   # the map's colour wash over the ground (
 var ground_floor: String = Config.GROUND_FLOOR      # the picture the ground is made of (assets/ground/<name>.jpg)
 var ground_litter: Array = Config.GROUND_LITTER     # ...and the pictures of the soft patches on it
 var chunks_made := 0
+var stamps_made := 0          # everything ever put on the ground this run (a count for the tests)
 
 var _arena := Rect2(Vector2.ZERO, Config.ARENA_SIZE)   # the playable area
 var _area := Rect2()          # everything that gets ground: the arena plus a margin under the trees
@@ -192,10 +193,12 @@ func _route(s: Array, pos: Vector2, reach: float) -> void:
 # ----------------------------------------------------------------------------
 ## Stamp any texture onto the ground.
 func stamp(texture: Texture2D, pos: Vector2, rot: float, size: Vector2, color: Color) -> void:
+	stamps_made += 1
 	_route([T_TEX, texture, pos, rot, size, color], pos, maxf(size.x, size.y) * 0.71)
 
 
 func stamp_rect(pos: Vector2, rot: float, size: Vector2, color: Color) -> void:
+	stamps_made += 1
 	_route([T_RECT, pos, rot, size, color], pos, maxf(size.x, size.y) * 0.71)
 
 

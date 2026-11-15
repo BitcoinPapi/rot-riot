@@ -98,7 +98,7 @@ func _spawn_pack() -> void:
 	var enemies := game.enemies
 	var size := Config.wave_pack_size(wave) + randi_range(-1, 2)
 	size = mini(size, to_spawn)
-	size = mini(size, Config.MAX_ENEMIES_ALIVE - enemies.alive_count)
+	size = mini(size, game.max_alive() - enemies.alive_count)
 	if size <= 0:
 		return
 	# Now and then a whole pack of runners sprints in together.

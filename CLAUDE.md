@@ -157,6 +157,7 @@ Other dev flags (all after `--`, see `scripts/dev/dev_tools.gd`): `--play`,
 `--drop-crates` (drop four weapon crates, two of them damaged), `--perk=ID:N,ID:N` (start with
 these run perks), `--perks=N` (owe N perk choices half a second in, to look at the choice), `--pets=N` (own the first N pets;
 needs `--level=18` or more),
+`--fewer` (the FEWER EFFECTS switch on), `--stats` (the F3 frame-rate line shown),
 `--at=X,Y` (start the run at that spot of the map; the middle is 1500,1000), `--no-fog` (whole map
 uncovered), `--show-chests` (a closed chest beside the player and an opened one),
 `--horde=KIND:N,KIND:N` (put zombies around the player: shambler, runner, brute, boss, gobber,

@@ -401,6 +401,17 @@ func choosing() -> bool:
 	return not perk_offer.is_empty()
 
 
+## The most zombies that may be alive at once. Lower when FEWER EFFECTS is
+## switched on (Settings) - here, or on the computer of anybody playing along:
+## the host's zombies are shown on every computer, so the slowest one counts.
+func max_alive() -> int:
+	var fewer := bool(SaveData.get_setting("fewer_effects"))
+	if coop != null:
+		for other: int in coop.mates.keys():
+			fewer = fewer or (coop.mates[other] as Mate).fewer
+	return Config.FEWER_ENEMIES_ALIVE if fewer else Config.MAX_ENEMIES_ALIVE
+
+
 ## True while anybody still has a perk to choose: the next wave waits for it.
 func perks_pending() -> bool:
 	return perks_owed > 0 or (not perk_waiting_for().is_empty() and _perk_hold < Config.PERK_HOLD_MAX)

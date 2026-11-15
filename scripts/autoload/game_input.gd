@@ -30,6 +30,9 @@ var virtual_move := Vector2.ZERO
 var virtual_aim := Vector2.ZERO
 var virtual_fire := false
 
+## F3 shows a small line with the frame rate during a run (drawn by the HUD).
+var stats_shown := false
+
 var _last_aim := Vector2.RIGHT
 var _gameplay_mode := false
 
@@ -62,6 +65,8 @@ func _register_actions() -> void:
 	_bind("pause", [_key(KEY_ESCAPE), _key(KEY_P), _button(JOY_BUTTON_START)])
 	# Fullscreen toggle.
 	_bind("toggle_fullscreen", [_key(KEY_F11)])
+	# The frame-rate counter (how smoothly the game runs on this computer).
+	_bind("toggle_stats", [_key(KEY_F3)])
 	# Menus: Godot's built-in menu actions only know the keyboard, so add the
 	# gamepad's A (confirm) and B (back). D-pad / left stick navigation is built in.
 	_bind("ui_accept", [_button(JOY_BUTTON_A)])
@@ -215,6 +220,9 @@ func _input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("toggle_fullscreen"):
 		SaveData.set_setting("fullscreen", not bool(SaveData.get_setting("fullscreen")))
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("toggle_stats"):
+		stats_shown = not stats_shown
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("pause"):
 		pause_pressed.emit()

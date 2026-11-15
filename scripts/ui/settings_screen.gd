@@ -1,12 +1,13 @@
 class_name SettingsScreen
 extends Control
-## Volume, screen shake and fullscreen. Values live in SaveData.settings and
+## Volume, screen shake, fullscreen and the FEWER EFFECTS switch. Values live in SaveData.settings and
 ## are saved when you leave the screen.
 
 var main: Main
 var _sliders := {}       # setting key -> HSlider
 var _value_labels := {}  # setting key -> Label
 var _fullscreen: Button
+var _fewer: Button       # the FEWER EFFECTS switch
 var _back: Button
 var _loading := false
 
@@ -28,6 +29,15 @@ func _init() -> void:
 	_fullscreen = UiKit.button("FULLSCREEN: OFF", func() -> void:
 		SaveData.set_setting("fullscreen", not bool(SaveData.get_setting("fullscreen"))))
 	col.add_child(_fullscreen)
+
+	# For computers that slow down in the biggest fights.
+	_fewer = UiKit.button("FEWER EFFECTS: OFF", func() -> void:
+		SaveData.set_setting("fewer_effects", not bool(SaveData.get_setting("fewer_effects"))))
+	col.add_child(_fewer)
+	var note := UiKit.label("For slower computers: half the flying blood and sparks,\nat most %d zombies at once instead of %d.\nF3 shows how smoothly the game runs (frames per second)." % [
+			Config.FEWER_ENEMIES_ALIVE, Config.MAX_ENEMIES_ALIVE], 14, UiKit.DIM)
+	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(note)
 
 	col.add_child(UiKit.spacer(6))
 	_back = UiKit.button("BACK", func() -> void: main.close_screen())
@@ -85,6 +95,7 @@ func _load_values() -> void:
 		slider.value = float(SaveData.get_setting(key))
 		_update_label(key)
 	_fullscreen.text = "FULLSCREEN: %s   (F11)" % ("ON" if bool(SaveData.get_setting("fullscreen")) else "OFF")
+	_fewer.text = "FEWER EFFECTS: %s" % ("ON" if bool(SaveData.get_setting("fewer_effects")) else "OFF")
 	_loading = false
 
 

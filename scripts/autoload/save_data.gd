@@ -88,6 +88,7 @@ func _reset_to_defaults() -> void:
 		"sfx_volume": Config.DEFAULT_SFX_VOLUME,
 		"fullscreen": Config.DEFAULT_FULLSCREEN,
 		"screen_shake": Config.DEFAULT_SCREEN_SHAKE,
+		"fewer_effects": Config.DEFAULT_FEWER_EFFECTS,   # less flying blood, fewer zombies at once
 		"player_name": Config.HERO_NAME,     # what your partner sees over your head in co-op
 	}
 

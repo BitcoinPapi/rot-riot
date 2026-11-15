@@ -215,6 +215,8 @@ func _my_state() -> Array:
 		flags |= 64
 	if game.perks_owed > 0:
 		flags |= 16                       # choosing a perk: the host holds the next wave
+	if bool(SaveData.get_setting("fewer_effects")):
+		flags |= 32                       # FEWER EFFECTS is on here: the host keeps fewer zombies alive
 	var pet_at := game.pet.pos if game.pet != null else p.pos
 	return [p.pos.x, p.pos.y, p.aim.angle(), Config.WEAPON_ORDER.find(p.weapon_id), flags,
 			clampf(p.hp / p.max_hp, 0.0, 1.0), pet_at.x, pet_at.y, revive_slot, revive_progress]

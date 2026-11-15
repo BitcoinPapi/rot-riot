@@ -23,6 +23,8 @@ var _crosshair_kick := 0.0
 var _hint_t := 7.0
 var _tips: Array = []           # one-time explanations waiting their turn: [title, text, colour, seconds]
 var _tip_t := 0.0               # how long the first of them has left
+var _fps_log: Array[float] = [] # F3 counter: the frame rate, noted once a second, for "lowest"
+var _fps_t := 0.0
 
 
 func _ready() -> void:
@@ -67,6 +69,12 @@ func tick(real_dt: float) -> void:
 	_hurt = maxf(_hurt - real_dt * 2.2, 0.0)
 	_announce_t = maxf(_announce_t - real_dt, 0.0)
 	_hint_t = maxf(_hint_t - real_dt, 0.0)
+	_fps_t += real_dt
+	if _fps_t >= 1.0:
+		_fps_t = 0.0
+		_fps_log.append(Engine.get_frames_per_second())
+		while _fps_log.size() > int(Config.STATS_LOW_WINDOW):
+			_fps_log.pop_front()
 	if not _tips.is_empty():
 		_tip_t -= real_dt
 		if _tip_t <= 0.0:
@@ -108,6 +116,8 @@ func _draw() -> void:
 	if not game.choosing():
 		_draw_hint(w, h)
 	_draw_tip(w, h)
+	if GameInput.stats_shown:
+		_text(Vector2(14.0, h * 0.5), stats_line(), 15, Color(0.75, 1.0, 0.7, 0.95))
 	if p.alive and not game.choosing():
 		_draw_crosshair(p)
 
@@ -515,6 +525,18 @@ func _edge_arrow(world: Vector2, color: Color, icon: Texture2D, icon_color: Colo
 	var shape := icon.get_size()
 	var icon_size := Vector2(26, 26) if is_equal_approx(shape.x, shape.y) else Vector2(64.0, 64.0 * shape.y / shape.x)
 	draw_texture_rect(icon, Rect2(clamped - dir * (14.0 + icon_size.x * 0.5) - icon_size * 0.5, icon_size), false, icon_color)
+
+
+## The F3 counter: how smoothly the game runs on this computer, and how much
+## is going on. Made for telling us numbers ("FPS 31, lowest 22, 240 zombies").
+func stats_line() -> String:
+	var fps := Engine.get_frames_per_second()
+	var lowest := fps
+	for noted: float in _fps_log:
+		lowest = minf(lowest, noted)
+	return "FPS %d   lowest %d   zombies %d / %d   effects %d%s" % [int(round(fps)), int(round(lowest)),
+			game.enemies.alive_count, game.max_alive(), game.fx.flying(),
+			"   FEWER EFFECTS on" if bool(SaveData.get_setting("fewer_effects")) else ""]
 
 
 func _to_screen(world: Vector2) -> Vector2:

@@ -89,6 +89,10 @@ func _ready() -> void:
 			if _args.has("stun"):
 				Net.stun_servers = Array(String(_args["stun"]).split(","))
 			SaveData.settings["player_name"] = String(_args.get("name", "HOSTY" if String(_args["coop"]) == "host" else "JOINY"))
+		if _args.has("fewer"):
+			SaveData.settings["fewer_effects"] = true       # the FEWER EFFECTS switch of the Settings screen
+		if _args.has("stats"):
+			GameInput.stats_shown = true                    # the frame-rate line (F3)
 		if _args.has("coins"):
 			SaveData.add_coins(int(_args["coins"]))
 		if _args.has("level"):
@@ -440,7 +444,9 @@ func _run_cooptest() -> void:
 	await _at(29.4)
 	if slot == 1:
 		_auto_perks = false               # the first joiner takes their time over it
+		SaveData.set_setting("fewer_effects", true)   # ...and has a slow computer: FEWER EFFECTS on
 	if host:
+		_check(game.max_alive() == Config.MAX_ENEMIES_ALIVE, "nobody has FEWER EFFECTS on: up to %d zombies at once" % Config.MAX_ENEMIES_ALIVE)
 		_finish_wave(game, perk_wave)
 	await _at(30.2)
 	_check(game.perks_owed == 1 and game.perks.is_empty(), "clearing wave %d earns every player a perk choice" % perk_wave)
@@ -454,10 +460,12 @@ func _run_cooptest() -> void:
 		_check(game.perks_pending() and game.perk_waiting_for() == (["JOIN1"] as Array[String]), "...and see that JOIN1 is still choosing")
 	if host:
 		_check(not game.director.in_wave and game.director.wave == perk_wave, "the next wave waits for the player who is still choosing")
+		_check(game.max_alive() == Config.FEWER_ENEMIES_ALIVE, "one player has FEWER EFFECTS on: the host keeps at most %d zombies alive" % Config.FEWER_ENEMIES_ALIVE)
 	await _at(33.0)
 	if slot == 1:
 		game.choose_perk(0)
 		_auto_perks = true
+		SaveData.set_setting("fewer_effects", false)
 	await _at(34.4)
 	_check(not game.perks_pending() and game.perks.size() == 1, "everybody has a perk of their own")
 	if host:
@@ -1623,6 +1631,48 @@ func _run_autotest() -> void:
 	_check(is_equal_approx(pl.hp, payback_hp + Config.PERK_LEECH_HEAL), "PAYBACK heals %d health every %d kills" % [int(Config.PERK_LEECH_HEAL),
 			int(Config.run_perk_value("leech", 1))])
 	game.perks = {}
+
+	# --- FEWER EFFECTS (Settings): less in the air, the same on the ground, fewer zombies at once ---
+	# (Nothing may run in between: no waiting inside this block.)
+	var fx := game.fx
+	var few_at := pl.pos + Vector2(120.0, 90.0)
+	_check(not bool(SaveData.get_setting("fewer_effects")) and game.max_alive() == Config.MAX_ENEMIES_ALIVE,
+			"FEWER EFFECTS is off by default: up to %d zombies at once" % Config.MAX_ENEMIES_ALIVE)
+	fx.tick(2.0)                                 # (everything in the air lands)
+	var few_air := fx.flying()
+	var few_ground := game.decals.stamps_made
+	fx.blood_burst(few_at, 40, 1.0)
+	var few_full := fx.flying() - few_air
+	fx.tick(2.0)
+	var few_full_dots := game.decals.stamps_made - few_ground
+	SaveData.set_setting("fewer_effects", true)
+	few_air = fx.flying()
+	few_ground = game.decals.stamps_made
+	fx.blood_burst(few_at, 40, 1.0)
+	var few_half := fx.flying() - few_air
+	fx.tick(2.0)
+	var few_half_dots := game.decals.stamps_made - few_ground
+	_check(few_full == 40 and few_half == int(40.0 * Config.FEWER_FX_SCALE),
+			"FEWER EFFECTS: a burst of 40 drops of blood shows %d in the air instead of %d" % [few_half, few_full])
+	_check(few_full_dots == 40 and few_half_dots == 40,
+			"...and leaves the same on the ground (%d dots, without the switch %d)" % [few_half_dots, few_full_dots])
+	few_air = fx.flying()
+	few_ground = game.decals.stamps_made
+	for i in 200:
+		fx.casing(few_at, Vector2.RIGHT, "brass")
+	var few_flying := fx.flying() - few_air
+	var few_lying := game.decals.stamps_made - few_ground
+	_check(few_flying + few_lying == 200 and few_flying > 60 and few_flying < 140,
+			"...of 200 shell casings %d fly and %d lie on the ground at once: none is lost" % [few_flying, few_lying])
+	fx.sparks(few_at, Vector2.RIGHT, 1)
+	_check(fx.flying() - few_air - few_flying == 1, "...a single spark is still shown: every hit shows something")
+	_check(game.max_alive() == Config.FEWER_ENEMIES_ALIVE and Config.FEWER_ENEMIES_ALIVE < Config.MAX_ENEMIES_ALIVE,
+			"...and at most %d zombies are alive at once" % Config.FEWER_ENEMIES_ALIVE)
+	_check(game.hud.stats_line().contains("/ %d" % Config.FEWER_ENEMIES_ALIVE) and game.hud.stats_line().contains("FEWER EFFECTS on"),
+			"the frame-rate line says so (\"%s\")" % game.hud.stats_line())
+	SaveData.set_setting("fewer_effects", false)
+	fx.tick(2.0)
+	_check(game.max_alive() == Config.MAX_ENEMIES_ALIVE, "switching it off brings the full horde back")
 	game.perks_owed = 0
 	game.set("_perks_given", Config.perks_earned(game.director.cleared))
 	pl.refresh_stats(true)
@@ -2406,6 +2456,17 @@ func _run_inputtest() -> void:
 	_key(KEY_R, false)
 	_check(p.reloading, "R reloads")
 	p.refill_ammo()
+
+	# --- F3: the frame-rate counter ---
+	_check(not GameInput.stats_shown, "the frame-rate counter is hidden by default")
+	_key(KEY_F3, true)
+	await _frames(2)
+	_key(KEY_F3, false)
+	_check(GameInput.stats_shown and game.hud.stats_line().begins_with("FPS "), "F3 shows the frame-rate counter (\"%s\")" % game.hud.stats_line())
+	_key(KEY_F3, true)
+	await _frames(2)
+	_key(KEY_F3, false)
+	_check(not GameInput.stats_shown, "F3 again hides it")
 
 	# --- pause on Escape / P ---
 	_key(KEY_ESCAPE, true)

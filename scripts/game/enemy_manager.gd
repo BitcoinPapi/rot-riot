@@ -589,7 +589,7 @@ func _tick_boss(e: Enemy, dt: float) -> void:
 				e.summon_cd = float(move.get("summon_cooldown", cfg["summon_cooldown"]))
 				var count := int(move.get("summon_count", cfg["summon_count"]))
 				for k in count:
-					if alive_count >= Config.MAX_ENEMIES_ALIVE:
+					if alive_count >= game.max_alive():
 						break
 					var ang := TAU * float(k) / float(count) + randf() * 0.4
 					var at := arena.clamp_inside(e.pos + Vector2.from_angle(ang) * (e.radius + 46.0), 16.0)

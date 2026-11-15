@@ -12,6 +12,10 @@ const P_SMOKE := 1     # fades out
 const P_SPARK := 2     # additive, fades
 const P_FIRE := 3      # additive, fades and shrinks
 
+## How far a casing travels before it lies still, as a share of its starting
+## speed (it loses speed 6.5 times a second for about half a second).
+const CASING_REACH := 0.15
+
 class Casing:
 	var pos := Vector2.ZERO
 	var vel := Vector2.ZERO
@@ -48,6 +52,8 @@ var _font: Font
 # Particles, stored as parallel arrays (fast to update, no objects).
 var _cap := 0
 var _n := 0
+var _limit := 0          # most particles in the air at once (lower with FEWER EFFECTS)
+var _scale := 1.0        # share of flying bits that are shown (1 = all of them)
 var _pos := PackedVector2Array()
 var _vel := PackedVector2Array()
 var _life := PackedFloat32Array()
@@ -75,6 +81,8 @@ func _ready() -> void:
 	_font = ThemeDB.fallback_font
 
 	_cap = Config.MAX_PARTICLES
+	SaveData.settings_changed.connect(_read_settings)
+	_read_settings()
 	_pos.resize(_cap)
 	_vel.resize(_cap)
 	_life.resize(_cap)
@@ -99,8 +107,28 @@ func _ready() -> void:
 # ----------------------------------------------------------------------------
 #  Emitters (called by weapons, enemies, pickups...)
 # ----------------------------------------------------------------------------
+## The FEWER EFFECTS switch (Settings): thin out what flies. What ends up on
+## the ground stays the same - see tick() and casing().
+func _read_settings() -> void:
+	_scale = Config.FEWER_FX_SCALE if bool(SaveData.get_setting("fewer_effects")) else 1.0
+	_limit = int(float(_cap) * _scale)
+
+
+## How many of `count` flying bits to show. Never none at all: every hit
+## still shows something.
+func _few(count: int) -> int:
+	if _scale >= 1.0 or count <= 0:
+		return count
+	return maxi(int(float(count) * _scale + randf()), 1)
+
+
+## How many bits in the air right now (for the F3 counter).
+func flying() -> int:
+	return _n + _casings.size()
+
+
 func _emit(kind: int, pos: Vector2, vel: Vector2, life: float, size: float, grow: float, drag: float, color: Color) -> void:
-	if _n >= _cap:
+	if _n >= _limit:
 		return
 	var i := _n
 	_n += 1
@@ -117,7 +145,7 @@ func _emit(kind: int, pos: Vector2, vel: Vector2, life: float, size: float, grow
 
 ## Blood flying in the direction of a hit. Each drop leaves a permanent dot.
 func blood_spray(pos: Vector2, dir: Vector2, count: int, power: float) -> void:
-	for k in count:
+	for k in _few(count):
 		var d := dir.rotated(randf_range(-0.65, 0.65))
 		var color := Config.BLOOD_COLOR_DARK.lerp(Config.BLOOD_COLOR, randf())
 		_emit(P_BLOOD, pos + d * randf_range(2.0, 10.0), d * randf_range(70.0, 430.0) * power,
@@ -126,7 +154,7 @@ func blood_spray(pos: Vector2, dir: Vector2, count: int, power: float) -> void:
 
 ## Blood bursting out in all directions.
 func blood_burst(pos: Vector2, count: int, power: float) -> void:
-	for k in count:
+	for k in _few(count):
 		var d := Vector2.from_angle(randf() * TAU)
 		var color := Config.BLOOD_COLOR_DARK.lerp(Config.BLOOD_COLOR, randf())
 		_emit(P_BLOOD, pos + d * randf_range(2.0, 12.0), d * randf_range(60.0, 380.0) * power,
@@ -134,7 +162,7 @@ func blood_burst(pos: Vector2, count: int, power: float) -> void:
 
 
 func sparks(pos: Vector2, dir: Vector2, count: int) -> void:
-	for k in count:
+	for k in _few(count):
 		var d := dir.rotated(randf_range(-0.9, 0.9))
 		_emit(P_SPARK, pos, d * randf_range(120.0, 520.0), randf_range(0.08, 0.25),
 				randf_range(2.0, 4.0), 0.0, 6.0, Color(1.0, randf_range(0.7, 0.95), 0.4))
@@ -150,14 +178,14 @@ func ember(pos: Vector2, radius: float) -> void:
 ## A critical hit: a burst of bright yellow sparks.
 func crit_spark(pos: Vector2, dir: Vector2) -> void:
 	_lights.append([pos, 70.0, 0.09, 0.09, Color(1.0, 0.9, 0.3, 0.6)])
-	for k in 6:
+	for k in _few(6):
 		var d := dir.rotated(randf_range(-1.4, 1.4))
 		_emit(P_SPARK, pos, d * randf_range(160.0, 480.0), randf_range(0.1, 0.22),
 				randf_range(3.0, 5.0), 0.0, 6.0, Color(1.0, 0.92, 0.35))
 
 
 func smoke(pos: Vector2, count: int, size: float) -> void:
-	for k in count:
+	for k in _few(count):
 		var d := Vector2.from_angle(randf() * TAU)
 		var grey := randf_range(0.18, 0.34)
 		_emit(P_SMOKE, pos + d * randf() * size * 0.3, d * randf_range(8.0, 50.0), randf_range(0.35, 0.9),
@@ -166,7 +194,7 @@ func smoke(pos: Vector2, count: int, size: float) -> void:
 
 ## Puffs of coloured vapour (gas, spit, rock dust).
 func cloud(pos: Vector2, count: int, size: float, color: Color, spread: float = 60.0) -> void:
-	for k in count:
+	for k in _few(count):
 		var d := Vector2.from_angle(randf() * TAU)
 		var tint := color.lightened(randf_range(-0.12, 0.12)) if color.v > 0.2 else color
 		tint.a = color.a
@@ -175,7 +203,7 @@ func cloud(pos: Vector2, count: int, size: float, color: Color, spread: float = 
 
 
 func dust(pos: Vector2, count: int) -> void:
-	for k in count:
+	for k in _few(count):
 		var d := Vector2.from_angle(randf() * TAU)
 		_emit(P_SMOKE, pos + d * randf() * 10.0, d * randf_range(20.0, 90.0), randf_range(0.25, 0.6),
 				randf_range(8.0, 16.0), 22.0, 3.0, Color(0.55, 0.5, 0.4, 0.4))
@@ -184,7 +212,7 @@ func dust(pos: Vector2, count: int) -> void:
 func muzzle_flash(pos: Vector2, dir: Vector2, size: float, color: Color) -> void:
 	_flashes.append([pos, dir.angle(), size, Config.MUZZLE_FLASH_TIME, color])
 	_lights.append([pos, size * 3.2, 0.07, 0.07, Color(color.r, color.g, color.b, 0.45)])
-	for k in 3:
+	for k in _few(3):
 		var d := dir.rotated(randf_range(-0.5, 0.5))
 		_emit(P_SPARK, pos, d * randf_range(200.0, 600.0), randf_range(0.05, 0.14), randf_range(2.0, 3.5), 0.0, 7.0, color)
 
@@ -204,6 +232,10 @@ func casing(pos: Vector2, aim: Vector2, kind: String) -> void:
 	else:
 		c.size = Vector2(2.4, 5.4)
 		c.color = Color(0.93, 0.74, 0.28)
+	if _scale < 1.0 and randf() > _scale:
+		# FEWER EFFECTS: this one does not fly; it lies at once where it would have landed.
+		game.decals.stamp_rect(c.pos + c.vel * CASING_REACH, c.rot, c.size, c.color.darkened(0.25))
+		return
 	_casings.append(c)
 
 
@@ -272,16 +304,16 @@ func text(pos: Vector2, message: String, color: Color, font_size: int = 20, life
 func explosion(pos: Vector2, radius: float) -> void:
 	_lights.append([pos, radius * 3.4, 0.22, 0.22, Color(1.0, 0.75, 0.35, 0.9)])
 	_rings.append([pos, radius * 0.25, radius * 1.15, 0.28, 0.28, Color(1.0, 0.85, 0.6, 0.9)])
-	for k in 16:
+	for k in _few(16):
 		var d := Vector2.from_angle(randf() * TAU)
 		_emit(P_FIRE, pos + d * randf() * radius * 0.25, d * randf_range(40.0, radius * 2.4),
 				randf_range(0.2, 0.5), randf_range(26.0, 54.0), -40.0, 4.0,
 				Color(1.0, randf_range(0.45, 0.8), randf_range(0.1, 0.3), 0.85))
-	for k in 18:
+	for k in _few(18):
 		var d := Vector2.from_angle(randf() * TAU)
 		_emit(P_SPARK, pos, d * randf_range(200.0, 760.0), randf_range(0.15, 0.45),
 				randf_range(2.5, 5.0), 0.0, 4.0, Color(1.0, 0.85, 0.5))
-	for k in 10:
+	for k in _few(10):
 		var d := Vector2.from_angle(randf() * TAU)
 		var grey := randf_range(0.12, 0.26)
 		_emit(P_SMOKE, pos + d * randf() * radius * 0.5, d * randf_range(10.0, 70.0),
@@ -301,6 +333,11 @@ func tick(dt: float) -> void:
 		if life <= 0.0:
 			if _kind[i] == P_BLOOD:
 				decals.blood_dot(_pos[i], _size[i] * 1.35)
+				if _scale < 1.0:
+					# FEWER EFFECTS: the drops that were not shown still leave their dots.
+					for k in int(1.0 / _scale - 1.0 + randf()):
+						decals.blood_dot(_pos[i] + Vector2(randf_range(-16.0, 16.0), randf_range(-16.0, 16.0)),
+								_size[i] * randf_range(1.0, 1.5))
 			_n -= 1
 			if i < _n:
 				_pos[i] = _pos[_n]

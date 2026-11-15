@@ -548,7 +548,7 @@ const WAVE_BASE_COUNT := 22.0           # zombies in wave 1
 const WAVE_COUNT_PER_WAVE := 9.0        # + this many per wave...
 const WAVE_COUNT_ACCEL := 0.0           # ...+ this * (wave-1)^2  (0 = steady growth)
 const WAVE_MAX_COUNT := 500
-const MAX_ENEMIES_ALIVE := 240          # hard cap on screen at once
+const MAX_ENEMIES_ALIVE := 240          # hard cap on screen at once (see also FEWER_ENEMIES_ALIVE)
 const WAVE_PACK_SIZE_BASE := 5.0        # zombies arrive in packs from one side
 const WAVE_PACK_SIZE_PER_WAVE := 0.6
 const WAVE_PACK_SIZE_MAX := 26.0
@@ -1148,6 +1148,17 @@ const DEFAULT_MASTER_VOLUME := 0.8
 const DEFAULT_SFX_VOLUME := 1.0
 const DEFAULT_FULLSCREEN := false
 const DEFAULT_SCREEN_SHAKE := 1.0       # multiplier players can lower in Settings
+const DEFAULT_FEWER_EFFECTS := false    # the FEWER EFFECTS switch (for slower computers)
+
+# ----------------------------------------------------------------------------
+#  FEWER EFFECTS - a switch in Settings for computers that struggle in big
+#  fights. What lies on the ground (blood, bodies, casings) stays the same;
+#  only what FLIES is thinned out, and fewer zombies are alive at once.
+# ----------------------------------------------------------------------------
+const FEWER_FX_SCALE := 0.5             # share of the flying blood, sparks, smoke and casings still shown
+const FEWER_ENEMIES_ALIVE := 160        # most zombies alive at once (normally MAX_ENEMIES_ALIVE); in co-op
+                                        # this counts for everybody as soon as ONE player has the switch on
+const STATS_LOW_WINDOW := 10.0          # F3 counter: "lowest" is the lowest frame rate of the last ... seconds
 
 
 # ----------------------------------------------------------------------------

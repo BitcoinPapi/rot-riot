@@ -20,6 +20,7 @@ var down := false                   # fallen: waiting to be picked up
 var wounded := false
 var blinking := false               # just hit: safe for a moment
 var choosing := false               # busy choosing a perk (the next wave waits for them)
+var fewer := false                  # has FEWER EFFECTS switched on (the host keeps fewer zombies alive)
 var hp_frac := 1.0
 var pet_id := ""
 var pet_pos := Vector2.ZERO
@@ -74,6 +75,7 @@ func apply_state(s: Array) -> void:
 	wounded = flags & 8 != 0
 	blinking = flags & 64 != 0
 	choosing = flags & 16 != 0
+	fewer = flags & 32 != 0
 	hp_frac = clampf(float(s[5]), 0.0, 1.0)
 	pet_pos = Vector2(float(s[6]), float(s[7]))
 	if not has_state or pos.distance_to(net_pos) > 400.0:
