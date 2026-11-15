@@ -40,6 +40,9 @@ var _flash := 0.0
 var _gun_kick := 0.0
 var _swing := 0.0               # melee swing animation, 1 -> 0
 var _swing_side := 1.0
+var _saw_angle := 0.0           # a sweeping blade (the chainsaw): where it is, in radians beside the aim...
+var _saw_way := 1.0             # ...which way it is going...
+var _saw_bite := 0.0            # ...and for how long it is still held back by the zombie it is cutting
 var _dual_side := 1.0           # which hand fired last
 var _reload_left := 0.0
 var _reload_total := 1.0
@@ -118,6 +121,7 @@ func tick(delta: float) -> void:
 	_flash = maxf(_flash - delta, 0.0)
 	_gun_kick = lerpf(_gun_kick, 0.0, minf(delta * 22.0, 1.0))
 	_swing = maxf(_swing - delta / 0.16, 0.0)
+	_tick_sweep(delta)
 	if weapon_time > 0.0:
 		weapon_time -= delta
 		if weapon_time <= 0.0:
@@ -285,24 +289,48 @@ func refill_ammo() -> void:
 	reloading = false
 
 
-## Melee: hits every zombie inside the arc in front of the player. The
-## chainsaw is held out and bites many times a second. (A weapon with
-## "swing": true would swing in an arc instead; none does since the
-## sledgehammer was taken out of the game.)
+## A sweeping blade (the chainsaw, "sweep" in its config) goes from side to side across
+## its arc while the trigger is held - slowly while it is cutting through a zombie - and
+## comes back to the middle when the trigger is let go.
+func _tick_sweep(delta: float) -> void:
+	if not bool(weapon.get("sweep", false)):
+		_saw_angle = 0.0
+		return
+	var half := deg_to_rad(float(weapon["arc_deg"])) * 0.5
+	var speed := deg_to_rad(float(weapon["sweep_speed"]))
+	_saw_bite = maxf(_saw_bite - delta, 0.0)
+	if GameInput.is_firing() and alive:
+		_saw_angle += _saw_way * speed * delta * (float(weapon["sweep_slow"]) if _saw_bite > 0.0 else 1.0)
+		if absf(_saw_angle) >= half:
+			_saw_angle = clampf(_saw_angle, -half, half)
+			_saw_way = -_saw_way
+	else:
+		_saw_angle = move_toward(_saw_angle, 0.0, speed * delta)
+
+
+## Melee: hits every zombie under the blade. The chainsaw's blade sweeps from side to
+## side (see _tick_sweep) and bites many times a second whatever it is passing over.
+## (A weapon with "swing": true would strike once across its whole arc instead; none
+## does since the sledgehammer was taken out of the game.)
 func _melee(w: Dictionary, dir: Vector2, dmg: float, knock: float) -> void:
 	var swings: bool = w["swing"]
+	var sweeps := bool(w.get("sweep", false))
 	if swings:
 		_swing = 1.0
 		_swing_side = -_swing_side
+	if sweeps:
+		dir = dir.rotated(_saw_angle)
 	var reach: float = w["range"]
-	var cos_half := cos(deg_to_rad(float(w["arc_deg"])) * 0.5)
+	var cos_half := cos(deg_to_rad(float(w["blade_deg"]) if sweeps else float(w["arc_deg"])) * 0.5)
 	var extra_blood: int = w["hit_blood"]
 	var hits := 0
 	for e: Enemy in game.enemies.in_radius(pos, reach):
 		var to := e.pos - pos
 		var d := to.length()
 		var n := to / maxf(d, 0.001)
-		if n.dot(dir) >= cos_half or d < radius + e.radius + 4.0:
+		# (A zombie right against you is hit whichever way a blade without a sweep points;
+		# a sweeping blade has to come round to it.)
+		if n.dot(dir) >= cos_half or (not sweeps and d < radius + e.radius + 4.0):
 			var crit := randf() < stats.crit_chance
 			var push := (n * 0.7 + dir * 0.3).normalized()
 			if extra_blood > 0:
@@ -313,6 +341,8 @@ func _melee(w: Dictionary, dir: Vector2, dmg: float, knock: float) -> void:
 	if swings:
 		game.fx.swing_arc(pos, dir, float(w["arc_deg"]), reach, _swing_side)
 	if hits > 0:
+		if sweeps:
+			_saw_bite = float(w["sweep_hold"])
 		game.shake(float(w["shake_hit"]))
 		game.hitstop(float(w["hitstop_hit"]), true)
 		Sfx.play(String(w["hit_sound"]))
@@ -444,8 +474,12 @@ func _draw() -> void:
 			draw_set_transform(Vector2(7.0 - kick - reload_pull, DUAL_HAND_OFFSET * side), reload_tilt * side, Vector2.ONE)
 			draw_texture_rect(_gun_tex, Rect2(Vector2(0.0, -_gun_size.y * 0.5), _gun_size), false, gun_tint)
 	else:
-		# A running chainsaw shudders in the hands.
+		# A running chainsaw shudders in the hands - and swings round him from side to side.
 		var shudder := Vector2(0.0, sin(_time * 95.0) * 0.9) if is_melee else Vector2.ZERO
-		draw_set_transform(Vector2(7.0 - _gun_kick - reload_pull, 0.0) + shudder, reload_tilt, Vector2.ONE)
-		draw_texture_rect(_gun_tex, Rect2(Vector2(0.0, -_gun_size.y * 0.5), _gun_size), false, gun_tint)
+		if is_melee and bool(weapon.get("sweep", false)):
+			draw_set_transform(Vector2.ZERO, _saw_angle, Vector2.ONE)
+			draw_texture_rect(_gun_tex, Rect2(Vector2(7.0 - _gun_kick, -_gun_size.y * 0.5) + shudder, _gun_size), false, gun_tint)
+		else:
+			draw_set_transform(Vector2(7.0 - _gun_kick - reload_pull, 0.0) + shudder, reload_tilt, Vector2.ONE)
+			draw_texture_rect(_gun_tex, Rect2(Vector2(0.0, -_gun_size.y * 0.5), _gun_size), false, gun_tint)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

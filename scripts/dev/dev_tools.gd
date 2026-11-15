@@ -1273,6 +1273,39 @@ func _run_autotest() -> void:
 	GameInput.set_virtual_input(Vector2.ZERO, Vector2.RIGHT, false)
 	pl.give_weapon("chainsaw")
 	_check(pl.mag_size == 0 and not pl.reloading, "melee weapons never reload")
+	# The chainsaw's blade sweeps from side to side while the trigger is held and comes back
+	# to the middle when it is let go; it bites what is under the blade, not what is beside it.
+	var saw_half := deg_to_rad(float(pl.weapon["arc_deg"])) * 0.5
+	GameInput.set_virtual_input(Vector2.ZERO, Vector2.RIGHT, true)
+	var saw_left := false
+	var saw_right := false
+	for k in 200:
+		await _frames(1)
+		var blade_at: float = pl.get("_saw_angle")
+		if blade_at > saw_half * 0.6:
+			saw_right = true
+		if blade_at < -saw_half * 0.6:
+			saw_left = true
+		if saw_left and saw_right:
+			break
+	_check(saw_left and saw_right, "the chainsaw's blade sweeps from side to side while the trigger is held")
+	GameInput.set_virtual_input(Vector2.ZERO, Vector2.RIGHT, false)
+	await _until(func() -> bool: return is_zero_approx(float(pl.get("_saw_angle"))), 90)
+	_check(is_zero_approx(float(pl.get("_saw_angle"))), "...and comes back to the middle when it is let go")
+	var meat := game.enemies.spawn(Config.BRUTE, pl.pos + Vector2.from_angle(deg_to_rad(55.0)) * 70.0, 50.0)
+	await _frames(2)
+	var meat_hp := meat.hp
+	pl.set("_saw_angle", 0.0)
+	pl.set("_saw_bite", 0.0)
+	pl.call("_melee", pl.weapon, Vector2.RIGHT, 10.0, 0.0)
+	var saw_missed := is_equal_approx(meat.hp, meat_hp)     # (other zombies may be under the blade: only this one is looked at)
+	pl.set("_saw_bite", 0.0)
+	pl.set("_saw_angle", (meat.pos - pl.pos).angle())
+	pl.call("_melee", pl.weapon, Vector2.RIGHT, 10.0, 0.0)
+	_check(saw_missed and meat.hp < meat_hp and float(pl.get("_saw_bite")) > 0.0,
+			"the saw bites what is under its blade, not what is beside it, and a bite holds the blade back")
+	pl.set("_saw_angle", 0.0)
+	meat.hp = 1.0
 	pl.give_weapon("pistol")
 	pl.give_weapon("pistol")
 	var pistol_mag: int = Config.WEAPONS["pistol"]["mag"]

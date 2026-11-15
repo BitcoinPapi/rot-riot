@@ -30,6 +30,8 @@ var reviving := 0.0                 # ...and how far along they are, 0..1
 var _font: Font
 var _time := 0.0
 var _gun_kick := 0.0
+var _saw_t := 0.0               # their chainsaw ran this short while ago...
+var _saw_phase := 0.0           # ...and is this far along its back-and-forth
 var _walk := 0.0
 var _swing := 0.0
 var _swing_side := 1.0
@@ -99,6 +101,13 @@ func tick(real_dt: float) -> void:
 	_gun_kick = lerpf(_gun_kick, 0.0, minf(real_dt * 22.0, 1.0))
 	_swing = maxf(_swing - real_dt / 0.16, 0.0)
 	_flash = maxf(_flash - real_dt, 0.0)
+	# Their chainsaw swings from side to side while it runs (how exactly, only their own
+	# computer knows: here it just goes back and forth).
+	_saw_t = maxf(_saw_t - real_dt, 0.0)
+	if _saw_t > 0.0:
+		_saw_phase += real_dt * 9.0
+	else:
+		_saw_phase = move_toward(_saw_phase, round(_saw_phase / PI) * PI, real_dt * 9.0)
 	if down:
 		_down_t += real_dt
 	queue_redraw()
@@ -112,6 +121,8 @@ func show_fire(index: int, from: Vector2, angle: float, both_hands: bool) -> voi
 	var dir := Vector2.from_angle(angle)
 	_gun_kick = float(w["recoil_gun"])
 	if String(w["kind"]) == "melee":
+		if bool(w.get("sweep", false)):
+			_saw_t = 0.3
 		if bool(w["swing"]):
 			_swing = 1.0
 			_swing_side = -_swing_side
@@ -186,6 +197,9 @@ func _draw() -> void:
 			var at := Vector2(7.0 - _gun_kick, Player.DUAL_HAND_OFFSET * side).rotated(facing)
 			draw_set_transform(at, facing + tilt * side, Vector2.ONE)
 			draw_texture_rect(gun, Rect2(Vector2(0.0, -gun_size.y * 0.5), gun_size), false, tint)
+	elif bool(w.get("sweep", false)):
+		draw_set_transform(Vector2.ZERO, facing + sin(_saw_phase) * deg_to_rad(float(w["arc_deg"])) * 0.5, Vector2.ONE)
+		draw_texture_rect(gun, Rect2(Vector2(7.0 - _gun_kick, -gun_size.y * 0.5), gun_size), false, tint)
 	else:
 		draw_set_transform(Vector2(7.0 - _gun_kick, 0.0).rotated(facing), facing + tilt, Vector2.ONE)
 		draw_texture_rect(gun, Rect2(Vector2(0.0, -gun_size.y * 0.5), gun_size), false, tint)

@@ -258,13 +258,21 @@ const WEAPONS := {
 		"muzzle_dist": 40.0, "sound": "flame", "color": Color(1.0, 0.5, 0.15),
 	},
 	"chainsaw": {
-		# Held out in front: grinds anything in a narrow cone, many times a second.
+		# It SWEEPS from side to side in front of you while the trigger is held (Kosta's idea,
+		# the owner's go-ahead) and bites many times a second whatever is under the blade.
+		# While it is cutting through a zombie it moves slowly, as through something solid;
+		# through air it whips across. Its damage per bite is what it always was.
 		"name": "CHAINSAW", "kind": "melee", "rarity": "rare", "dual": false, "duration": 18.0,
 		"mag": 0, "reload_kind": "", "reload_time": 0.0, "reload_pitch": 1.0, "mag_debris": "",
 		"damage": 22.0, "interval": 0.075, "pellets": 1, "spread_deg": 0.0,
 		"bullet_speed": 0.0, "speed_var": 0.0, "range": 84.0, "pierce": 0,
-		"arc_deg": 95.0,
+		"arc_deg": 130.0,              # the whole arc the blade travels (the WIDE BITE perk widens it)
 		"swing": false,
+		"sweep": true,
+		"blade_deg": 64.0,             # how wide the blade bites at any one moment
+		"sweep_speed": 700.0,          # degrees a second through air...
+		"sweep_slow": 0.3,             # ...and this much of that while it is in a zombie
+		"sweep_hold": 0.13,            # seconds a bite keeps the blade slow
 		"hit_sound": "chainsaw_hit", "hit_blood": 5,   # extra blood drops per zombie per bite
 		"knockback": 30.0, "stagger": 0.14, "move_mult": 1.12,
 		"shake": 0.03, "kick": 0.0, "recoil_gun": 2.0, "recoil_push": 0.0,
@@ -876,7 +884,7 @@ const WEAPON_PERKS := {
 	],
 	"chainsaw": [
 		{"name": "LONG BAR", "desc": "Reaches 25% further.", "mods": {"range": ["mul", 1.25]}},
-		{"name": "WIDE BITE", "desc": "Cuts a 40% wider arc in front of you.", "mods": {"arc_deg": ["mul", 1.4]}},
+		{"name": "WIDE BITE", "desc": "The saw swings 40% wider.", "mods": {"arc_deg": ["mul", 1.4]}},
 		{"name": "LIGHT ENGINE", "desc": "You move 12% faster while holding it.", "mods": {"move_mult": ["mul", 1.12]}},
 	],
 }
