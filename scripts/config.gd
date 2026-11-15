@@ -11,17 +11,18 @@ extends Node
 ## ============================================================================
 
 const GAME_TITLE := "ROT RIOT"
-const GAME_VERSION := "0.10.0"
+const GAME_VERSION := "0.10.1"
 const HERO_NAME := "CLIFF"                    # the survivor you play
 # How he looks with nothing equipped (his gear is drawn over this, see scripts/autoload/art.gd).
 const HERO_LOOK := {"skin": "#dfae88", "skin_dark": "#b98660", "hair": "#3a2a1e", "shirt": "#23262b", "shirt_light": "#33373d",
 	"strap": "#6b4a2e", "pants": "#2c2f34", "pads": "#1a1c20", "boots": "#17181b", "belt": "#3a3d42", "pouch": "#3f4a2c", "metal": "#b9bec4"}
 
 # ----------------------------------------------------------------------------
-#  THE MAP - one big clearing in the woods, far larger than the screen
-#  (a screen shows about 1070 x 600 of it). A map may set its own "size".
+#  THE MAP - one clearing in the woods, about three screens wide and three
+#  high (a screen shows about 1070 x 600 of it). A map may set its own "size".
+#  (It was 6000 x 4000 until v0.10; the owner asked for half of that.)
 # ----------------------------------------------------------------------------
-const ARENA_SIZE := Vector2(6000.0, 4000.0)   # the playable area
+const ARENA_SIZE := Vector2(3000.0, 2000.0)   # the playable area
 const ARENA_OUTER_MARGIN := 150.0             # painted ground beyond the playable edge
 const CAMERA_EDGE_MARGIN := 110.0             # how far past the edge the camera may look
 const OBSTACLES_PER_MILLION := 2.5            # rocks / stumps per 1000 x 1000 px of map
@@ -60,7 +61,7 @@ const MINIMAP_FOG := Color(0.03, 0.04, 0.04, 0.95)
 # Treasure chests: a few are hidden on the map every run. Walk into one to
 # open it: a piece of gear (kept even if you die) and a handful of coins.
 const CHEST_COUNT := 4
-const CHEST_MIN_DIST_FROM_START := 1100.0     # never right beside the starting spot
+const CHEST_MIN_DIST_FROM_START := 600.0      # never right beside the starting spot (just past what the first look around uncovers)
 const CHEST_EDGE_MARGIN := 220.0              # ...or right at the edge of the map
 const CHEST_PLACE_TRIES := 12                 # more = chests spread more evenly over the map
 const CHEST_OPEN_RADIUS := 30.0

@@ -19,7 +19,7 @@ extends Node
 ##   --keep-weapon      ...and it never runs out
 ##   --cycle            the bot is handed each weapon in turn every 6 seconds
 ##   --wave=N           jump straight to wave N
-##   --at=X,Y           start the run at this spot of the map (the middle is 3000,2000)
+##   --at=X,Y           start the run at this spot of the map (the middle is 1500,1000)
 ##   --no-fog           the whole map is uncovered from the start
 ##   --show-chests      one second into a run, put a closed treasure chest beside the player and open another
 ##   --coop=host        host a co-op game on this computer and start a run as soon as the other copies have joined
@@ -1320,9 +1320,13 @@ func _run_autotest() -> void:
 	game.enemies.clear_all()
 	var field := game.arena.rect
 	var middle := field.get_center()
-	_check(field.size.x >= 4000.0 and field.size.y >= 3000.0, "the map is much bigger than the screen (%d x %d)" % [int(field.size.x), int(field.size.y)])
-	_check(game.decals.chunks_made > 0 and game.decals.chunks_made < game.decals.chunk_count(),
-			"the ground is only made where the player has been (%d of %d pieces)" % [game.decals.chunks_made, game.decals.chunk_count()])
+	# (What a real screen shows; a test without a window has a square one.)
+	var screen_size: Vector2 = Vector2(float(ProjectSettings.get_setting("display/window/size/viewport_width")),
+			float(ProjectSettings.get_setting("display/window/size/viewport_height"))) / Config.CAM_ZOOM
+	_check(field.size.x >= screen_size.x * 2.5 and field.size.y >= screen_size.y * 2.5,
+			"the map is several screens wide and high (%d x %d)" % [int(field.size.x), int(field.size.y)])
+	_check(game.decals.chunks_made > 0 and game.decals.chunks_made <= game.decals.chunk_count() and game.decals.has_ground(pl.pos),
+			"the ground is made in pieces, as the player gets near them (%d of %d so far)" % [game.decals.chunks_made, game.decals.chunk_count()])
 	var chests := game.pickups.chests
 	_check(chests.size() == Config.CHEST_COUNT, "%d treasure chests are hidden on the map" % Config.CHEST_COUNT)
 	var chests_ok := true
@@ -1426,12 +1430,17 @@ func _run_autotest() -> void:
 	game.director.to_spawn = 0
 	game.director.set("_pack_timer", 30.0)
 	var kills_before := game.kills
-	var toward_middle := (middle - pl.pos).normalized()
-	var straggler := game.enemies.spawn(Config.SHAMBLER, game.arena.clamp_inside(pl.pos + toward_middle * (game.leash_dist + 150.0), 40.0))
+	# (Only from one corner of the map to the opposite one is it far enough.)
+	pl.place(game.arena.clamp_inside(field.position, pl.radius + 4.0))
+	game.cam.snap_to(pl.pos)
+	var far_corner := game.arena.clamp_inside(field.end, 90.0)
+	_check(far_corner.distance_to(pl.pos) > game.leash_dist + 50.0, "(the map is wide enough to leave a zombie behind: %d px, it gives up at %d)" % [
+			int(far_corner.distance_to(pl.pos)), int(game.leash_dist)])
+	var straggler := game.enemies.spawn(Config.SHAMBLER, far_corner)
 	await _until(func() -> bool: return not straggler.alive, 30)
 	_check(not straggler.alive and game.director.to_spawn == 1 and game.kills == kills_before,
 			"a zombie left far behind gives up and comes back with a later pack (no reward)")
-	var digger := game.enemies.spawn(Config.BOSS, game.arena.clamp_inside(pl.pos + toward_middle * (game.boss_leash + 150.0), 80.0))
+	var digger := game.enemies.spawn(Config.BOSS, far_corner)
 	await _until(func() -> bool: return digger.pos.distance_to(pl.pos) < game.boss_leash, 30)
 	_check(digger.alive and digger.pos.distance_to(pl.pos) < game.boss_leash, "a boss left far behind digs its way back to the player")
 	game.enemies.clear_all()

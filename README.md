@@ -167,7 +167,7 @@ Close Godot, then double-click **Update Rot Riot.command** inside the project
 folder. A Terminal window opens, downloads the latest version and replaces the
 folder. Your coins, level and upgrades are stored elsewhere and are kept.
 Then open the project in Godot again. The version number is shown in the
-bottom right corner of the main menu (now v0.10.0).
+bottom right corner of the main menu (now v0.10.1).
 
 After an update that changes the upgrade screens, points you had already
 spent are handed back so you can place them again in the new trees.

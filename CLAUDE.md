@@ -62,7 +62,7 @@ Other dev flags (all after `--`, see `scripts/dev/dev_tools.gd`): `--play`,
 `--gear=N` (start with N random pieces, some worn), `--drop-gear` (drop a piece of every tier in a run),
 `--drop-crates` (drop four weapon crates, two of them damaged), `--pets=N` (own the first N pets;
 needs `--level=18` or more),
-`--at=X,Y` (start the run at that spot of the map; the middle is 3000,2000), `--no-fog` (whole map
+`--at=X,Y` (start the run at that spot of the map; the middle is 1500,1000), `--no-fog` (whole map
 uncovered), `--show-chests` (a closed chest beside the player and an opened one),
 `--horde=KIND:N,KIND:N` (put zombies around the player: shambler, runner, brute, boss, gobber,
 chucker, gasbag, lunger - e.g. `--horde=gobber:3,gasbag:2`),
@@ -214,10 +214,14 @@ real themed scenery is roadmap step 5 (a map may already set its own
 `"size"`). The owner calls maps "levels"; the UI
 says MAP so it is not confused with the character LEVEL.
 
-**The map** (THE MAP section of config.gd): one big clearing of 6000x4000
-ringed by trees (the screen shows about 1070x600 of it), with about 60 random
-rocks/stumps. The player starts in the middle. Camera zoom 1.2, may look
-110 px past the edge.
+**The map** (THE MAP section of config.gd): one clearing of **3000x2000**
+ringed by trees (the screen shows about 1070x600 of it, so the map is
+roughly three screens each way), with about 15 random rocks/stumps. It was
+6000x4000 at first; after playing it the owner asked to "decrease the map
+size by 50%" - done as half the width and half the height (`ARENA_SIZE`; if
+he meant half the AREA it would be about 4240x2830). Everything below
+follows the size by itself. The player starts in the middle. Camera zoom
+1.2, may look 110 px past the edge.
 - *Zombies hunt the player wherever they are.* A pack claws out of the
   ground (`rising`) in a ring around the middle of the screen, just out of
   sight: `Game.spawn_min` = screen centre-to-corner + aim lead +
@@ -238,7 +242,7 @@ rocks/stumps. The player starts in the middle. Camera zoom 1.2, may look
   zombies as red dots under the fog; over it the chests already seen (gold),
   opened chests (dim), weapon crates, gear, the boss, the screen's outline
   and the player's arrow. Above it: chests opened / total and "% explored".
-- *Treasure chests* (`CHEST_*`): 4 are hidden each run, at least 1100 px
+- *Treasure chests* (`CHEST_*`): 4 are hidden each run, at least 600 px
   from the start and spread out. A chest shows (and gets a minimap mark, and
   an edge arrow when off-screen) once the fog over it clears; walking into
   it opens it: a piece of gear straight into the bag (kept even if you die)
@@ -583,16 +587,17 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
 - **Persistent gore is free.** `decals.gd` paints the ground once into
   SubViewports that are never cleared, then stamps blood, bodies and casings
   onto them (a viewport is set to UPDATE_ONCE for the frames that have
-  stamps). Tens of thousands of decals cost the same as none. The map is too
-  big for one picture, so it is cut into chunks (7x5 of about 900x860 px); a
+  stamps). Tens of thousands of decals cost the same as none. A big map is too
+  much for one picture, so it is cut into chunks (4x3 of about 825x770 px on
+  the 3000x2000 map; six of them are made in the first frames of a run); a
   chunk is only made when the screen comes within `DECAL_CHUNK_AHEAD` of it
   (one per frame at most) or something is stamped on it. Whatever can lie
   across the line between two chunks (the big soft ground patches, the edge
   shadows) is derived from the run's seed and painted in the same order by
   both, so there is no visible seam. Worst case, with the whole map
-  explored, the chunks hold about 108 MB of video memory
+  explored, the chunks hold about 30 MB of video memory
   (`DECAL_RESOLUTION` 0.5 would quarter that).
-- **Obstacles in buckets.** `arena.gd` sorts the ~60 rocks into 256 px
+- **Obstacles in buckets.** `arena.gd` sorts the rocks into 256 px
   squares; `resolve()` and `segment_hit()` (every bullet, every frame) only
   look at the rocks listed in the squares they touch.
 - **Fog is one tiny picture**: one pixel per 50 px square of the map, alpha =
@@ -649,11 +654,12 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   whether ranged zombies are fair or annoying, how often each should appear
   (first guesses; the bot gets about as far as before, wave 5-11 as a new
   character). Their sounds are unheard.
-- The big map on real hardware: whether making a new piece of ground causes
-  a hitch when walking into new territory, how much video memory a fully
-  explored map takes (about 108 MB by calculation), how the fog looks in
-  motion (only still screenshots were checked), whether the minimap is big
-  enough to read. Chest count and chest loot are first guesses.
+- The map on real hardware: whether making a new piece of ground causes
+  a hitch when walking into new territory, how the fog looks in motion (only
+  still screenshots were checked), whether the minimap is big enough to
+  read. Chest count and chest loot are first guesses - on the smaller map
+  all four chests are close by, so gear from chests comes faster than
+  before (ask the owner; `CHEST_COUNT`).
 - The Skills page and the Character screen with a real mouse / trackpad /
   gamepad (only simulated input was tested).
 - How Cliff looks to a human eye: he is simple shapes in the general style
@@ -754,6 +760,9 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   usable while hosting, COPY CODE only ever copies a code that works from
   outside (built, awaiting their second try). If it fails again: ask what
   each screen said; then consider Steam networking or a relay.
+- After v0.9: "decrease the map size by 50%" -> 3000x2000 (half as wide and
+  half as tall; chests now at least 600 px from the start). The big map
+  was a first guess he had been asked about; this is his answer.
 - The owner's Mac: browser downloads do not work there, so updates go through
   Terminal (curl) or the double-click updater. Always give the full update
   command and say plainly that Return must be pressed.
@@ -776,7 +785,8 @@ Build one stage at a time; the owner plays each before the next starts.
 3b. **Pets. DONE (awaiting the owner's playtest).** See "Pets" under
    Progression. Ideas if the owner wants more: more pets per rarity, pets as
    rare boss drops, a pet that flies and fetches from far away.
-4. **Big map. DONE (awaiting the owner's playtest).** A 6000x4000 map, fog of
+4. **Big map. DONE; then halved at the owner's request (3000x2000).** A map
+   several screens wide, fog of
    war, a minimap, four treasure chests per run that give gear; zombies rise
    around the player wherever they are. See "The map" above. Ideas if the
    owner wants more: an even bigger map or different sizes per map, a full
