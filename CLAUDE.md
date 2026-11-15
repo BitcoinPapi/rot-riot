@@ -47,7 +47,7 @@ Kosta and Tatoni all use. It has two pages:
   on the artifact", then "next to each item leave a space where we can
   upload inspiration pictures", then "add gear, weapon upgrades and weapon
   perks"). Ten sections - weapons, weapon upgrades, weapon perks, villains,
-  gang maps, gear, pets, skills, run perks, levels & rules - each item with
+  gang zones (id `gangs`), gear, pets, skills, run perks, levels & rules - each item with
   its numbers and names as tiles and a strip of pictures. A section about
   several things has "parts", shown one under the other (gear: the pieces,
   the five tiers and the forge, finding gear).
@@ -315,8 +315,22 @@ on that map, so a map is finished over several sessions; a checkpoint run
 starts with a weapon crate beside the player. All five maps use the same
 big clearing for now, with a colour wash per map (`ground` / `trees`); the
 real themed scenery is roadmap step 5 (a map may already set its own
-`"size"`). The owner calls maps "levels"; the UI
-says MAP so it is not confused with the character LEVEL.
+`"size"`). The owner calls maps "levels"; in the game they are **ZONES**
+(since v0.15: the HUD, results, main menu and dashboard say ZONE; code and
+this file still say map). Map 1 is FURCY HILL CAMP (the owner's wish; Furcy
+is a real mountain village - the only named real place; gangs and leaders
+stay invented).
+**The Play screen is a map of Haiti** (`map_screen.gd`, the owner's idea
+"take back the country, one territory at a time"): a hand-made, simplified
+outline (`MapScreen.COAST`, islands, the big lake, the neighbour's land
+dim), with one pin per zone at `"at"` (degrees east, north) /
+`"label_side"` in `Config.MAPS` - red = a gang holds it, green with a flag
+= taken back (all waves cleared), grey = locked. Click a pin to choose the
+zone; the panel beside the map shows gang, leader, story, numbers and
+progress; a line along the bottom of the map names the pin under the
+pointer. Left / right walk the zones, down leaves the map for START. The
+rules did not change. The input test checks that every pin lies on land
+and inside the picture.
 
 **The map** (THE MAP section of config.gd): one clearing of **3000x2000**
 ringed by trees (the screen shows about 1070x600 of it, so the map is
@@ -385,8 +399,12 @@ show the damage.
 - *Rare:* launcher (grenade, 135 px blast, biggest shake + hit stop),
   flamethrower (`kind: "flame"`: slowing, growing puffs that pass through
   everything and set zombies burning; burning zombies take damage over time,
-  glow orange and leave charred bodies), chainsaw (melee held out in front,
-  bites 13 times a second, extra blood).
+  glow orange and leave charred bodies), chainsaw (melee, bites 13 times a
+  second, extra blood; **since v0.15 it swings from side to side** through
+  `arc_deg` and slows while it saws through a zombie - Kosta's idea; `"sweep"`,
+  `blade_deg`, `sweep_speed`, `sweep_slow`, `sweep_hold` in its config,
+  `Player._tick_sweep`; its damage was NOT raised, the owner's choice; it
+  kills about as fast as before by the benchmark).
 - *Rarity* (`Config.CRATE_RARITIES`): weights common 1.0 / uncommon 0.5 / rare
   0.22, times the weapon's own spawn-rate upgrade. The colour of the name
   under the crate shows its tier. The launcher must stay rarer than the machine gun (owner's request).
@@ -426,7 +444,15 @@ a fifth of a wave; no attack of its own, so no warning), Runner (fast,
 zig-zags), Brute (tank, resists knockback and stagger), the map's gang boss
 every 5th wave (charge with a telegraphed wind-up, dazed afterwards; summons
 shamblers out of the ground; +60% HP each time it returns; **each map's boss
-has his own look**: the boss's `variant` is the map, `boss_0` .. `boss_4`),
+has his own look**: the boss's `variant` is the map, `boss_0` .. `boss_4`;
+**and since v0.15 the first three have a move of their own**
+(`Config.BOSS_MOVES`, read by `Config.boss_move(variant)`, the hint shown
+when the boss arrives): Kòk Batay charges twice in a row, Machwè Fè plants
+his feet and sweeps his blade through a red fan on the ground
+(`EnemyShots.sweep`, co-op event `E_SWEEP`), Papa Zo raises more dead and
+throws three lumps of grave dirt (the Chucker's lob); maps 4 and 5 have
+`{}` = the plain boss - proposed and not built: Gwo Kamyon a long charge,
+Wa Lannwit a chain hook),
 and four kinds with an attack of their own (owner: "more enemies including
 some that shoot from range"):
 - **Gobber** (ranged): stops about 400 px away, swells for 0.6 s, spits a
@@ -491,7 +517,10 @@ speed, SHARP EYE +6% critical, SLICK RELOAD +20%, BIG MAGAZINES +25%
 rounds, PIERCING SHOTS +1 zombie) and the rest (LIGHT FEET +6% speed, FAT
 PURSE +20% coins, FIRM GRIP crate weapons +25% longer, SUPPLY LINE +25%
 crates, PACK HUNTER pet bites +40% - only offered with a pet). Some have a
-limit (`"max"`); a perk at its limit is not offered again.
+limit (`"max"`); a perk at its limit is not offered again. (FIELD DRESSING:
+twice at most since v0.15 - the owner's change on the dashboard; he finds
+the perks "a little OP" but chose to leave the rest, and confirmed that
+perks last for the run only.)
 - *While the choice is open* the character stands still and cannot be hurt,
   the mouse pointer shows, and **the next wave waits** (the wave director
   asks `Game.perks_pending()`). The first 0.45 s the cards ignore input so
@@ -667,7 +696,17 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   trees) are handed back on load.
 
 **Settings:** master volume, SFX volume, screen shake strength, fullscreen
-(also F11). The game auto-pauses when the window loses focus.
+(also F11), and **FEWER EFFECTS** (v0.15, off by default; Kosta: "the game
+starts to lag at later waves"): half of what FLIES is shown (blood, sparks,
+smoke, casings - `Fx._few`), while the ground gets the same (a drop that is
+not shown still leaves its dot, a casing lies down at once), and at most
+`FEWER_ENEMIES_ALIVE` (160) zombies are alive instead of 240
+(`Game.max_alive()`; in co-op for everybody as soon as one player has it
+on - a joiner says so with flag 32 of the player state). **F3** shows a
+line with FPS, the lowest FPS of the last 10 s, zombies and effects
+(`GameInput.stats_shown`, `Hud.stats_line`). Whether the switch helps is
+unknown: nobody has given real numbers yet - ask Kosta for his F3 line.
+The game auto-pauses when the window loses focus.
 
 ## How the important systems work
 
@@ -867,8 +906,15 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   the Mac `~/Library/Application Support/Godot/app_userdata/Rot Riot/sfx/`):
   same names, same rules, they win over the project's files and survive
   updates. Claude cuts and levels them and hands the owner a zip plus the
-  one command that unpacks it there. In use that way: `shotgun_1..6` and
-  `rack_1..3` from a Sonniss shotgun recording. Friends only hear them if
+  one command that unpacks it there. In use that way (zip
+  `hgw-private-sounds-2.zip`, v0.15): `rifle_1..4`, `shotgun_1..6`,
+  `explosion` (WAV) and `rack_1..3` (the bolt), all from part 1 of the Sonniss
+  GDC 2024 bundle (the only gun and explosion recordings in his two parts;
+  pistol, SMG and machine gun need another source). **Loudness lesson**: a
+  real shot is mostly bass, so at the same PEAK it is 8-10 dB quieter to the
+  ear than a generated gun (the first shotgun played quieter than the
+  pistol). `tools/sound_ear.py` measures loudness the way an ear weighs it;
+  the recipe that was used is written at its top. Friends only hear them if
   they get the same zip. Before BOUGHT art goes in, the project must be made
   private (and the updater given a way in).
 - **Ground pictures** (`assets/ground/`, Poly Haven, CC0): the ground is a
@@ -925,6 +971,14 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   whether ranged zombies are fair or annoying, how often each should appear
   (first guesses; the bot gets about as far as before, wave 5-11 as a new
   character). Their sounds are unheard.
+- v0.15: the bosses' own moves (are the warnings long enough? is Papa Zo
+  with nine more dead too much?), the swinging chainsaw's feel, the Haiti
+  map with a real mouse and gamepad, FEWER EFFECTS on a slow computer, and
+  the Gobber's and the hero's animations IN MOTION - only single frames were
+  looked at; the speeds (ANIMATED CHARACTERS in config.gd) are first
+  guesses, and the hero plays his attack frames at every burst of fire,
+  which may look odd with fast guns. The new recorded rifle, shotgun and
+  explosion are unheard (measured only).
 - The painted enemies (v0.14) in motion: only still pictures were checked.
   Unknown: whether a single picture that only turns and rocks looks alive
   enough, whether the sizes feel right in a crowd (the pictures are wider
@@ -1121,6 +1175,21 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   got a painted look (see the Art notes); and "update the artifact with
   pictures of the new villains" -> his pictures were put on the dashboard's
   Villains and Gang maps rows.
+- **v0.15.0, built in one sitting, item by item** ("build the changes and
+  implement the ideas. Ask me one by one and i will tell you to go ahead";
+  then "ask me the items here instead of my phone" - he wants questions as
+  plain chat text with numbered answers, NOT the pop-up question dialog).
+  His answers: FIELD DRESSING twice at most (his dashboard change) - yes;
+  perks "a little OP" - leave them; bosses' own attacks - the first three;
+  chainsaw (Kosta) - only the swing, no more damage; shorter waves (Kosta) -
+  no; late-game lag (Kosta) - FEWER EFFECTS switch and F3 counter; map 1 -
+  FURCY HILL CAMP; Haiti as the Play screen (his idea) - yes; enemies with
+  guns, grenades and molotovs (his own comment) - skipped for now; real gun
+  recordings - yes, from his Sonniss files (rifle, explosion, louder
+  shotgun); chests - keep 4; co-op between real homes - not tried yet;
+  music - later. In the same sitting he sent `gobber.zip` and `janjan.zip`
+  without a word: animation sheets (see "Animated characters"). Sheets for
+  the other enemies go in the same way. All awaiting his eyes and ears.
 - The owner's Mac: browser downloads do not work there, so updates go through
   Terminal (curl) or the double-click updater. Always give the full update
   command and say plainly that Return must be pressed.
