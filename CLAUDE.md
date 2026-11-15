@@ -692,7 +692,10 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   **Gear on the painted hero is still not shown** (he wants it back): the
   plan offered to him - draw the gear over the painted hero in the fight
   (or painted top-down pieces from him), and show the drawn, gear-wearing
-  hero on the Character screen. Not built yet; he has not answered.
+  hero on the Character screen. Not built. HIS ANSWER (asked again once the
+  first gear pictures were in): wait until all 32 gear pictures are in,
+  then decide. Do not build it before; ask him again when the last
+  picture has arrived.
 - *Pets* (Pets screen; PETS section of config.gd). The feature opens at
   character level 18 (`PET_UNLOCK_LEVEL`): the first pet, SCRAPS the stray
   dog, joins by itself (mid-run if that is where the level is reached). Five
