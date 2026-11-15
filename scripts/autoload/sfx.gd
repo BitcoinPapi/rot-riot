@@ -8,10 +8,16 @@ extends Node
 ##
 ##  Play one with:   Sfx.play("pistol")
 ##
-##  REPLACING A SOUND WITH A REAL RECORDING LATER:
+##  REPLACING A SOUND WITH A REAL RECORDING:
 ##  Put a file with the same name in  res://assets/sfx/  - for example
 ##  assets/sfx/shotgun.wav (or .ogg) - and it is used instead.
 ##  The names are the keys of RECIPES below.
+##  SEVERAL RECORDINGS OF ONE SOUND: name them shotgun_1.ogg, shotgun_2.ogg,
+##  shotgun_3.ogg ... and a different one is picked each time, so a sound
+##  heard many times a second does not repeat itself. The generated sounds
+##  are as loud as they can be without distorting (peak -1 dB); a recording
+##  should be too, then the volumes below still fit.
+##  Which recordings are in use and where they come from: assets/CREDITS.txt
 ## ============================================================================
 
 const SAMPLE_RATE := 32000
@@ -82,9 +88,23 @@ var RECIPES := {
 	"ui_deny": [_make_ui_deny, -6.0, 0.05],
 }
 
+## Recordings in assets/sfx (see the top of this file) that are quieter or
+## louder to the ear than the generated sound they replace: dB added on top of
+## the volume in RECIPES. (Measured, not heard: average loudness against the
+## generated sound's.)
+const RECORDING_GAIN := {
+	"sledge_hit": 5.0,       # the big hit must stay the big hit
+	"crate_break": 2.0,
+	"ricochet": -5.0,
+	"ui_click": 4.0,
+	"ui_move": 3.0,
+	"ui_deny": 3.0,
+}
+
 var ready_to_play := false
 
 var _streams := {}        # name -> AudioStream
+var _variants := {}       # name -> Array of AudioStream: several recordings of one sound (one is picked each time)
 var _last_played := {}    # name -> time in ms
 var _players: Array[AudioStreamPlayer] = []
 var _next_player := 0
@@ -102,12 +122,42 @@ func _ready() -> void:
 		_players.append(p)
 	# Real recordings in assets/sfx override the synth.
 	for sound: String in RECIPES.keys():
-		for ext: String in ["wav", "ogg", "mp3"]:
-			var path := "res://assets/sfx/%s.%s" % [sound, ext]
-			if ResourceLoader.exists(path):
-				_streams[sound] = load(path)
+		var found: Array[AudioStream] = []
+		var single := _recording("res://assets/sfx/%s" % sound)
+		if single != null:
+			found.append(single)
+		var number := 1
+		while true:
+			var next := _recording("res://assets/sfx/%s_%d" % [sound, number])
+			if next == null:
 				break
+			found.append(next)
+			number += 1
+		if not found.is_empty():
+			_streams[sound] = found[0]
+			if found.size() > 1:
+				_variants[sound] = found
 	_task_id = WorkerThreadPool.add_task(_generate_all, false, "Synthesising sound effects")
+
+
+## The recording at `path` (without its ending), or null if there is none.
+func _recording(path: String) -> AudioStream:
+	for ext: String in ["wav", "ogg", "mp3"]:
+		if ResourceLoader.exists("%s.%s" % [path, ext]):
+			return load("%s.%s" % [path, ext])
+	return null
+
+
+## True if `sound` is played from a recording in assets/sfx (not generated).
+func is_recording(sound: String) -> bool:
+	return _streams.has(sound) and not (_streams[sound] is AudioStreamWAV)
+
+
+## How many recordings `sound` has to pick from (0 = it is generated).
+func recording_count(sound: String) -> int:
+	if _variants.has(sound):
+		return (_variants[sound] as Array).size()
+	return 1 if is_recording(sound) else 0
 
 
 func _exit_tree() -> void:
@@ -156,8 +206,12 @@ func play_pitched(sound: String, pitch: float, volume_db: float = 0.0) -> void:
 			player = candidate
 			break
 	_next_player = (_next_player + 1) % VOICES
+	if _variants.has(sound):
+		stream = (_variants[sound] as Array).pick_random()
 	player.stream = stream
 	player.volume_db = volume_db + float(recipe[1])
+	if not (stream is AudioStreamWAV):
+		player.volume_db += float(RECORDING_GAIN.get(sound, 0.0))
 	player.pitch_scale = clampf(pitch, 0.3, 3.0)
 	player.play()
 

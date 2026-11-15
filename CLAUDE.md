@@ -652,7 +652,17 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
 - **Art:** `art.gd` rasterises small SVG strings at 2x. A PNG with the same
   name in `assets/sprites/` replaces a sprite (hit-flash versions are derived
   automatically). **Sound:** `sfx.gd` recipes; a file with the same name in
-  `assets/sfx/` (.wav/.ogg/.mp3) replaces a sound.
+  `assets/sfx/` (.wav/.ogg/.mp3) replaces a sound, and several files named
+  `name_1`, `name_2`... are picked from at random (for sounds heard many
+  times a second). A recording should peak at about -1 dB like the generated
+  sounds; `Sfx.RECORDING_GAIN` evens out the rest. **Recordings in use**
+  (from Kenney's CC0 "Interface Sounds" and "Impact Sounds", which the owner
+  downloaded; listed in `assets/CREDITS.txt` - keep that file up to date):
+  menu click / move / buy / deny, bullet-into-zombie hits, sledgehammer hits,
+  crate hits and breaks, bullets on rock. Everything else is still
+  generated. Deleting a recording's files brings the generated sound back.
+  **Changing only sounds or pictures does not change `GAME_VERSION`**: that
+  number decides who may play together, and such copies still can.
 - **Menus** are Controls built in code, themed by `UiKit.make_theme()`.
   `Main` keeps a stack of screen names; every screen may define `opened()`
   and `closed()`. Buttons grab focus on hover so mouse and gamepad share one
@@ -812,6 +822,15 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
 - After v0.9: "decrease the map size by 50%" -> 3000x2000 (half as wide and
   half as tall; chests now at least 600 px from the start). The big map
   was a first guess he had been asked about; this is his answer.
+- Asked which asset packs would polish the game, then sent three Kenney
+  packs (CC0): Interface Sounds and Impact Sounds are in use for nine sounds
+  (awaiting his ears - Claude chose them by name, length and loudness, not by
+  listening). The third, "Top-down Shooter" (bright cartoon houses and
+  people), is NOT used: its look does not fit; maybe for the themed maps,
+  recoloured. Claude cannot download packs itself: kenney.nl and
+  opengameart.org forbid AI tools in their robots.txt - the owner downloads
+  and attaches them. Next most useful: gun / zombie voice recordings (e.g.
+  a Sonniss GDC bundle) and music (the game has none).
 - The owner's Mac: browser downloads do not work there, so updates go through
   Terminal (curl) or the double-click updater. Always give the full update
   command and say plainly that Return must be pressed.

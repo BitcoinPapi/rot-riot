@@ -795,6 +795,43 @@ func _run_autotest() -> void:
 			and question.size() == 20 and question.slice(0, 8) == PackedByteArray([0x00, 0x01, 0x00, 0x00, 0x21, 0x12, 0xa4, 0x42])
 			and question.slice(8) == stun_id, "...an answer to somebody else's question is ignored; old-style answers are understood")
 
+	# --- recordings in assets/sfx replace generated sounds; several of one sound are picked from ---
+	# (The generated sounds are built in the background; that takes real time, not frames.)
+	var sound_wait := Time.get_ticks_msec()
+	while not Sfx.ready_to_play and Time.get_ticks_msec() - sound_wait < 60000:
+		await get_tree().process_frame
+	var streams: Dictionary = Sfx.get_streams()
+	var all_sounds := true
+	for sound_name: String in Sfx.RECIPES.keys():
+		if not streams.has(sound_name) or streams[sound_name] == null:
+			all_sounds = false
+	_check(all_sounds, "every sound of the game is there, generated or recorded (%d)" % streams.size())
+	var recorded: Array[String] = []
+	var recordings_ok := true
+	var dir := DirAccess.open("res://assets/sfx")
+	if dir != null:
+		for file_name: String in dir.get_files():
+			# (In an exported game only the ".import" notes are listed, so take either.)
+			var base := file_name.trim_suffix(".import")
+			if not (base.get_extension() in ["ogg", "wav", "mp3"]):
+				continue
+			base = base.get_basename()
+			var sound_name := base
+			var cut := base.rfind("_")
+			if cut > 0 and base.substr(cut + 1).is_valid_int():
+				sound_name = base.substr(0, cut)
+			if not Sfx.RECIPES.has(sound_name):
+				recordings_ok = false          # (a file no sound of the game is called: a typing mistake in its name)
+			elif not recorded.has(sound_name):
+				recorded.append(sound_name)
+	for sound_name: String in recorded:
+		if not Sfx.is_recording(sound_name):
+			recordings_ok = false
+	_check(recordings_ok, "the recordings in assets/sfx are all used (%s)" % ", ".join(recorded))
+	if recorded.has("zombie_hit"):
+		_check(Sfx.recording_count("zombie_hit") >= 3 and Sfx.is_recording("ui_click") and not Sfx.is_recording("pistol"),
+				"a sound with several recordings picks from them (%d zombie hits); sounds without a file stay generated" % Sfx.recording_count("zombie_hit"))
+
 	# --- skills screen: skill points and the plain list of stats ---
 	app.open_screen("skills")
 	await _frames(3)
