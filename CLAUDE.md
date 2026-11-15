@@ -1217,6 +1217,13 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   go on the inventory tiles, the Character screen's slots and the gear cases
   (today those show small generated symbols). A gear case on the ground now
   writes the tier and the name on two lines (long names did not fit).
+  THE 8 TYPE ICONS ARRIVED (named 01_combat_helmet ... 08_boots; white
+  shapes, more detailed than asked, the ring carries a skull) and are in:
+  `assets/sprites/gear_<type>.png`, 96 px, tinted by the game exactly like
+  the old symbols (inventory tiles in the piece's colour, cases in the
+  tier's, empty slots grey, the HUD's gear arrows). The 32 per-piece
+  pictures are still to come; when they do, a piece shows its own picture
+  and the type icon stays for empty slots and arrows.
 - **v0.15.0, built in one sitting, item by item** ("build the changes and
   implement the ideas. Ask me one by one and i will tell you to go ahead";
   then "ask me the items here instead of my phone" - he wants questions as

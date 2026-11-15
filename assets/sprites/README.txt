@@ -16,6 +16,10 @@ art_source/).
 A kind with several looks and one painted picture uses it for all of them
 (brute_1 takes brute_0.png).
 
+GEAR SYMBOLS: gear_helmet, gear_amulet, gear_chest, gear_gloves, gear_ring, gear_belt,
+gear_pants, gear_boots - plain WHITE shapes, 96x96 px; the game colours them (a piece's
+own colour in the inventory, its tier's colour on a gear case, grey in an empty slot).
+
 MOVEMENT. A character can also have strips of frames: NAME_walk.png, NAME_idle.png,
 NAME_attack.png, NAME_hit.png, NAME_death.png - the frames side by side, each a
 square as tall as the strip, the middle of the chest in the middle of each frame -

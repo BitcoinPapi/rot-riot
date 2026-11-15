@@ -80,6 +80,14 @@ Each strip also exists as NAME_hurt (the same line plus --wounds). For example:
 A new character's sheets: the same, with the line of its still sprite. Sheets must show
 the picture the still sprite was cut from (the script finds it inside the first frame).
 
+GEAR ICONS. gear_icons/icon_<type>.webp: the eight symbols for the kinds of gear (helmet,
+amulet, chest, gloves, ring, belt, pants, boots), made by the owner with ChatGPT as plain
+white shapes; the game tints them. Each was cut to its edges and fitted into 96x96 px as
+assets/sprites/gear_<type>.png (5 px of room around it) - they replace the small symbols
+drawn in art.gd on the inventory tiles, the Character screen's slots, the gear cases on the
+ground and the arrows that point to gear. A picture per PIECE (32 of them, named by item
+id) is still to come from him.
+
 For example (a still sprite):
   tools/make_sprite.py art_source/brute.webp brute_0      --length 92 --center 620,635
   tools/make_sprite.py art_source/brute.webp brute_0_hurt --length 92 --center 620,635 --wounds
