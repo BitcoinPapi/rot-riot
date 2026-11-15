@@ -3,7 +3,6 @@ extends Node2D
 ## The player character: movement, aiming, firing and its own drawing.
 ## Movement is instant (no acceleration) - that is deliberate, it feels sharp.
 
-const DUAL_HAND_OFFSET := 7.5   # how far each gun sits from the middle when dual wielding (drawing only)
 
 var game: Game
 var pos := Vector2.ZERO
@@ -49,7 +48,7 @@ var _reload_total := 1.0
 var _reload_stage := 0          # which reload sound has played so far
 var _walk_phase := 0.0
 # Movement in pictures (when the hero has strips, see Art.anim_of; {} = one still picture)
-var _anims: Dictionary = Art.anim_of("player")
+var _death_frames: Array = []   # the frames he goes down in
 var _anim_t := 0.0              # how far through walking / standing (goes round and round)
 var _anim_hit := 0.0            # seconds left of the flinch
 var _anim_fire := 0.0           # seconds left of the shooting movement
@@ -187,11 +186,16 @@ func _fire() -> void:
 			Config.AIM_ASSIST_STRENGTH_GAMEPAD if sticks else Config.AIM_ASSIST_STRENGTH_MOUSE,
 			Config.AIM_ASSIST_RANGE)
 
-	# Dual wielding alternates hands; each shot leaves from that hand's gun.
-	var hand := Vector2.ZERO
+	# Each shot leaves from the gun in his hands (dual wielding alternates hands). A gun
+	# held beside the aim line shoots slightly inward: its shots cross that line where
+	# the player aims.
 	if dual:
 		_dual_side = -_dual_side
-		hand = Vector2(-dir.y, dir.x) * (DUAL_HAND_OFFSET * _dual_side)
+	var held: Vector2 = gun_spot()
+	var hand := Vector2(-dir.y, dir.x) * held.y
+	var ahead: float = held.x - Config.HERO_GUN_REAR     # (how much further out than where "muzzle_dist" was measured)
+	var line := shot_line(dir)
+	var shot_dir: Vector2 = line[1]
 
 	var kind := String(w["kind"])
 	if kind == "melee":
@@ -199,20 +203,20 @@ func _fire() -> void:
 	else:
 		var pellets: int = w["pellets"]
 		var spread := deg_to_rad(float(w["spread_deg"])) * spread_mult
-		var from := pos + dir * (radius + 2.0) + hand
+		var from: Vector2 = line[0]
 		for k in pellets:
 			var crit := randf() < stats.crit_chance
-			game.projectiles.spawn(from, dir.rotated(randf_range(-0.5, 0.5) * spread), w, weapon_id,
+			game.projectiles.spawn(from, shot_dir.rotated(randf_range(-0.5, 0.5) * spread), w, weapon_id,
 					dmg * (stats.crit_mult if crit else 1.0),
 					knock * (Config.CRIT_KNOCKBACK_MULT if crit else 1.0), crit)
-		var muzzle := pos + dir * float(w["muzzle_dist"]) + hand
+		var muzzle := pos + dir * (float(w["muzzle_dist"]) + ahead) + hand
 		if kind == "flame":
 			game.fx.light(muzzle, 110.0, 0.07, Color(1.0, 0.6, 0.2, 0.45))
 		else:
-			game.fx.muzzle_flash(muzzle, dir, float(w["flash_size"]), w["tracer_color"])
+			game.fx.muzzle_flash(muzzle, shot_dir, float(w["flash_size"]), w["tracer_color"])
 		var casing_kind := String(w["casing"])
 		if casing_kind != "":
-			game.fx.casing(pos + dir * 12.0 + hand, dir, casing_kind)
+			game.fx.casing(pos + dir * (12.0 + ahead) + hand, dir, casing_kind)
 
 	# Feel: recoil, camera jolt, shake, sound. All numbers come from Config.WEAPONS.
 	_gun_kick = float(w["recoil_gun"])
@@ -224,7 +228,7 @@ func _fire() -> void:
 	game.hud.fired(float(w["recoil_gun"]))
 	Sfx.play(String(w["sound"]))
 	if game.coop != null:
-		game.coop.send_fire(weapon_id, pos + hand, dir, dual)      # so the other player sees it
+		game.coop.send_fire(weapon_id, pos + hand + dir * ahead, shot_dir, dual)      # so the other player sees it
 
 	# Magazine: when the last round is gone the reload starts by itself.
 	if mag_size > 0:
@@ -254,11 +258,8 @@ func start_reload() -> void:
 	var debris := String(w["mag_debris"])
 	if debris != "":
 		var side := Vector2(-aim.y, aim.x)
-		if dual:
-			game.fx.mag_drop(pos + aim * 10.0 + side * DUAL_HAND_OFFSET, aim, debris)
-			game.fx.mag_drop(pos + aim * 10.0 - side * DUAL_HAND_OFFSET, aim, debris)
-		else:
-			game.fx.mag_drop(pos + aim * 12.0, aim, debris)
+		for held: Vector2 in Art.hero_guns(dual, weapon):
+			game.fx.mag_drop(pos + aim * (5.0 + held.x) + side * held.y, aim, debris)
 
 
 ## Reloads get faster with the DEXTERITY passive and the weapon's own RELOAD SPEED upgrade.
@@ -423,7 +424,32 @@ func heal(amount: float) -> void:
 
 
 func muzzle_position() -> Vector2:
-	return pos + aim * float(weapon["muzzle_dist"])
+	var held := gun_spot()
+	return pos + aim * (float(weapon["muzzle_dist"]) + held.x - Config.HERO_GUN_REAR) + Vector2(-aim.y, aim.x) * held.y
+
+
+## A shot from the gun in his hands, for the aim `dir`: [where it starts, which way it
+## flies]. It starts beside the aim line, where the gun is, and flies slightly inward,
+## so it crosses that line where the player aims (Config: HERO_AIM_MEET...).
+func shot_line(dir: Vector2) -> Array:
+	var beside := clampf(gun_spot().y, -Config.HERO_SHOT_SIDE_MAX, Config.HERO_SHOT_SIDE_MAX)
+	var from := pos + dir * (radius + 2.0) + Vector2(-dir.y, dir.x) * beside
+	if beside == 0.0:
+		return [from, dir]
+	var meet := clampf(GameInput.get_aim_reach(self, Config.HERO_AIM_MEET), Config.HERO_AIM_MEET_MIN, Config.HERO_AIM_MEET_MAX)
+	return [from, (pos + dir * meet - from).normalized()]
+
+
+## Where the rear end of the gun that fires next (or fired last) sits in his hands: game
+## px from the middle of his sprite, x ahead, y to his right (Config: THE HERO'S HANDS).
+func gun_spot() -> Vector2:
+	var spots := Art.hero_guns(dual, weapon)
+	return spots[1 if dual and _dual_side > 0.0 else 0]
+
+
+## His picture's name for what he holds: "player", or "player_twin" with a gun in each hand.
+func body_sprite() -> String:
+	return "player" + Art.hero_pose(dual)
 
 
 func hurt_flash() -> void:
@@ -434,8 +460,10 @@ func hurt_flash() -> void:
 ## The run is lost: show him going down, if he has pictures for it. False = he has none
 ## (the game then simply takes him off the field, as it always did).
 func die_look() -> bool:
-	if not _anims.has("death"):
+	var anims := Art.anim_of(body_sprite())
+	if not anims.has("death"):
 		return false
+	_death_frames = anims["death_hurt"]
 	_dying = true
 	_death_t = 0.0
 	queue_redraw()
@@ -444,17 +472,18 @@ func die_look() -> bool:
 
 ## The frame of his movement to show now (null = his one still picture).
 func _body_frame() -> Texture2D:
-	if _anims.is_empty():
+	var anims := Art.anim_of(body_sprite())
+	if anims.is_empty():
 		return null
 	var tail := "_hurt" if wounded else ""
-	if _anim_hit > 0.0 and _anims.has("hit"):
-		return Art.frame_at(_anims["hit" + tail], clampf(1.0 - _anim_hit / Config.ANIM_HIT_TIME, 0.0, 0.999))
-	if _anim_fire > 0.0 and _anims.has("attack"):
-		return Art.frame_at(_anims["attack" + tail], clampf(1.0 - _anim_fire / Config.ANIM_FIRE_TIME, 0.0, 0.999))
-	if move_input != Vector2.ZERO and _anims.has("walk"):
-		return Art.frame_at(_anims["walk" + tail], _anim_t)
-	if _anims.has("idle"):
-		return Art.frame_at(_anims["idle" + tail], _anim_t)
+	if _anim_hit > 0.0 and anims.has("hit"):
+		return Art.frame_at(anims["hit" + tail], clampf(1.0 - _anim_hit / Config.ANIM_HIT_TIME, 0.0, 0.999))
+	if _anim_fire > 0.0 and anims.has("attack"):
+		return Art.frame_at(anims["attack" + tail], clampf(1.0 - _anim_fire / Config.ANIM_FIRE_TIME, 0.0, 0.999))
+	if move_input != Vector2.ZERO and anims.has("walk"):
+		return Art.frame_at(anims["walk" + tail], _anim_t)
+	if anims.has("idle"):
+		return Art.frame_at(anims["idle" + tail], _anim_t)
 	return null
 
 
@@ -477,7 +506,7 @@ func _draw() -> void:
 		return
 	if _dying:
 		# Going down: his death frames once, then he lies where he fell.
-		var falling: Array = _anims["death_hurt"]
+		var falling: Array = _death_frames
 		var fallen: Texture2D = falling[clampi(int(_death_t / Config.ANIM_DEATH_TIME * falling.size()), 0, falling.size() - 1)]
 		var lying := Vector2(fallen.get_size()) / Art.PX
 		var settle := clampf(_death_t / Config.ANIM_DEATH_TIME, 0.0, 1.0)
@@ -490,15 +519,21 @@ func _draw() -> void:
 		alpha = 0.45
 
 	# Body: a frame of his movement, or his one picture with a small squash while walking.
+	# (The painted hero's arms are part of his picture: with the swinging chainsaw his
+	# whole body turns with the saw, so it stays in his hands.)
 	var tint := Color(1, 1, 1, alpha)
+	var is_melee := String(weapon["kind"]) == "melee"
+	var sweeping := is_melee and bool(weapon.get("sweep", false))
+	var body_turn := _saw_angle if sweeping and Art.hero_painted() else 0.0
 	var moving := _body_frame() if _flash <= 0.0 else null
 	if moving != null:
 		var frame_size := Vector2(moving.get_size()) / Art.PX
+		draw_set_transform(Vector2.ZERO, body_turn, Vector2.ONE)
 		draw_texture_rect(moving, Rect2(-frame_size * 0.5, frame_size), false, tint)
 	else:
 		var bob := 1.0 + sin(_walk_phase) * 0.035
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, bob))
-		var body := "player_flash" if _flash > 0.0 else ("player_hurt" if wounded else "player")
+		draw_set_transform(Vector2.ZERO, body_turn, Vector2(1.0, bob))
+		var body := body_sprite() + ("_flash" if _flash > 0.0 else ("_hurt" if wounded else ""))
 		Art.draw(self, body, Vector2.ZERO, 1.0, tint)
 
 	# Reload animation: the gun is pulled in and tipped over while the magazine
@@ -514,9 +549,9 @@ func _draw() -> void:
 			reload_tilt = 0.8 * ease_in_out
 			reload_pull = 5.0 * ease_in_out
 
-	# Weapon in hand.
+	# Weapon in hand: at the spot(s) where his hands are (Config: THE HERO'S HANDS).
 	var gun_tint := Color(1, 1, 1, alpha)
-	var is_melee := String(weapon["kind"]) == "melee"
+	var spots := Art.hero_guns(dual, weapon)
 	if is_melee and bool(weapon["swing"]):
 		# Rest on the shoulder, sweep across when swinging.
 		var rest := -0.9 * _swing_side
@@ -526,17 +561,20 @@ func _draw() -> void:
 		draw_texture_rect(_gun_tex, Rect2(Vector2(8.0, -_gun_size.y * 0.5), _gun_size), false, gun_tint)
 	elif dual:
 		# One in each hand; only the one that just fired kicks back.
-		for side: float in [-1.0, 1.0]:
+		for i in 2:
+			var side := -1.0 if i == 0 else 1.0           # (his left hand, his right hand)
 			var kick := _gun_kick if (side == _dual_side or reloading) else 0.0
-			draw_set_transform(Vector2(7.0 - kick - reload_pull, DUAL_HAND_OFFSET * side), reload_tilt * side, Vector2.ONE)
+			var fist: Vector2 = spots[i]
+			draw_set_transform(Vector2(fist.x - kick - reload_pull, fist.y), reload_tilt * side, Vector2.ONE)
 			draw_texture_rect(_gun_tex, Rect2(Vector2(0.0, -_gun_size.y * 0.5), _gun_size), false, gun_tint)
 	else:
 		# A running chainsaw shudders in the hands - and swings round him from side to side.
+		var held: Vector2 = spots[0]
 		var shudder := Vector2(0.0, sin(_time * 95.0) * 0.9) if is_melee else Vector2.ZERO
-		if is_melee and bool(weapon.get("sweep", false)):
+		if sweeping:
 			draw_set_transform(Vector2.ZERO, _saw_angle, Vector2.ONE)
-			draw_texture_rect(_gun_tex, Rect2(Vector2(7.0 - _gun_kick, -_gun_size.y * 0.5) + shudder, _gun_size), false, gun_tint)
+			draw_texture_rect(_gun_tex, Rect2(Vector2(held.x - _gun_kick, held.y - _gun_size.y * 0.5) + shudder, _gun_size), false, gun_tint)
 		else:
-			draw_set_transform(Vector2(7.0 - _gun_kick - reload_pull, 0.0) + shudder, reload_tilt, Vector2.ONE)
+			draw_set_transform(Vector2(held.x - _gun_kick - reload_pull, held.y) + shudder, reload_tilt, Vector2.ONE)
 			draw_texture_rect(_gun_tex, Rect2(Vector2(0.0, -_gun_size.y * 0.5), _gun_size), false, gun_tint)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

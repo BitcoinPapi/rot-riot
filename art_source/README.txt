@@ -28,9 +28,17 @@ centres below were found by looking at the result in the game
   boss_machwe_fe.webp   boss_1         168    500,560    (map 2's boss)
   boss_papa_zo.webp     boss_2         168    480,580    (map 3's boss)
 
-  janjan_no_guns.webp   player          62    600,500    --turn -90   (the hero in a run: he was
-                                                         drawn walking DOWN the picture; the game draws
-                                                         the gun he holds, so this one has empty hands)
+  janjan_aiming.webp    player          64    528,629    --turn 30    (the hero with ONE gun: both arms stretched
+                                                         out, hands empty - the game draws the gun in
+                                                         them. He aims up and to the right in the
+                                                         picture; turned, his two hands lie on one line
+                                                         straight ahead. Config: THE HERO'S HANDS -
+                                                         right hand 18.7 ahead and 5.7 to his right of
+                                                         the sprite's middle, left hand 12.8 further out)
+  janjan_no_guns.webp   player_twin     62    600,500    --turn -90   (the hero with a gun in EACH hand: fists
+                                                         apart; he was drawn walking DOWN the picture.
+                                                         His left fist 16.4 ahead / 18.0 to his left, his
+                                                         right fist 10.4 ahead / 16.5 to his right)
   janjan.webp           hero_front      --portrait 380   (the hero in the menus, with his guns)
 
 Each also has NAME_hurt, made with the same line plus --wounds (blood painted
@@ -52,11 +60,19 @@ from the PNGs he sent, which were used for cutting).
   gobber_attack_12f.webp   gobber_0_attack  --sheet 4x3
   gobber_hit_6f.webp       gobber_0_hit     --sheet 3x2
   gobber_death_12f.webp    gobber_0_death   --sheet 4x3
-  janjan_walk_12f.webp     player_walk      --sheet 4x3   --match art_source/janjan_no_guns.webp --length 62 --center 600,500 --turn -90 --sheet-turn -90
-  janjan_idle_8f.webp      player_idle      --sheet 4x2   (the same; his sheets show him facing LEFT, his
-  janjan_attack_12f.webp   player_attack    --sheet 4x3    picture has him walking down: hence --sheet-turn)
-  janjan_hit_6f.webp       player_hit       --sheet 3x2
-  janjan_death_12f.webp    player_death     --sheet 4x3
+  janjan_walk_12f.webp     player_twin_walk    --sheet 4x3   --match art_source/janjan_no_guns.webp --length 62 --center 600,500 --turn -90 --sheet-turn -90
+  janjan_idle_8f.webp      player_twin_idle    --sheet 4x2   (the same; his sheets show him facing LEFT, his
+  janjan_attack_12f.webp   player_twin_attack  --sheet 4x3    picture has him walking down: hence --sheet-turn)
+  janjan_hit_6f.webp       player_twin_hit     --sheet 3x2
+  janjan_death_12f.webp    player_twin_death   --sheet 4x3
+
+The hero's ONE-GUN pose (janjan_aiming.webp) has no sheets from the owner: the five he sent
+with it could not be used (another pose, a hazy cut-out, figures sliced by the grid). Its
+frames are MADE from the picture by tools/make_moves.py (walk, idle, hit, death; no attack -
+the gun in his hands kicks instead), then cut like any others:
+  tools/make_moves.py art_source/janjan_aiming.webp OUT --pivot 528,629 --aim -30 --feet "555,865 375,1015" --still-from 250 --step 60 --name janjan_aim
+  tools/make_sprite.py OUT/janjan_aim_walk_12f.png player_walk --sheet 4x3 --match art_source/janjan_aiming.webp --length 64 --center 528,629 --turn 30
+  (idle 4x2, hit 3x2, death 4x3 the same; each again with --wounds as player_..._hurt)
 
 Each strip also exists as NAME_hurt (the same line plus --wounds). For example:
   tools/make_sprite.py art_source/gobber_walk_12f.webp gobber_0_walk      --sheet 4x3 --match art_source/gobber.webp --length 64 --center 560,650 --main-only

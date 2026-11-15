@@ -141,6 +141,14 @@ func get_aim_direction(from: Node2D) -> Vector2:
 	return _last_aim
 
 
+## How far away the player is aiming, in px: the mouse pointer's distance. A stick (or a
+## bot) only gives a direction, so then it is `fallback`.
+func get_aim_reach(from: Node2D, fallback: float) -> float:
+	if virtual_active or device == Device.GAMEPAD:
+		return fallback
+	return (from.get_global_mouse_position() - from.global_position).length()
+
+
 ## How far the aim point is from the player (used for the camera look-ahead). 0..1.
 func get_aim_distance_factor(from: Node2D) -> float:
 	if virtual_active:

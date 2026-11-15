@@ -45,7 +45,13 @@ const NO_ANIMS := {}
 var anims: Dictionary = {}
 
 
+var _hero_painted := false
+var _hero_twin := false
+
+
 func _ready() -> void:
+	_hero_painted = _painted("player") != ""
+	_hero_twin = _hero_painted and _painted("player_twin") != ""
 	_build()
 	_build_anims()
 	_images.clear()
@@ -77,6 +83,36 @@ func enemy_hurt_tex(kind: int, variant: int) -> Texture2D:
 func enemy_flash_tex(kind: int, variant: int = 0) -> Texture2D:
 	var own := "%s_%d_flash" % [ENEMY_SPRITE[kind], variant]
 	return tex[own] if tex.has(own) else tex["%s_0_flash" % ENEMY_SPRITE[kind]]
+
+
+## The hero is a painted picture (assets/sprites/player.png), not drawn from shapes.
+func hero_painted() -> bool:
+	return _hero_painted
+
+
+## ...and has a second picture for holding a gun in each hand (player_twin.png).
+func hero_twin() -> bool:
+	return _hero_twin
+
+
+## What to add to the hero's sprite name for what he holds: "" (one gun, or the hero
+## drawn from shapes) or "_twin" (the painted hero with a gun in each hand).
+func hero_pose(two_guns: bool) -> String:
+	return "_twin" if two_guns and hero_twin() else ""
+
+
+## Where the rear end of the hero's gun(s) sits: one spot, or two (in his left hand, in
+## his right hand) when he holds two. Game px from the middle of his sprite, x ahead, y
+## to his right. `weapon` is the gun's entry in Config.WEAPONS (for its "hold").
+func hero_guns(two_guns: bool, weapon: Dictionary) -> Array:
+	var back: float = float(weapon.get("hold", Config.HERO_HOLD)) if _hero_painted else Config.HERO_HOLD
+	var hands: Array = [Config.HERO_HANDS if _hero_painted else Config.HERO_HANDS_DRAWN]
+	if two_guns:
+		hands = Config.HERO_TWIN_HANDS if _hero_twin else Config.HERO_TWIN_HANDS_DRAWN
+	var spots: Array = []
+	for hand: Vector2 in hands:
+		spots.append(Vector2(hand.x - back, hand.y))
+	return spots
 
 
 ## The animations of a sprite ({} = it is one still picture).
@@ -119,8 +155,9 @@ func _build_anims() -> void:
 			# (A look without a picture of its own moves like the first look, whose picture it uses.)
 			if not anims.has(sprite) and anims.has(first) and not ResourceLoader.exists("res://assets/sprites/%s.png" % sprite):
 				anims[sprite] = anims[first]
-	if _painted("player") != "":
+	if hero_painted():
 		_load_anims("player")
+		_load_anims("player_twin")
 
 
 func _load_anims(sprite: String) -> void:
@@ -376,8 +413,13 @@ func refresh_hero() -> void:
 	_svg("player", 56, 56, top)
 	_svg("player_hurt", 56, 56, top + WOUNDS_PLAYER)   # battle-worn look at low health
 	_flash("player")
+	if hero_twin():
+		# (painted hero only) His second picture: fists apart, for a gun in each hand.
+		_svg("player_twin", 56, 56, top)
+		_svg("player_twin_hurt", 56, 56, top + WOUNDS_PLAYER)
+		_flash("player_twin")
 	_svg("hero_front", 220, 400, _hero_front_svg(worn))
-	for sprite: String in ["player", "player_hurt", "hero_front"]:
+	for sprite: String in ["player", "player_hurt", "hero_front", "player_twin", "player_twin_hurt"]:
 		_images.erase(sprite)
 
 
@@ -390,6 +432,9 @@ func build_mate(worn: Dictionary, sprite: String) -> void:
 		for tail: String in ["", "_hurt", "_flash"]:
 			tex[sprite + tail] = tex["player" + tail]
 			sizes[sprite + tail] = sizes["player" + tail]
+			if hero_twin():
+				tex[sprite + "_twin" + tail] = tex["player_twin" + tail]
+				sizes[sprite + "_twin" + tail] = sizes["player_twin" + tail]
 		return
 	var top := _hero_top_svg(worn)
 	_svg(sprite, 56, 56, top)

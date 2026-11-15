@@ -23,7 +23,8 @@ and the same again as NAME_walk_hurt.png ... for the wounded look. The game then
 shows the character moving instead of as one still picture (the still picture is
 still needed: menus, the hit flash and the dashboard use it). tools/make_sprite.py
 cuts the strips out of the sheets the owner sends (read "ANIMATIONS" at its top).
-In use: gobber_0 and player (JanJan).
+In use: gobber_0, player (JanJan with one gun: both hands on it) and player_twin
+(JanJan with a gun in each fist).
 
 In use now (all from pictures the owner made with ChatGPT; see art_source/):
   player, hero_front (JanJan in a run and in the menus)

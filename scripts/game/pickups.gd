@@ -713,10 +713,16 @@ func _draw() -> void:
 			var glint := l.pos + Vector2(cos(t * 1.3 + float(k)) * s * 0.44, sin(t) * s * 0.38)
 			var gs := 9.0 * maxf(sin(t * 2.4), 0.0)
 			draw_texture_rect(_glow, Rect2(glint - Vector2(gs, gs) * 0.5, Vector2(gs, gs)), false, Color(1.0, 1.0, 0.92, 0.95))
-		var gear_label := Config.gear_name(l.key)
-		var gear_label_at := l.pos + Vector2(-110.0, s * 0.5 + 17.0)
-		draw_string_outline(_font, gear_label_at, gear_label, HORIZONTAL_ALIGNMENT_CENTER, 220.0, 14, 6, Color(0, 0, 0, 0.9))
-		draw_string(_font, gear_label_at, gear_label, HORIZONTAL_ALIGNMENT_CENTER, 220.0, 14, color.lightened(0.15))
+		# Its name underneath, in the tier's colour: the tier small, the piece below it
+		# (two lines: "LEGENDARY FIELD HAND'S LEG GUARDS" does not fit on one).
+		var tier_at := l.pos + Vector2(-160.0, s * 0.5 + 13.0)
+		var tier_word := String(Config.gear_tier_def(tier)["name"])
+		draw_string_outline(_font, tier_at, tier_word, HORIZONTAL_ALIGNMENT_CENTER, 320.0, 11, 5, Color(0, 0, 0, 0.9))
+		draw_string(_font, tier_at, tier_word, HORIZONTAL_ALIGNMENT_CENTER, 320.0, 11, color.lightened(0.05))
+		var gear_label := String(Config.GEAR_ITEMS[Config.gear_item_of(l.key)]["name"]).to_upper()
+		var gear_label_at := tier_at + Vector2(0.0, 15.0)
+		draw_string_outline(_font, gear_label_at, gear_label, HORIZONTAL_ALIGNMENT_CENTER, 320.0, 14, 6, Color(0, 0, 0, 0.9))
+		draw_string(_font, gear_label_at, gear_label, HORIZONTAL_ALIGNMENT_CENTER, 320.0, 14, color.lightened(0.15))
 
 	# Weapon crates: a wooden box with a big picture of the weapon inside and
 	# its name underneath, in the colour of its rarity.

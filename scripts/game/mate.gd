@@ -34,7 +34,6 @@ var _gun_kick := 0.0
 var _saw_t := 0.0               # their chainsaw ran this short while ago...
 var _saw_phase := 0.0           # ...and is this far along its back-and-forth
 var _walk := 0.0
-var _anims: Dictionary = Art.anim_of("player")      # every player is shown as the painted hero (Art.build_mate)
 var _anim_t := 0.0
 var _anim_hit := 0.0
 var _moving := false
@@ -154,15 +153,17 @@ func show_fire(index: int, from: Vector2, angle: float, both_hands: bool) -> voi
 
 ## The frame of their movement to show now (null = the one still picture).
 func _body_frame() -> Texture2D:
-	if _anims.is_empty():
+	# (Every player is shown as the painted hero, in the pose for what they hold.)
+	var anims := Art.anim_of("player" + Art.hero_pose(dual))
+	if anims.is_empty():
 		return null
 	var tail := "_hurt" if wounded else ""
-	if _anim_hit > 0.0 and _anims.has("hit"):
-		return Art.frame_at(_anims["hit" + tail], clampf(1.0 - _anim_hit / Config.ANIM_HIT_TIME, 0.0, 0.999))
-	if _moving and _anims.has("walk"):
-		return Art.frame_at(_anims["walk" + tail], _anim_t)
-	if _anims.has("idle"):
-		return Art.frame_at(_anims["idle" + tail], _anim_t)
+	if _anim_hit > 0.0 and anims.has("hit"):
+		return Art.frame_at(anims["hit" + tail], clampf(1.0 - _anim_hit / Config.ANIM_HIT_TIME, 0.0, 0.999))
+	if _moving and anims.has("walk"):
+		return Art.frame_at(anims["walk" + tail], _anim_t)
+	if anims.has("idle"):
+		return Art.frame_at(anims["idle" + tail], _anim_t)
 	return null
 
 
@@ -202,20 +203,24 @@ func _draw() -> void:
 	draw_arc(Vector2.ZERO, radius + 7.0, 0.0, TAU, 28, Color(blue.r, blue.g, blue.b, 0.55), 2.0)
 	var alpha := 0.45 if blinking and fmod(_time, 0.12) < 0.06 else 1.0
 	var facing := aim.angle()
+	var w: Dictionary = Config.WEAPONS[weapon_id]
+	var sweeping := String(w["kind"]) == "melee" and bool(w.get("sweep", false))
+	var saw_turn := sin(_saw_phase) * deg_to_rad(float(w.get("arc_deg", 0.0))) * 0.5 if sweeping else 0.0
+	var body_turn := facing + (saw_turn if Art.hero_painted() else 0.0)       # (the painted hero turns with his saw)
 	var moving := _body_frame() if _flash <= 0.0 else null
 	if moving != null:
 		# A frame of the hero's movement (walking, standing, flinching).
 		var frame_size := Vector2(moving.get_size()) / Art.PX
-		draw_set_transform(Vector2.ZERO, facing, Vector2.ONE)
+		draw_set_transform(Vector2.ZERO, body_turn, Vector2.ONE)
 		draw_texture_rect(moving, Rect2(-frame_size * 0.5, frame_size), false, Color(1, 1, 1, alpha))
 	else:
 		var bob := 1.0 + sin(_walk) * 0.035
-		draw_set_transform(Vector2.ZERO, facing, Vector2(1.0, bob))
-		var body := _sprite + ("_flash" if _flash > 0.0 else ("_hurt" if wounded else ""))
+		draw_set_transform(Vector2.ZERO, body_turn, Vector2(1.0, bob))
+		var body := _sprite + Art.hero_pose(dual) + ("_flash" if _flash > 0.0 else ("_hurt" if wounded else ""))
 		Art.draw(self, body, Vector2.ZERO, 1.0, Color(1, 1, 1, alpha))
 
-	# The weapon in their hands.
-	var w: Dictionary = Config.WEAPONS[weapon_id]
+	# The weapon in their hands (at the spots where the hero's hands are).
+	var spots := Art.hero_guns(dual, w)
 	var gun: Texture2D = Art.t("gun_" + weapon_id)
 	var gun_size := Art.size_of("gun_" + weapon_id)
 	var tint := Color(1, 1, 1, alpha)
@@ -226,15 +231,18 @@ func _draw() -> void:
 		draw_set_transform(Vector2.ZERO, facing + (sweep if _swing > 0.0 else rest), Vector2.ONE)
 		draw_texture_rect(gun, Rect2(Vector2(8.0, -gun_size.y * 0.5), gun_size), false, tint)
 	elif dual:
-		for side: float in [-1.0, 1.0]:
-			var at := Vector2(7.0 - _gun_kick, Player.DUAL_HAND_OFFSET * side).rotated(facing)
-			draw_set_transform(at, facing + tilt * side, Vector2.ONE)
+		for i in 2:
+			var fist: Vector2 = spots[i]
+			var at := Vector2(fist.x - _gun_kick, fist.y).rotated(facing)
+			draw_set_transform(at, facing + tilt * (-1.0 if i == 0 else 1.0), Vector2.ONE)
 			draw_texture_rect(gun, Rect2(Vector2(0.0, -gun_size.y * 0.5), gun_size), false, tint)
-	elif bool(w.get("sweep", false)):
-		draw_set_transform(Vector2.ZERO, facing + sin(_saw_phase) * deg_to_rad(float(w["arc_deg"])) * 0.5, Vector2.ONE)
-		draw_texture_rect(gun, Rect2(Vector2(7.0 - _gun_kick, -gun_size.y * 0.5), gun_size), false, tint)
+	elif sweeping:
+		var saw: Vector2 = spots[0]
+		draw_set_transform(Vector2.ZERO, facing + saw_turn, Vector2.ONE)
+		draw_texture_rect(gun, Rect2(Vector2(saw.x - _gun_kick, saw.y - gun_size.y * 0.5), gun_size), false, tint)
 	else:
-		draw_set_transform(Vector2(7.0 - _gun_kick, 0.0).rotated(facing), facing + tilt, Vector2.ONE)
+		var held: Vector2 = spots[0]
+		draw_set_transform(Vector2(held.x - _gun_kick, held.y).rotated(facing), facing + tilt, Vector2.ONE)
 		draw_texture_rect(gun, Rect2(Vector2(0.0, -gun_size.y * 0.5), gun_size), false, tint)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	_label(shown_name + ("  (choosing a perk)" if choosing else ""), Vector2(0.0, -30.0), blue, 13)

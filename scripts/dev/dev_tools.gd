@@ -174,6 +174,8 @@ func _process(_delta: float) -> void:
 			game.cam.snap_to(game.player.pos)
 		if _args.has("no-fog") and _frame == 2:
 			game.fog.reveal_all()
+		if _args.has("play"):
+			_weapon_flags(game)
 		# --perk=ID:N,ID:N  start with these run perks;  --perks=N  owe N perk choices (to look at the choice)
 		if _args.has("perk") and _frame == 2:
 			for part: String in String(_args["perk"]).split(","):
@@ -576,7 +578,8 @@ func _quit(code: int) -> void:
 	(main as Main).quit_game(code)
 
 
-func _bot(game: Game) -> void:
+## --weapon=ID [--dual] [--keep-weapon] [--no-crates]: what the hero holds (with the bot, or with --play).
+func _weapon_flags(game: Game) -> void:
 	var p := game.player
 	if _args.has("weapon") and _frame == 2:
 		var wanted := String(_args["weapon"])
@@ -589,6 +592,11 @@ func _bot(game: Game) -> void:
 	if _args.has("no-crates"):
 		game.pickups.crates.clear()
 		game.pickups.set("_crate_timer", 9999.0)
+
+
+func _bot(game: Game) -> void:
+	var p := game.player
+	_weapon_flags(game)
 	if _args.has("cycle") and _frame % 360 == 5:
 		var order: Array = Config.WEAPON_ORDER
 		p.give_weapon(String(order[int(_frame / 360.0) % order.size()]))
@@ -1435,15 +1443,18 @@ func _run_autotest() -> void:
 	#     dies in frames (the Gobber and the hero have them; the checks call the code directly, so the
 	#     fight going on around them cannot get in the way) ---
 	var gob_anim := Art.enemy_anim(Config.GOBBER, 0)
-	var hero_anim := Art.anim_of("player")
+	var hero_anim := Art.anim_of("player")             # one gun, held in both hands
+	var twin_anim := Art.anim_of("player_twin")        # a gun in each fist
 	var strips_ok := true
 	for movement: Array in [["walk", 12], ["idle", 8], ["attack", 12], ["hit", 6], ["death", 12]]:
-		for who: Dictionary in [gob_anim, hero_anim]:
+		for who: Dictionary in [gob_anim, twin_anim, hero_anim]:
+			if is_same(who, hero_anim) and String(movement[0]) == "attack":
+				continue          # (his two-handed pose has no attack frames: the gun in his hands kicks)
 			if (who.get(movement[0], []) as Array).size() != int(movement[1]) \
 					or (who.get(String(movement[0]) + "_hurt", []) as Array).size() != int(movement[1]):
 				strips_ok = false
 	_check(strips_ok and is_same(Art.enemy_anim(Config.GOBBER, 1), gob_anim) and Art.enemy_anim(Config.SHAMBLER, 0).is_empty(),
-			"the Gobber and the hero have five movements as picture strips, wounded ones too (a Shambler has none: it stays one picture)")
+			"the Gobber and the hero (in both his poses) have their movements as picture strips, wounded ones too (a Shambler has none: it stays one picture)")
 	if strips_ok:
 		var mover := game.enemies.spawn(Config.GOBBER, game.player.pos + Vector2(430.0, 120.0), 500.0)
 		var step := 1.0 / 60.0
@@ -1486,21 +1497,51 @@ func _run_autotest() -> void:
 		var actor := game.player
 		var tail := "_hurt" if actor.wounded else ""
 		var was_moving := actor.move_input
+		var was_dual := actor.dual
+		actor.dual = false
 		actor.set("_anim_hit", 0.0)
 		actor.set("_anim_fire", 0.0)
 		actor.move_input = Vector2.ZERO
 		var hero_stands := (hero_anim["idle" + tail] as Array).has(actor.call("_body_frame"))
 		actor.move_input = Vector2.RIGHT
 		var hero_walks := (hero_anim["walk" + tail] as Array).has(actor.call("_body_frame"))
-		actor.set("_anim_fire", Config.ANIM_FIRE_TIME * 0.5)
-		var hero_shoots := (hero_anim["attack" + tail] as Array).has(actor.call("_body_frame"))
 		actor.set("_anim_hit", Config.ANIM_HIT_TIME * 0.5)
 		var hero_flinches := (hero_anim["hit" + tail] as Array).has(actor.call("_body_frame"))
 		actor.set("_anim_hit", 0.0)
+		_check(hero_stands and hero_walks and hero_flinches and actor.body_sprite() == "player",
+				"the hero stands, walks and flinches in frames, both hands on his gun")
+		# A gun in each hand: his other picture (fists apart), which also has frames for shooting.
+		actor.dual = true
+		var twin_walks := (twin_anim["walk" + tail] as Array).has(actor.call("_body_frame"))
+		actor.set("_anim_fire", Config.ANIM_FIRE_TIME * 0.5)
+		var twin_shoots := (twin_anim["attack" + tail] as Array).has(actor.call("_body_frame"))
 		actor.set("_anim_fire", 0.0)
+		_check(twin_walks and twin_shoots and actor.body_sprite() == "player_twin",
+				"with a gun in each hand he is shown with his fists apart, and that picture moves too")
+		# The guns are where his hands are, and the shots leave from the gun.
+		var rifle_def: Dictionary = Config.WEAPONS["rifle"]
+		var one := Art.hero_guns(false, rifle_def)
+		var two := Art.hero_guns(true, Config.WEAPONS["pistol"])
+		_check(one.size() == 1 and is_equal_approx((one[0] as Vector2).x, Config.HERO_HANDS.x - float(rifle_def["hold"]))
+				and is_equal_approx((one[0] as Vector2).y, Config.HERO_HANDS.y)
+				and two.size() == 2 and (two[0] as Vector2).y < -10.0 and (two[1] as Vector2).y > 10.0,
+				"a rifle lies in both his hands with its stock behind them; two pistols sit one in each fist")
+		actor.dual = false
 		actor.move_input = was_moving
-		_check(hero_stands and hero_walks and hero_shoots and hero_flinches,
-				"the hero stands, walks, shoots and flinches in frames")
+		var held := actor.gun_spot()
+		var line: Array = actor.shot_line(Vector2.RIGHT)
+		var start: Vector2 = (line[0] as Vector2) - actor.pos
+		var way: Vector2 = line[1]
+		# (The bot aims with a stick: its shots cross the aim line HERO_AIM_MEET ahead.)
+		var crossing := start.x + way.x * (-start.y / way.y) if absf(way.y) > 0.00001 else -1.0
+		_check(is_equal_approx(start.y, held.y) and held.y > 2.0 and absf(crossing - Config.HERO_AIM_MEET) < 1.0,
+				"a shot starts at the gun in his hands, %.1f px beside the aim line, and crosses that line where he aims (%d px ahead)" % [held.y, int(round(crossing))])
+		actor.dual = true
+		var fist_shot: Vector2 = (actor.shot_line(Vector2.RIGHT)[0] as Vector2) - actor.pos
+		_check(absf(actor.gun_spot().y) > 10.0 and absf(fist_shot.y) <= Config.HERO_SHOT_SIDE_MAX + 0.01,
+				"with a gun in each fist the shot still starts near the middle (%.1f px beside the aim line, the fist is %.1f out): close zombies are not missed" % [absf(fist_shot.y), absf(actor.gun_spot().y)])
+		actor.dual = false
+		actor.dual = was_dual
 
 	# --- the tables for the idea board's dashboard: every part of the game is in them, and every
 	#     number that can be changed there says where it lives in config.gd ---

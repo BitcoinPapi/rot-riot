@@ -667,6 +667,32 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   and name tell them apart). Deleting the three PNGs brings the drawn,
   gear-wearing hero back. To get gear on a painted hero one day he would
   need separate pictures per piece (helmet, vest...) laid over the body.
+  **He holds his guns (after v0.15)**. The owner: "it looks like the guns are
+  floating in front of him instead of him carrying and firing the guns" - the
+  game drew the gun on his centre line while his fists were 17 px to each
+  side. Now the painted hero has TWO pictures: `player` (from
+  `janjan_aiming.webp`, the owner's second picture: both arms stretched out,
+  hands empty) for ONE gun, and `player_twin` (the first picture, fists
+  apart) for a gun in EACH hand; `Art.hero_pose(dual)` picks, and other
+  players are shown the same way. The guns are drawn where his hands are
+  (`Config` THE HERO'S HANDS: `HERO_HANDS`, `HERO_TWIN_HANDS`; a weapon's
+  `"hold"` = how much of the gun lies behind the gripping hand, so a rifle's
+  stock reaches his chest and the launcher rests on his shoulder;
+  `Art.hero_guns`). The muzzle flash is at the gun; the SHOT starts at most
+  `HERO_SHOT_SIDE_MAX` (6 px) beside the aim line and flies slightly inward,
+  crossing that line where the player aims (`Player.shot_line`) - starting
+  it at a fist 17 px out made close zombies unhittable (found by the weapon
+  benchmark). With the swinging chainsaw his whole picture turns with the
+  saw. The drawn hero (PNGs deleted) keeps the old spots. The one-gun
+  pose's walk / idle / hit / death frames are made by `tools/make_moves.py`
+  (it bends the one picture a little; the sheets the owner sent with that
+  picture were unusable - another pose, hazy cut-out, figures sliced by the
+  grid - tell him so if he sends such a pack again: the FIRST packs, plain
+  warps of the one picture, were fine).
+  **Gear on the painted hero is still not shown** (he wants it back): the
+  plan offered to him - draw the gear over the painted hero in the fight
+  (or painted top-down pieces from him), and show the drawn, gear-wearing
+  hero on the Character screen. Not built yet; he has not answered.
 - *Pets* (Pets screen; PETS section of config.gd). The feature opens at
   character level 18 (`PET_UNLOCK_LEVEL`): the first pet, SCRAPS the stray
   dog, joins by itself (mid-run if that is where the level is reached). Five
@@ -1175,6 +1201,22 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   got a painted look (see the Art notes); and "update the artifact with
   pictures of the new villains" -> his pictures were put on the dashboard's
   Villains and Gang maps rows.
+- After v0.15: "i dont like the way janjan looks now. it looks like the guns
+  are floating in front of him ... i also like how with the previous model
+  the gear that was on him could change based on what he was wearing" ->
+  guns: fixed with a second picture he made from Claude's prompt (see "He
+  holds his guns"); gear on him: still open. Then: "make a list of all the
+  gear obtainable in this game. Lets adjust the names to the new game theme
+  ... i will have chatgpt create an image for each and an icon for each type
+  of gear" -> all 32 pieces renamed (soldier's kit and everyday Haitian life:
+  docks, cane fields, market, football, moto-taxis; nothing religious; ids
+  unchanged) and he was given the prompts. COMING FROM HIM: 32 pictures named
+  by item id (`hard_hat.png` ...) and 8 type icons (`icon_helmet.png`,
+  `icon_amulet`, `icon_chest`, `icon_gloves`, `icon_ring`, `icon_belt`,
+  `icon_pants`, `icon_boots`: plain white shapes to tint), in one zip - they
+  go on the inventory tiles, the Character screen's slots and the gear cases
+  (today those show small generated symbols). A gear case on the ground now
+  writes the tier and the name on two lines (long names did not fit).
 - **v0.15.0, built in one sitting, item by item** ("build the changes and
   implement the ideas. Ask me one by one and i will tell you to go ahead";
   then "ask me the items here instead of my phone" - he wants questions as
