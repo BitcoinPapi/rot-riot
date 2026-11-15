@@ -34,8 +34,9 @@ PICTURES MADE WITH AN AI IMAGE GENERATOR  (assets/sprites/, from art_source/)
   Made by the game's owner with ChatGPT's image generator, from his own
   descriptions, then cut to size for the game:
     the hero JanJan (in a run and in the menus), the Runner, Brute, Chucker,
-    Gasbag, Gobber, Lunger and Gang Fighter, and the bosses of maps 1 to 3
-    (November 2026) - the list is in art_source/README.txt
+    Gasbag, Gobber, Lunger and Gang Fighter (and the Shambler, which is the
+    Gang Fighter's picture without his machete), and the bosses of maps 1 to
+    3 (November 2026) - the list is in art_source/README.txt
   (When the game goes on Steam, AI-made pictures have to be declared there.)
 
 NOT IN THIS PROJECT, on purpose: recordings whose licence allows using them

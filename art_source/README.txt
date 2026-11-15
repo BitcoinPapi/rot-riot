@@ -15,6 +15,12 @@ centres below were found by looking at the result in the game
   brute.webp            brute_0         92    620,635
   chucker.webp          chucker_0       80    545,690
   fighter.webp          fighter_0       84    500,600    (the Gang Fighter)
+                        shambler_0..3   70    500,600    the SHAMBLER has no picture of its own: it is the
+                                                         Gang Fighter with the machete rubbed out and a
+                                                         washed-out headcloth in another colour:
+                          --main-only --erase "798,768 840,772 1245,655 1254,700 1245,800 1040,845 840,860 798,850; 650,836 698,836 700,892 650,892"
+                          shambler_0: --hue 170 --dull 0.6          shambler_1: --hue 45 --dull 0.55 --mirror
+                          shambler_2: --hue 250 --dull 0.5          shambler_3: --hue 100 --dull 0.55 --mirror
   gasbag.webp           gasbag_0        70    580,630    --main-only
   gobber.webp           gobber_0        64    560,650    --main-only   (drops the flying spit)
   lunger.webp           lunger_0        74    480,640
@@ -30,7 +36,9 @@ centres below were found by looking at the result in the game
 Each also has NAME_hurt, made with the same line plus --wounds (blood painted
 on), because no wounded pictures were sent. A kind's other looks (brute_1,
 gobber_1...) use the first look's picture; so do the bosses of maps 4 and 5
-until their pictures arrive. Still shapes, no picture yet: the Shambler.
+until their pictures arrive. Nothing in the game is drawn as shapes any more;
+when a picture of the Shambler arrives, make shambler_0 from it and delete
+shambler_1..3 (and their _hurt files), or make four looks of it the same way.
 
 For example:
   tools/make_sprite.py art_source/brute.webp brute_0      --length 92 --center 620,635

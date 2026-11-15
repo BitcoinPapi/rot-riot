@@ -8,7 +8,8 @@ figure out, puts the middle of its body in the middle of the sprite, shrinks it 
 the game's size and saves it there.
 
     tools/make_sprite.py PICTURE NAME --length 58 [--center X,Y] [--turn DEG] [--main-only]
-                         [--erase "X,Y X,Y X,Y; X,Y ..."] [--hue DEG] [--wounds] [--no-shadow]
+                         [--erase "X,Y X,Y X,Y; X,Y ..."] [--mirror] [--hue DEG] [--dull F]
+                         [--wounds] [--no-shadow]
     tools/make_sprite.py PICTURE NAME --portrait 380      (a standing picture for the menus)
 
     PICTURE     the big picture (png / webp / jpg); a plain white background is removed
@@ -28,8 +29,10 @@ the game's size and saves it there.
                 (the hero's picture came holding two guns; the game draws his gun itself)
     --portrait  no sprite: just the figure, cut to its edges and stored so that it is
                 this many game pixels tall (hero_front, the hero in the menus)
+    --mirror    show the figure mirrored (left and right arm swapped; it still faces right)
     --hue       turn the strong colours by this many degrees (a second look of the same
                 character: another shirt colour)
+    --dull      wash the strong colours out: 1 = as painted, 0.5 = half as colourful
     --wounds    paint blood and gashes on it (for NAME_hurt when there is no painted
                 wounded picture)
     --no-shadow leave out the soft dark shadow that lifts the figure off the ground
@@ -95,8 +98,8 @@ def shrink(im: Image.Image, size: tuple) -> Image.Image:
     return Image.fromarray((b * 255.0 + 0.5).astype(np.uint8), "RGBA")
 
 
-def turn_hue(im: Image.Image, degrees: float) -> Image.Image:
-    """Turn only the strong colours (clothes), not skin, steel or outlines."""
+def turn_hue(im: Image.Image, degrees: float, dull: float = 1.0) -> Image.Image:
+    """Turn (and wash out) only the strong colours (clothes), not skin, steel or outlines."""
     a = np.array(im).astype(np.float32) / 255.0
     out = a.copy()
     r, g, b = a[..., 0], a[..., 1], a[..., 2]
@@ -104,7 +107,7 @@ def turn_hue(im: Image.Image, degrees: float) -> Image.Image:
     strong = (top - low) > 0.30
     for y, x in zip(*np.where(strong)):
         hh, ll, ss = colorsys.rgb_to_hls(r[y, x], g[y, x], b[y, x])
-        out[y, x, :3] = colorsys.hls_to_rgb((hh + degrees / 360.0) % 1.0, ll * 0.94, ss * 0.92)
+        out[y, x, :3] = colorsys.hls_to_rgb((hh + degrees / 360.0) % 1.0, ll * 0.94, ss * 0.92 * dull)
     return Image.fromarray((out * 255.0 + 0.5).astype(np.uint8), "RGBA")
 
 
@@ -158,7 +161,9 @@ def main() -> int:
     ap.add_argument("--center", default="")
     ap.add_argument("--turn", type=float, default=0.0)
     ap.add_argument("--main-only", action="store_true")
+    ap.add_argument("--mirror", action="store_true")
     ap.add_argument("--hue", type=float, default=0.0)
+    ap.add_argument("--dull", type=float, default=1.0)
     ap.add_argument("--wounds", action="store_true")
     ap.add_argument("--no-shadow", action="store_true")
     ap.add_argument("--out", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "sprites"))
@@ -215,8 +220,10 @@ def main() -> int:
     figure = shrink(im.crop((x0, y0, x1, y1)), (max(1, round((x1 - x0) * scale)), max(1, round((y1 - y0) * scale))))
     sprite = Image.new("RGBA", (half * 2, half * 2), (0, 0, 0, 0))
     sprite.alpha_composite(figure, (round(half - (cx - x0) * scale), round(half - (cy - y0) * scale)))
-    if args.hue:
-        sprite = turn_hue(sprite, args.hue)
+    if args.mirror:
+        sprite = sprite.transpose(Image.FLIP_TOP_BOTTOM)
+    if args.hue or args.dull != 1.0:
+        sprite = turn_hue(sprite, args.hue, args.dull)
     if args.wounds:
         sprite = wound(sprite)
     if not args.no_shadow:
