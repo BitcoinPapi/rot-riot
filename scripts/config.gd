@@ -517,8 +517,8 @@ const MAP_CLEAR_COINS := 300            # bonus for clearing the last wave (time
 const MAP_CLEAR_XP := 3000              # ...and XP (times the map's "xp")
 const MAP_CLEAR_CELEBRATION := 3.2      # seconds of slow-motion glory before the results screen
 const MAPS := [
-	{"name": "HILL CAMP", "gang": "ZEPON", "boss": "KÒK BATAY",
-		"story": "Kòk Batay's Zepon gang took the army post in the hills. Their dead do not stay down.",
+	{"name": "FURCY HILL CAMP", "gang": "ZEPON", "boss": "KÒK BATAY",     # (Furcy: a real mountain village; the owner's wish)
+		"story": "Kòk Batay's Zepon gang took the army post above Furcy. Their dead do not stay down.",
 		"hp": 1.0, "damage": 1.0, "speed": 1.0, "xp": 1.0, "coins": 1, "gear": 1.0, "gear_up": 0.0,
 		"color": Color(0.62, 0.82, 0.38), "ground": Color(0.0, 0.0, 0.0, 0.0), "trees": Color(1.0, 1.0, 1.0)},
 	{"name": "CANE FIELDS", "gang": "BAZ MACHWÈ", "boss": "MACHWÈ FÈ",

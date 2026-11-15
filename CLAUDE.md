@@ -1134,7 +1134,8 @@ Build one stage at a time; the owner plays each before the next starts.
    above. More can be added the same way (ideas: a shielded zombie that must
    be flanked, a screamer that speeds up the horde, a second boss).
 6. **Five themed maps** - LAST, by the owner's order - each telling a story
-   through its scenery. Since the rebrand: hill army camp, cane fields,
+   through its scenery. Since the rebrand: hill army camp (called FURCY HILL
+   CAMP since v0.15, the owner's wish - Furcy is a real mountain village), cane fields,
    grand cemetery, national road with a roadblock, the docks. (Map select, unlock order and
    difficulty already exist; this step is the scenery.)
 
