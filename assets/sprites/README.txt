@@ -6,4 +6,13 @@ Name the file like the sprite (see scripts/autoload/art.gd), for example:
 
 Draw characters facing RIGHT, at twice the size listed in art.gd
 (a 56x56 sprite becomes a 112x112 PNG). White hit-flash versions are
-made automatically.
+made automatically. A zombie also needs NAME_hurt.png (its wounded look),
+or it turns back into the old shapes when it is badly hurt.
+
+The easy way: tools/make_sprite.py cuts a big picture down to a sprite,
+puts it here and can paint the wounded look (the big pictures are kept in
+art_source/).
+
+In use now:
+  runner_0, runner_1 (+ _hurt)   the Runner, from a picture the owner made
+                                 with ChatGPT

@@ -282,6 +282,10 @@ const WEAPONS := {
 #  stagger_mult  how long hits stop them (0 = unstoppable)
 #  mass          heavier zombies shove lighter ones aside
 #  push_player   how strongly they can squeeze the player (see PLAYER_PUSHED_BY_ENEMIES)
+#  stride        (optional, walkers) seconds per step. Its picture is shown mirrored on
+#                every other step, so ONE picture of a figure in mid-stride looks like
+#                running. For painted pictures (assets/sprites/); leave it out for a
+#                figure that looks the same on both sides.
 # ----------------------------------------------------------------------------
 const SHAMBLER := 0
 const RUNNER := 1
@@ -311,7 +315,7 @@ const ENEMIES := {
 		"damage": 8.0, "attack_cd": 0.7, "score": 15, "xp": 5,
 		"coin_chance": 0.20, "coins_min": 1, "coins_max": 1, "medkit_chance": 0.012,
 		"kb_mult": 1.25, "stagger_mult": 1.0, "mass": 0.6, "push_player": 0.7,
-		"hitstop_mult": 0.8, "shake_mult": 0.8, "blood": 0.7,
+		"hitstop_mult": 0.8, "shake_mult": 0.8, "blood": 0.7, "stride": 0.15,
 	},
 	BRUTE: {
 		"name": "Brute", "hp": 220.0, "speed": 58.0, "speed_var": 0.08, "radius": 26.0,
@@ -436,6 +440,7 @@ const ENEMY_TIP_TIME := 4.5             # seconds the one-time tip about a new k
 const WOUNDED_AT := 0.3                 # below this fraction of health a zombie shows its wounds
 const WOUNDED_SPEED_MULT := 0.88        # ...walks a little slower
 const WOUNDED_LIMP := 2.2               # ...sways this much more as it walks
+const WOUNDED_STRIDE := 0.7             # ...takes its steps this much slower (kinds with a "stride")
 const WOUNDED_DRIP_RATE := 2.5          # ...and leaves this many blood drops per second
 const PLAYER_WOUNDED_AT := 0.3          # the player looks battle-worn below this fraction of health
 const PLAYER_DRIP_RATE := 5.0           # blood drops per second while the player is that hurt

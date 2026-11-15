@@ -34,6 +34,8 @@ var stagger_t := 0.0            # can't walk while this is > 0
 var spawn_t := 0.0              # rising out of the ground (summoned zombies)
 var wounded := false            # below Config.WOUNDED_AT health: shows wounds, limps, bleeds
 var sway := 0.13                # how far the body rocks from side to side while walking
+var stride := 0.0               # seconds per step: its picture is mirrored on every other step (0 = never)
+var stride_t := 0.0             # how far into the current step it is
 var burn_t := 0.0               # on fire for this many more seconds...
 var burn_dps := 0.0             # ...losing this much health per second
 var burn_src := ""              # the weapon that lit it (gets the XP if it dies)

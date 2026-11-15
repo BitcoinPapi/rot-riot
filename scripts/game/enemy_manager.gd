@@ -127,6 +127,9 @@ func spawn(kind: int, at: Vector2, hp_mult: float = 1.0, speed_mult: float = 1.0
 	e.pet_marked = false
 	e.sway = 0.06 if kind == Config.BOSS else 0.13
 	e.phase = randf() * TAU
+	e.stride = float(c.get("stride", 0.0))
+	e.stride_t = randf() * e.stride
+	e.flip_v = false
 	e.flank = Vector2.from_angle(randf() * TAU) * (randf() * Config.ENEMY_FLANK_SPREAD)
 	e.entered = game.arena.rect.grow(-e.radius).has_point(at)
 	e.kb_mult = c["kb_mult"]
@@ -306,6 +309,8 @@ func tick(dt: float) -> void:
 				if e.crowd_prev > crowd_free:
 					step *= float(crowd_free + 1) / float(e.crowd_prev + 1)
 				epos += d * step
+				if e.stride > 0.0:
+					_stride(e, dt)
 				e.face = lerp_angle(e.face, d.angle(), turn)
 			else:
 				e.face = lerp_angle(e.face, dirp.angle(), turn)
@@ -608,6 +613,16 @@ func damage(e: Enemy, amount: float, dir: Vector2, knockback: float, stagger: fl
 		return true
 	Sfx.play("zombie_hit", -6.0)
 	return false
+
+
+## One picture, two steps: a zombie with a "stride" (config) is shown mirrored on every
+## other step - left foot forward, right foot forward - so a single picture runs.
+## Only how it looks: nothing in the fight depends on it.
+func _stride(e: Enemy, dt: float) -> void:
+	e.stride_t += dt * (Config.WOUNDED_STRIDE if e.wounded else 1.0)
+	if e.stride_t >= e.stride:
+		e.stride_t = fmod(e.stride_t, e.stride)
+		e.flip_v = not e.flip_v
 
 
 ## The zombie is badly hurt: from now on it shows its wounds, limps and bleeds.
@@ -1213,6 +1228,8 @@ func tick_remote(dt: float) -> void:
 		var epos := e.net_from.lerp(e.net_to, e.net_t)
 		e.face = lerp_angle(e.face, e.net_face, turn)
 		e.phase += dt * 8.0
+		if e.stride > 0.0 and e.spawn_t <= 0.0 and e.net_from.distance_squared_to(e.net_to) > 1.0:
+			_stride(e, dt)
 
 		# How it looks: rising out of the ground, warning, leaping, dazed, on fire.
 		var size := e.base_scale

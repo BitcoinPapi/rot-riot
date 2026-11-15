@@ -1365,6 +1365,15 @@ func _run_autotest() -> void:
 	_check(hammer_gone and Config.WEAPON_ORDER.size() == 8 and Sfx.RECIPES.has("boss_slam"),
 			"there is no sledgehammer any more (%d weapons); the boss keeps his wall-slam thud" % Config.WEAPON_ORDER.size())
 
+	# --- one picture, two steps: a Runner is shown mirrored on every other step while it runs ---
+	var sprinter := game.enemies.spawn(Config.RUNNER, game.player.pos + Vector2(430.0, 0.0), 200.0)
+	var first_side := sprinter.flip_v
+	await _until(func() -> bool: return not sprinter.alive or sprinter.flip_v != first_side, 60)
+	_check(sprinter.alive and sprinter.flip_v != first_side and sprinter.stride > 0.0
+			and not Config.ENEMIES[Config.SHAMBLER].has("stride"),
+			"a running Runner's picture changes sides with every step (%.2f s a step)" % sprinter.stride)
+	sprinter.hp = 1.0             # (the next hit takes it off the field again)
+
 	# --- the tables for the idea board's dashboard: every part of the game is in them, and every
 	#     number that can be changed there says where it lives in config.gd ---
 	var sheet_rows := {}

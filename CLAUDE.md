@@ -239,6 +239,8 @@ tools/nattest.sh         the co-op test over a pretend internet: every copy in i
                          its own router (network namespaces + iptables; nattest_stun.py = its address finders)
 tools/board/             the idea board's page (published as an Artifact, not part of the game) and
                          look.js, its test in a pretend browser
+tools/make_sprite.py     cuts a big painted picture down to a sprite in assets/sprites/ (and can
+                         paint its wounded look); the big pictures are kept in art_source/
 Update Rot Riot.command  double-click updater for the owner's Mac (downloads main from GitHub,
                          replaces the project folder; the save file lives elsewhere)
 ```
@@ -753,7 +755,27 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   numerous - they are not batched.
 - **Art:** `art.gd` rasterises small SVG strings at 2x. A PNG with the same
   name in `assets/sprites/` replaces a sprite (hit-flash versions are derived
-  automatically). **Sound:** `sfx.gd` recipes; a file with the same name in
+  automatically). **Painted enemies**: the owner makes one big picture per
+  enemy with ChatGPT (seen from straight above, facing RIGHT, see-through
+  background - he has prompts for all eight kinds and the five bosses) and
+  sends it; `tools/make_sprite.py PICTURE NAME --length L --center X,Y`
+  cuts it to size, centres the chest (the zombie turns around that spot and
+  its hit circle sits there), adds a soft shadow and saves
+  `assets/sprites/NAME.png`; keep the big picture in `art_source/` (Godot
+  ignores that folder) and list it in `assets/CREDITS.txt`. Every variant
+  the kind has (`Art.*_VARIANTS`) needs its own file, and each needs a
+  `_hurt` file or the old shapes come back below 30% health: `--hue` makes
+  a second look, `--wounds` paints blood when no wounded picture was sent.
+  Then `godot --headless --import` and LOOK at it in a run
+  (`--horde=runner:7,shambler:4`): size beside the others, facing the
+  player, readable on the ground. **One picture cannot move its legs**: the
+  game turns it, rocks it and squashes it, and a kind with `"stride"` in
+  config (seconds per step; the Runner has it) is shown mirrored on every
+  other step, which reads as running for a figure caught in mid-stride.
+  Real animation needs several pictures of the same figure in different
+  poses, which AI image tools rarely keep alike. The five bosses still
+  share `boss_0`: when the owner sends five pictures, give each map its own.
+  In so far: the Runner. **Sound:** `sfx.gd` recipes; a file with the same name in
   `assets/sfx/` (.wav/.ogg/.mp3) replaces a sound, and several files named
   `name_1`, `name_2`... are picked from at random (for sounds heard many
   times a second). A recording should peak at about -1 dB like the generated
@@ -995,6 +1017,14 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   gun in the hero's hands) and only three or four of the eight weapons. The
   owner was shown a side-by-side picture; his call. If he wants it anyway,
   the licence on the pack's page must be read first (public project).
+- Wants painted enemies instead of the shapes: asked for a ChatGPT prompt
+  for "the machete gang member villain that will replace the shambler", then
+  for the other enemies (given: one block of rules to paste first, then one
+  short description per enemy and boss, then a "wounded version" follow-up).
+  First picture back: the Runner (orange hood, a blade in each fist) -> in
+  the game, with the mirrored-step running look. He asked "will it have good
+  animations?" and was told plainly what one picture can and cannot do.
+  Friends only see new pictures with the next build.
 - The owner's Mac: browser downloads do not work there, so updates go through
   Terminal (curl) or the double-click updater. Always give the full update
   command and say plainly that Return must be pressed.
@@ -1039,7 +1069,8 @@ Design rule from the owner: progression must feel incremental and endless.
 
 - Mobile: on-screen sticks calling `GameInput.set_virtual_input()`; lower
   `DECAL_RESOLUTION`; pack zombie sprites into one atlas to cut draw calls.
-- Steam: Steamworks (GodotSteam), achievements, cloud save, custom user data
+- Steam: AI-made pictures (the painted enemies) must be declared in Steam's
+  content survey. Steamworks (GodotSteam), achievements, cloud save, custom user data
   folder, real icon, macOS signing + notarisation, store assets.
 - Content: more enemy types and bosses, arenas, weapon variety, music, real
   art and sound, damage numbers, daily challenge, leaderboards.
