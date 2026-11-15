@@ -27,11 +27,13 @@ const GOBBER_VARIANTS := 2
 const CHUCKER_VARIANTS := 2
 const GASBAG_VARIANTS := 2
 const LUNGER_VARIANTS := 2
+const FIGHTER_VARIANTS := 1
+const BOSS_VARIANTS := 5        # one look per map: boss_0 is the first map's gang leader, boss_1 the second's...
 
 # Indexed by enemy kind (see Config).
-const ENEMY_SPRITE := ["shambler", "runner", "brute", "boss", "gobber", "chucker", "gasbag", "lunger"]
-const ENEMY_VARIANTS := [SHAMBLER_VARIANTS, RUNNER_VARIANTS, BRUTE_VARIANTS, 1,
-	GOBBER_VARIANTS, CHUCKER_VARIANTS, GASBAG_VARIANTS, LUNGER_VARIANTS]
+const ENEMY_SPRITE := ["shambler", "runner", "brute", "boss", "gobber", "chucker", "gasbag", "lunger", "fighter"]
+const ENEMY_VARIANTS := [SHAMBLER_VARIANTS, RUNNER_VARIANTS, BRUTE_VARIANTS, BOSS_VARIANTS,
+	GOBBER_VARIANTS, CHUCKER_VARIANTS, GASBAG_VARIANTS, LUNGER_VARIANTS, FIGHTER_VARIANTS]
 
 
 func _ready() -> void:
@@ -60,8 +62,11 @@ func enemy_hurt_tex(kind: int, variant: int) -> Texture2D:
 	return tex["%s_%d_hurt" % [ENEMY_SPRITE[kind], variant]]
 
 
-func enemy_flash_tex(kind: int) -> Texture2D:
-	return tex["%s_0_flash" % ENEMY_SPRITE[kind]]
+## The all-white picture shown for a moment when it is hit. Looks of a kind that share
+## one outline share one; the bosses, who do not, have one each.
+func enemy_flash_tex(kind: int, variant: int = 0) -> Texture2D:
+	var own := "%s_%d_flash" % [ENEMY_SPRITE[kind], variant]
+	return tex[own] if tex.has(own) else tex["%s_0_flash" % ENEMY_SPRITE[kind]]
 
 
 ## Draw a sprite centred on `pos` in the canvas item `ci`.
@@ -106,9 +111,10 @@ func _build() -> void:
 	var boss := SVG_BOSS.format({
 		"line": "#1c0a0a", "skin": "#8e2f2f", "skin2": "#6e2222", "skin3": "#a53c36",
 		"bone": "#e6dcc0", "eye": "#ffd23f"})
-	_svg("boss_0", 176, 176, boss)
-	_svg("boss_0_hurt", 176, 176, boss + WOUNDS_BOSS)
-	_flash("boss_0")
+	for i in BOSS_VARIANTS:
+		_svg("boss_%d" % i, 176, 176, boss)
+		_svg("boss_%d_hurt" % i, 176, 176, boss + WOUNDS_BOSS)
+		_flash("boss_%d" % i)
 
 	# The Gobber: sickly yellow, cheeks full of spit.
 	var gobber_shirts := ["#5a4a6b", "#6b5a3a"]
@@ -149,6 +155,15 @@ func _build() -> void:
 		_svg("lunger_%d" % i, 56, 56, lunger)
 		_svg("lunger_%d_hurt" % i, 56, 56, lunger + WOUNDS_LUNGER)
 	_flash("lunger_0")
+
+	# The Gang Fighter has a painted picture (assets/sprites/fighter_0.png). Without it:
+	# a Shambler's shape with a red headcloth and a blade.
+	var fighter := SVG_SHAMBLER.format({
+		"line": "#1c1410", "skin": "#7f8f5c", "shirt": "#cfc4ad", "blood": "#7a1f1f",
+		"hair": "#b3322b", "eye": "#ffe14a"}) + SVG_FIGHTER_BLADE
+	_svg("fighter_0", 56, 56, fighter)
+	_svg("fighter_0_hurt", 56, 56, fighter + WOUNDS_SHAMBLER)
+	_flash("fighter_0")
 
 	# --- player and weapons ---
 	refresh_hero()
@@ -552,9 +567,26 @@ func _hero_front_svg(worn: Dictionary) -> String:
 ## Rasterise an SVG drawing into a texture. `centered` puts (0,0) in the middle
 ## of the sprite; otherwise (0,0) is the middle of the LEFT edge (used for guns,
 ## so they rotate around the grip).
+## The painted picture for a sprite, if there is one: assets/sprites/<sprite>.png. A kind
+## with several looks (shambler_0 .. shambler_3) and only ONE painted picture uses that
+## one for all of them: "brute_1" takes brute_0.png, "brute_1_hurt" takes brute_0_hurt.png.
+func _painted(sprite: String) -> String:
+	var path := "res://assets/sprites/%s.png" % sprite
+	if ResourceLoader.exists(path):
+		return path
+	var tail := "_hurt" if sprite.ends_with("_hurt") else ""
+	var core := sprite.trim_suffix("_hurt")
+	var cut := core.rfind("_")
+	if cut > 0 and core.substr(cut + 1).is_valid_int() and core.substr(cut + 1) != "0":
+		path = "res://assets/sprites/%s_0%s.png" % [core.substr(0, cut), tail]
+		if ResourceLoader.exists(path):
+			return path
+	return ""
+
+
 func _svg(sprite: String, w: int, h: int, body: String, centered: bool = true) -> void:
-	var override_path := "res://assets/sprites/%s.png" % sprite
-	if ResourceLoader.exists(override_path):
+	var override_path := _painted(sprite)
+	if override_path != "":
 		var custom: Texture2D = load(override_path)
 		tex[sprite] = custom
 		sizes[sprite] = Vector2(custom.get_size()) / PX
@@ -602,6 +634,11 @@ func _flash(sprite: String) -> void:
 # ----------------------------------------------------------------------------
 #  The drawings. {tokens} are colours filled in by _build().
 # ----------------------------------------------------------------------------
+const SVG_FIGHTER_BLADE := """
+<path d="M15,9 L28,5" stroke="#1c1410" stroke-width="5" stroke-linecap="round" fill="none"/>
+<path d="M16,9 L27,5.5" stroke="#b9bcc0" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+"""
+
 const SVG_SHAMBLER := """
 <circle cx="0" cy="0" r="20" fill="#000000" fill-opacity="0.22"/>
 <path d="M0,-11 L17,-8" stroke="{line}" stroke-width="9" stroke-linecap="round" fill="none"/>

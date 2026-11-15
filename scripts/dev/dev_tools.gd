@@ -32,7 +32,7 @@ extends Node
 ##   --cooptest         with --coop=host on one copy and --coop=join on one or two others: all play through
 ##                      a scripted co-op session (about 45 s) and each prints COOPTEST PASSED / FAILED
 ##   --horde=K:N,K:N    one second into a run, put N zombies of kind K around the player
-##                      (shambler, runner, brute, boss, gobber, chucker, gasbag, lunger), e.g. --horde=gobber:3,gasbag:2
+##                      (shambler, runner, brute, boss, gobber, chucker, gasbag, lunger, fighter), e.g. --horde=gobber:3,gasbag:2
 ##   --god              the player cannot die
 ##   --frames=N         quit after N frames and print a summary
 ##   --autotest         play through the whole game loop automatically and report PASS/FAIL
@@ -189,7 +189,8 @@ func _process(_delta: float) -> void:
 					continue
 				for i in (int(bits[1]) if bits.size() > 1 else 1):
 					var at := game.player.pos + Vector2.from_angle(randf() * TAU) * randf_range(230.0, 290.0)
-					game.enemies.spawn(which, game.arena.clamp_inside(at, 40.0), game.enemy_hp_mult, game.enemy_speed_mult)
+					var look := game.map_index % Art.BOSS_VARIANTS if which == Config.BOSS else -1   # (a boss looks like his map's)
+					game.enemies.spawn(which, game.arena.clamp_inside(at, 40.0), game.enemy_hp_mult, game.enemy_speed_mult, false, look)
 		if _args.has("show-chests") and _frame == 60 and game.pickups.chests.size() >= 2:
 			game.pickups.chests[0].pos = game.player.pos + Vector2(190.0, -60.0)
 			game.pickups.chests[1].pos = game.player.pos + Vector2(-200.0, 70.0)
@@ -667,6 +668,8 @@ func _bench(game: Game) -> void:
 			kind = Config.BRUTE
 		elif roll > 0.7:
 			kind = Config.RUNNER
+		elif roll < 0.12:
+			kind = Config.FIGHTER
 		elif roll > 0.63:
 			kind = Config.GOBBER
 		elif roll > 0.57:
@@ -1779,6 +1782,37 @@ func _run_autotest() -> void:
 		if Art.enemy_flash_tex(kind) == null or not Config.GEAR_DROP_CHANCE.has(kind) or not Config.ENEMIES[kind].has("tip"):
 			kinds_ok = false
 	_check(kinds_ok, "every new kind of zombie has its pictures (a wounded one too), a tip and a gear drop chance")
+
+	# --- every kind there is has a picture, a wounded picture and a flash picture for each of its looks ---
+	var looks_ok := Art.ENEMY_SPRITE.size() == Config.ENEMIES.size() and Art.ENEMY_VARIANTS.size() == Config.ENEMIES.size()
+	for kind: int in Config.ENEMIES.keys():
+		for v in int(Art.ENEMY_VARIANTS[kind]):
+			if Art.enemy_tex(kind, v) == null or Art.enemy_hurt_tex(kind, v) == null or Art.enemy_flash_tex(kind, v) == null:
+				looks_ok = false
+		if not Config.GEAR_DROP_CHANCE.has(kind):
+			looks_ok = false
+	_check(looks_ok and Art.BOSS_VARIANTS == Config.MAPS.size(), "all %d kinds of zombie have their pictures, and every map's boss a look of his own" % Config.ENEMIES.size())
+
+	# --- the Gang Fighter: a plain walker, quicker and tougher than a Shambler, with a harder hit ---
+	var fighter_cfg: Dictionary = Config.ENEMIES[Config.FIGHTER]
+	var shambler_cfg: Dictionary = Config.ENEMIES[Config.SHAMBLER]
+	var soldier := game.enemies.spawn(Config.FIGHTER, middle + Vector2(240.0, 0.0))
+	_check(soldier.ai == Config.AI_WALKER and soldier.kind == Config.FIGHTER and soldier.texture == Art.enemy_tex(Config.FIGHTER, 0)
+			and float(fighter_cfg["hp"]) > float(shambler_cfg["hp"]) and float(fighter_cfg["speed"]) > float(shambler_cfg["speed"])
+			and float(fighter_cfg["damage"]) > float(shambler_cfg["damage"]) and float(fighter_cfg["speed"]) < float(Config.ENEMIES[Config.RUNNER]["speed"]),
+			"the Gang Fighter walks at you: quicker, tougher and harder-hitting than a Shambler, slower than a Runner")
+
+	# --- a boss wears the look of his map ---
+	var old_map := game.map_index
+	var looks := {}
+	for m in Config.MAPS.size():
+		game.map_index = m
+		game.director.call("_spawn_boss")
+		var leader: Enemy = game.director.boss
+		looks[leader.variant] = leader.tex_normal == Art.enemy_tex(Config.BOSS, m) and leader.tex_flash == Art.enemy_flash_tex(Config.BOSS, m)
+	game.map_index = old_map
+	_check(looks.size() == Config.MAPS.size() and not looks.values().has(false), "each map's boss comes in his own look (%d of them)" % looks.size())
+	game.director.boss = null
 	game.enemies.clear_all()
 	game.pickups.crates.clear()
 	game.pickups.set("_crate_timer", 9999.0)
@@ -1922,7 +1956,7 @@ func _run_autotest() -> void:
 	for i in 4000:
 		var picked: int = game.director.call("_pick_kind")
 		counted[picked] = int(counted.get(picked, 0)) + 1
-	_check(counted.size() == 7, "by wave 30 every kind of zombie is in the horde")
+	_check(counted.size() == Config.ENEMIES.size() - 1, "by wave 30 every kind of zombie is in the horde (%d kinds and the boss)" % counted.size())
 	_check(int(counted.get(Config.SHAMBLER, 0)) > 4000 * (Config.ENEMY_MIX_SHAMBLERS - 0.04), "...and Shamblers are still a good part of it (%d of 4000)" % int(counted.get(Config.SHAMBLER, 0)))
 	game.director.wave = mix_wave
 	shots.spits.clear()

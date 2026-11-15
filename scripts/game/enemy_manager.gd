@@ -147,8 +147,7 @@ func spawn(kind: int, at: Vector2, hp_mult: float = 1.0, speed_mult: float = 1.0
 	e.state = B_CHASE
 	e.state_t = 0.0
 	e.melee_t = Config.ENEMY_FIRST_ATTACK_DELAY
-	if e.ai != Config.AI_WALKER:
-		e.warn = c["warn_color"]
+	e.warn = c.get("warn_color", Color.WHITE)
 	if e.ai == Config.AI_SHOOTER:
 		e.shoot_range = float(c["range"]) * randf_range(0.82, 1.0)
 		e.attack_t = randf_range(Config.SHOOTER_FIRST_SHOT_MIN, Config.SHOOTER_FIRST_SHOT_MAX)
@@ -159,7 +158,7 @@ func spawn(kind: int, at: Vector2, hp_mult: float = 1.0, speed_mult: float = 1.0
 		e.summon_cd = float(c["summon_cooldown"]) * 0.5
 		bigs.append(e)
 	e.tex_normal = Art.enemy_tex(kind, e.variant)
-	e.tex_flash = Art.enemy_flash_tex(kind)
+	e.tex_flash = Art.enemy_flash_tex(kind, e.variant)
 	e.tex_hurt = Art.enemy_hurt_tex(kind, e.variant)
 	e.texture = e.tex_normal
 	e.base_scale = 1.0 / Art.PX

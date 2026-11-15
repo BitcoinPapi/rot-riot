@@ -11,7 +11,7 @@ extends Node
 ## ============================================================================
 
 const GAME_TITLE := "HAITIAN GANG WARS"
-const GAME_VERSION := "0.13.0"
+const GAME_VERSION := "0.14.0"
 const HERO_NAME := "JANJAN"                   # the soldier you play, as everybody calls him...
 const HERO_FULL_NAME := "JEAN-BAPTISTE"       # ...and his real name
 const GAME_TAGLINE := "TAKE THE COUNTRY BACK"   # under the title on the main menu
@@ -295,6 +295,7 @@ const GOBBER := 4      # spits at you from a distance
 const CHUCKER := 5     # lobs rubble that lands where you were standing
 const GASBAG := 6      # bursts when it dies or reaches you - and takes the zombies around it along
 const LUNGER := 7      # crouches, then leaps at you
+const FIGHTER := 8     # a gang's foot soldier with a machete: quicker and tougher than a Shambler, and he cuts deeper
 
 # How a kind behaves ("ai" below). Walkers just come at you.
 const AI_WALKER := 0
@@ -425,6 +426,19 @@ const ENEMIES := {
 		"warn_color": Color(1.0, 0.4, 0.35),
 		"tip": "It crouches, then leaps. Step aside and shoot it while it lies dazed.",
 	},
+	# --- The Gang Fighter (the owner's "machete gang member"): a plain walker like the
+	# --- Shambler, but quicker, tougher and with a blade. No attack of its own, so no
+	# --- warning: it just must not be allowed to reach you. ("warn_color" is only the
+	# --- colour of its introduction.)
+	FIGHTER: {
+		"name": "Gang Fighter", "hp": 40.0, "speed": 122.0, "speed_var": 0.15, "radius": 13.0,
+		"damage": 15.0, "attack_cd": 0.75, "score": 20, "xp": 8,
+		"coin_chance": 0.25, "coins_min": 1, "coins_max": 1, "medkit_chance": 0.012,
+		"kb_mult": 0.9, "stagger_mult": 0.9, "mass": 1.1, "push_player": 1.0,
+		"hitstop_mult": 1.0, "shake_mult": 1.0, "blood": 1.0,
+		"warn_color": Color(0.9, 0.25, 0.2),
+		"tip": "Quicker and tougher than a Shambler, and his machete cuts deep. Do not let him reach you.",
+	},
 }
 
 # Things thrown and spat at the player.
@@ -525,6 +539,7 @@ const WAVE_XP_GROWTH := 0.01            # +1% XP per kill per wave (tougher zomb
 # over is Shamblers - and at least ENEMY_MIX_SHAMBLERS of every wave is
 # (the others are scaled down together if they would take more).
 const ENEMY_MIX := [
+	{"kind": FIGHTER, "start": 2, "per_wave": 0.04, "max": 0.2},
 	{"kind": RUNNER, "start": 2, "per_wave": 0.10, "max": 0.45},
 	{"kind": BRUTE, "start": 3, "per_wave": 0.035, "max": 0.18},
 	{"kind": GOBBER, "start": 3, "per_wave": 0.03, "max": 0.12},
@@ -937,7 +952,7 @@ const GEAR_ITEMS := {
 # Drops. Chance per kill that the zombie leaves a piece of gear (before the
 # map's "gear" multiplier and the LUCK stat). Deliberately rare.
 const GEAR_DROP_CHANCE := {SHAMBLER: 0.004, RUNNER: 0.005, BRUTE: 0.04, BOSS: 1.0,
-	GOBBER: 0.008, CHUCKER: 0.03, GASBAG: 0.012, LUNGER: 0.008}
+	GOBBER: 0.008, CHUCKER: 0.03, GASBAG: 0.012, LUNGER: 0.008, FIGHTER: 0.008}
 const GEAR_BOSS_EXTRA_CHANCE := 0.4     # a boss always drops a ring or an amulet; this is the chance of a second, ordinary piece
 const GEAR_LUCK_FACTOR := 0.5           # how much of the LUCK coin bonus also applies to gear drops
 const GEAR_MAX_ON_FIELD := 4

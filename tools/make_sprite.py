@@ -7,7 +7,8 @@ replaces the generated shapes (see scripts/autoload/art.gd): this script cuts th
 figure out, puts the middle of its body in the middle of the sprite, shrinks it to
 the game's size and saves it there.
 
-    tools/make_sprite.py PICTURE NAME --length 58 [--center X,Y] [--hue DEG] [--wounds] [--no-shadow]
+    tools/make_sprite.py PICTURE NAME --length 58 [--center X,Y] [--turn DEG] [--main-only]
+                         [--hue DEG] [--wounds] [--no-shadow]
 
     PICTURE     the big picture (png / webp / jpg); a plain white background is removed
     NAME        the sprite's name, e.g. runner_0 or runner_0_hurt
@@ -16,6 +17,11 @@ the game's size and saves it there.
     --center    the spot of the PICTURE (in its own pixels) that becomes the middle of
                 the sprite: the middle of the chest. The zombie turns around this spot
                 and its hit circle sits on it. Default: the middle of everything.
+    --turn      turn the picture clockwise by this many degrees first (a figure drawn
+                facing up-right must face right). --center still means the spot in the
+                picture as it was sent.
+    --main-only keep only the figure itself: loose bits around it (flying drops, wisps
+                of gas) are dropped, so they do not turn with the zombie or make it small
     --hue       turn the strong colours by this many degrees (a second look of the same
                 character: another shirt colour)
     --wounds    paint blood and gashes on it (for NAME_hurt when there is no painted
@@ -55,6 +61,21 @@ def cut_out(im: Image.Image) -> Image.Image:
     out = np.array(im)
     out[..., 3] = np.array(mask)
     return Image.fromarray(out, "RGBA")
+
+
+def main_only(im: Image.Image, at: tuple) -> Image.Image:
+    """Keep the solid shape that holds the spot `at` (and its soft rim); drop everything else."""
+    a = np.array(im)
+    solid = Image.fromarray(np.where(a[..., 3] > 140, 255, 0).astype(np.uint8), "L").copy()   # (a copy can be painted on)
+    x, y = int(round(at[0])), int(round(at[1]))
+    if solid.getpixel((x, y)) != 255:                 # (the spot is on a hole: take the nearest solid pixel)
+        ys, xs = np.where(np.array(solid) == 255)
+        nearest = int(np.argmin((xs - x) ** 2 + (ys - y) ** 2))
+        x, y = int(xs[nearest]), int(ys[nearest])
+    ImageDraw.floodfill(solid, (x, y), 128)
+    keep = Image.fromarray(np.where(np.array(solid) == 128, 255, 0).astype(np.uint8), "L").filter(ImageFilter.MaxFilter(7))
+    a[..., 3] = np.minimum(a[..., 3], np.array(keep))
+    return Image.fromarray(a, "RGBA")
 
 
 def shrink(im: Image.Image, size: tuple) -> Image.Image:
@@ -127,6 +148,8 @@ def main() -> int:
     ap.add_argument("name")
     ap.add_argument("--length", type=float, required=True)
     ap.add_argument("--center", default="")
+    ap.add_argument("--turn", type=float, default=0.0)
+    ap.add_argument("--main-only", action="store_true")
     ap.add_argument("--hue", type=float, default=0.0)
     ap.add_argument("--wounds", action="store_true")
     ap.add_argument("--no-shadow", action="store_true")
@@ -134,14 +157,24 @@ def main() -> int:
     args = ap.parse_args()
 
     im = cut_out(Image.open(args.picture))
+    spot = [float(v) for v in args.center.split(",")] if args.center else None
+    if args.turn:
+        old = (im.width / 2.0, im.height / 2.0)
+        im = im.rotate(-args.turn, resample=Image.BICUBIC, expand=True)
+        if spot:
+            t = math.radians(args.turn)
+            dx, dy = spot[0] - old[0], spot[1] - old[1]
+            spot = [im.width / 2.0 + dx * math.cos(t) - dy * math.sin(t), im.height / 2.0 + dx * math.sin(t) + dy * math.cos(t)]
+    if args.main_only:
+        im = main_only(im, spot if spot else (im.width / 2.0, im.height / 2.0))
     alpha = np.array(im)[..., 3].astype(np.float32) / 255.0
     ys, xs = np.where(alpha > 0.1)
     if len(xs) == 0:
         print("nothing to see in that picture")
         return 1
     x0, x1, y0, y1 = xs.min(), xs.max() + 1, ys.min(), ys.max() + 1
-    if args.center:
-        cx, cy = [float(v) for v in args.center.split(",")]
+    if spot:
+        cx, cy = spot
     else:
         yy, xx = np.mgrid[0:alpha.shape[0], 0:alpha.shape[1]]
         cx, cy = float((xx * alpha).sum() / alpha.sum()), float((yy * alpha).sum() / alpha.sum())

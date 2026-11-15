@@ -141,7 +141,8 @@ func _spawn_boss() -> void:
 	var boss_number := maxi(int(float(wave) / Config.BOSS_EVERY), 1)
 	var hp_mult := game.enemy_hp_mult * (1.0 + float(cfg["hp_growth_per_boss"]) * float(boss_number - 1))
 	var at := game.spawn_point(randf() * TAU, 0.0, float(cfg["radius"]) + 12.0)
-	boss = game.enemies.spawn(Config.BOSS, at, hp_mult, float(game.map["speed"]))
+	# (Each map's gang leader has his own look: the boss's "variant" is the map.)
+	boss = game.enemies.spawn(Config.BOSS, at, hp_mult, float(game.map["speed"]), false, game.map_index % Art.BOSS_VARIANTS)
 	_boss_delay = -1.0
 	boss_spawned.emit(boss)
 	Sfx.play("boss_roar")

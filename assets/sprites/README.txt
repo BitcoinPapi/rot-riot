@@ -13,6 +13,10 @@ The easy way: tools/make_sprite.py cuts a big picture down to a sprite,
 puts it here and can paint the wounded look (the big pictures are kept in
 art_source/).
 
-In use now:
-  runner_0, runner_1 (+ _hurt)   the Runner, from a picture the owner made
-                                 with ChatGPT
+A kind with several looks and one painted picture uses it for all of them
+(brute_1 takes brute_0.png).
+
+In use now (all from pictures the owner made with ChatGPT; see art_source/):
+  runner_0, runner_1   brute_0   chucker_0   gasbag_0   gobber_0   lunger_0
+  fighter_0 (the Gang Fighter)   boss_0, boss_1, boss_2 (the bosses of maps 1-3)
+  ...each with its _hurt picture.

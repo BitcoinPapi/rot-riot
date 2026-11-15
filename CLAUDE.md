@@ -152,7 +152,8 @@ needs `--level=18` or more),
 `--at=X,Y` (start the run at that spot of the map; the middle is 1500,1000), `--no-fog` (whole map
 uncovered), `--show-chests` (a closed chest beside the player and an opened one),
 `--horde=KIND:N,KIND:N` (put zombies around the player: shambler, runner, brute, boss, gobber,
-chucker, gasbag, lunger - e.g. `--horde=gobber:3,gasbag:2`),
+chucker, gasbag, lunger, fighter - e.g. `--horde=gobber:3,gasbag:2`; a boss comes in the look of
+the map, so `--map=2 --horde=boss:1` shows the second map's boss),
 `--coop=host [--players=N]` / `--coop=join[:ADDRESS]` (co-op between copies on this computer: run
 them WITHOUT `--fixed-fps`, end them with `--seconds=N`, name them with `--name=X`; `join:` takes
 a game code or an address; `--stun=IP:PORT,IP:PORT` makes the copies find each other the internet
@@ -408,11 +409,17 @@ show the damage.
   reload. Melee and flame numbers are flattered by the test (the bot cannot
   die); real play punishes short range.
 
-**Enemies** (`Config.ENEMIES`): Shambler (basic), Runner (fast, zig-zags),
-Brute (tank, resists knockback and stagger), the map's gang boss every 5th wave
-(charge with a telegraphed wind-up, dazed afterwards; summons shamblers out of
-the ground; +60% HP each time it returns), and four kinds with an attack of
-their own (owner: "more enemies including some that shoot from range"):
+**Enemies** (`Config.ENEMIES`, nine kinds): Shambler (basic), **Gang
+Fighter** (the owner's "machete gang member", added in v0.14 "for
+diversification": a plain walker like the Shambler but quicker - 122 against
+86 - tougher - 40 health against 24 - and hitting for 15; from wave 2, up to
+a fifth of a wave; no attack of its own, so no warning), Runner (fast,
+zig-zags), Brute (tank, resists knockback and stagger), the map's gang boss
+every 5th wave (charge with a telegraphed wind-up, dazed afterwards; summons
+shamblers out of the ground; +60% HP each time it returns; **each map's boss
+has his own look**: the boss's `variant` is the map, `boss_0` .. `boss_4`),
+and four kinds with an attack of their own (owner: "more enemies including
+some that shoot from range"):
 - **Gobber** (ranged): stops about 400 px away, swells for 0.6 s, spits a
   slow glob (330 px/s, 11 damage) that rocks and weapon crates stop. Any hit
   while it swells makes it swallow the spit and start over.
@@ -450,8 +457,8 @@ over 100 waves: count = 22 + 9(w-1), capped at 500 per wave and 240 alive.
 Zombies arrive in packs (out of the ground around the screen, see "The map")
 so they form hordes; pack size and rate grow with the wave, and every 5 waves
 the packs come from one more direction at once (up to 4) so hordes surround
-the player; who is in a wave comes from `Config.ENEMY_MIX` (Runners from
-wave 2, Brutes and Gobbers from 3, Lungers from 4, Gasbags from 6, Chuckers
+the player; who is in a wave comes from `Config.ENEMY_MIX` (Gang Fighters
+and Runners from wave 2, Brutes and Gobbers from 3, Lungers from 4, Gasbags from 6, Chuckers
 from 8; each kind's share grows per wave to its maximum; at least 20% of
 every wave stays Shamblers); per wave +6% HP,
 +1% damage, +0.5% speed, +1% XP per kill, all multiplied by the map. Boss HP
@@ -757,25 +764,40 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   name in `assets/sprites/` replaces a sprite (hit-flash versions are derived
   automatically). **Painted enemies**: the owner makes one big picture per
   enemy with ChatGPT (seen from straight above, facing RIGHT, see-through
-  background - he has prompts for all eight kinds and the five bosses) and
+  background - he has prompts for every kind and the five bosses) and
   sends it; `tools/make_sprite.py PICTURE NAME --length L --center X,Y`
   cuts it to size, centres the chest (the zombie turns around that spot and
   its hit circle sits there), adds a soft shadow and saves
-  `assets/sprites/NAME.png`; keep the big picture in `art_source/` (Godot
-  ignores that folder) and list it in `assets/CREDITS.txt`. Every variant
-  the kind has (`Art.*_VARIANTS`) needs its own file, and each needs a
-  `_hurt` file or the old shapes come back below 30% health: `--hue` makes
-  a second look, `--wounds` paints blood when no wounded picture was sent.
-  Then `godot --headless --import` and LOOK at it in a run
-  (`--horde=runner:7,shambler:4`): size beside the others, facing the
-  player, readable on the ground. **One picture cannot move its legs**: the
-  game turns it, rocks it and squashes it, and a kind with `"stride"` in
-  config (seconds per step; the Runner has it) is shown mirrored on every
-  other step, which reads as running for a figure caught in mid-stride.
-  Real animation needs several pictures of the same figure in different
-  poses, which AI image tools rarely keep alike. The five bosses still
-  share `boss_0`: when the owner sends five pictures, give each map its own.
-  In so far: the Runner. **Sound:** `sfx.gd` recipes; a file with the same name in
+  `assets/sprites/NAME.png` (`--main-only` drops loose bits such as flying
+  spit, `--turn` turns a figure drawn facing the wrong way, `--hue` makes a
+  second look, `--wounds` paints blood when no wounded picture was sent).
+  Keep the big picture in `art_source/` (Godot ignores that folder); its
+  README lists the exact line used for every sprite, and
+  `assets/CREDITS.txt` names them. **One picture is enough for a kind**: a
+  look without a file of its own uses the first look's (`brute_1` takes
+  `brute_0.png`, `boss_4` takes `boss_0.png`; `Art._painted`), and the
+  same for `_hurt` - but `NAME_0_hurt.png` must exist or the old shapes
+  come back below 30% health. Then `godot --headless --import` and LOOK at
+  it in a run (`--horde=fighter:3,brute:2,shambler:3`): size beside the
+  others, facing the player, readable on the ground.
+  **One picture cannot move its legs**: the game turns it, rocks it and
+  squashes it, and a kind with `"stride"` in config (seconds per step) is
+  shown mirrored on every other step, which reads as running. Only the
+  Runner has it: mirroring is wrong for a figure that holds something in
+  one hand (the Fighter's machete would jump from hand to hand) and does
+  nothing for one that is the same on both sides (the Brute). Real
+  animation needs several pictures of the same figure in different poses,
+  which AI image tools rarely keep alike.
+  Painted so far: Runner, Gang Fighter, Brute, Gobber, Chucker, Gasbag,
+  Lunger and the bosses of maps 1-3 (Kòk Batay, Machwè Fè, Papa Zo). Still
+  shapes: the **Shambler**. Maps 4 and 5 (Gwo Kamyon, Wa Lannwit) show
+  Kòk Batay's picture until theirs arrive: save them as `boss_3` / `boss_4`.
+  All wounded looks are painted-on blood so far.
+  **Pictures the owner sends while Claude is busy are not saved as files**
+  (only pictures sent with a normal message land in the session's `images/`
+  folder). They are still in the session's own record: the last lines of
+  `~/.claude/projects/<project>/<session>.jsonl` hold them as base64
+  (`"type": "image"`), from where they can be written out. **Sound:** `sfx.gd` recipes; a file with the same name in
   `assets/sfx/` (.wav/.ogg/.mp3) replaces a sound, and several files named
   `name_1`, `name_2`... are picked from at random (for sounds heard many
   times a second). A recording should peak at about -1 dB like the generated
@@ -821,7 +843,7 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
 | 250     | 2.7    | 3.9    |
 | 400     | 5.6    | 8.4    |
 
-(Measured on the big map with all eight kinds of zombie in the horde. The
+(Measured on the big map with every kind of zombie in the horde. The
 400 case got slower with Gasbags in it: their chain bursts kill twice as
 many zombies per second.)
 
@@ -1024,7 +1046,15 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   First picture back: the Runner (orange hood, a blade in each fist) -> in
   the game, with the mirrored-step running look. He asked "will it have good
   animations?" and was told plainly what one picture can and cannot do.
-  Friends only see new pictures with the next build.
+  Then "here are all the villans. gang fighter is a new villain add him to
+  for diversification" with pictures of the Brute, Chucker, Gasbag, Gobber
+  and the machete fighter, and (while Claude worked) the Lunger and three
+  bosses -> v0.14.0: all of them in, the Gang Fighter as a ninth kind (his
+  numbers are Claude's first guess), each boss on his own map. NOTE the
+  change of mind: the machete man was first meant to REPLACE the Shambler
+  and became a villain of his own, so the Shambler has no picture yet; a
+  prompt for it was given. Still to come from him: the Shambler, the bosses
+  of maps 4 and 5, wounded pictures if he wants better than painted blood.
 - The owner's Mac: browser downloads do not work there, so updates go through
   Terminal (curl) or the double-click updater. Always give the full update
   command and say plainly that Return must be pressed.

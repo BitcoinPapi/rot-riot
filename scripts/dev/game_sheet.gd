@@ -26,8 +26,9 @@ extends RefCounted
 const KIND_NAMES := {
 	Config.SHAMBLER: "SHAMBLER", Config.RUNNER: "RUNNER", Config.BRUTE: "BRUTE", Config.BOSS: "BOSS",
 	Config.GOBBER: "GOBBER", Config.CHUCKER: "CHUCKER", Config.GASBAG: "GASBAG", Config.LUNGER: "LUNGER",
+	Config.FIGHTER: "FIGHTER",
 }
-const VILLAIN_ORDER := [Config.SHAMBLER, Config.RUNNER, Config.BRUTE, Config.GOBBER, Config.CHUCKER, Config.GASBAG,
+const VILLAIN_ORDER := [Config.SHAMBLER, Config.FIGHTER, Config.RUNNER, Config.BRUTE, Config.GOBBER, Config.CHUCKER, Config.GASBAG,
 		Config.LUNGER, Config.BOSS]
 ## Each villain's own attack: [key in config, what it is called].
 const SPECIALS := {
