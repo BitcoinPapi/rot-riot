@@ -8,7 +8,8 @@ extends RefCounted
 ##   + passive stats     (ranks bought on the Skills page and from gear)
 ##   + the pet           (adds to damage, up to what its rarity allows)
 ##   + keystones         (a stat's special power, won with enough ranks of it)
-##   + ... gear will plug in here in a later stage
+##   + run perks         (chosen every few waves, gone when the run ends;
+##                        Config.RUN_PERKS; `perks` = id -> how many times taken)
 ##
 ## The player asks for a fresh copy when a run starts and whenever something
 ## changes mid-run (a level up). Per-weapon bonuses come from weapon_mods().
@@ -35,6 +36,11 @@ var dodge_invuln: float = Config.DODGE_INVULN    # seconds of safety after a dod
 var magnet_mult := 1.0          # coin magnet range multiplier
 var crate_rate := 0.0           # weapon crates appear this much more often (0.25 = +25%)
 
+# Run perks that are not a plain stat (Config.RUN_PERKS).
+var wave_heal := 0.0            # FIELD DRESSING: share of max health healed by every cleared wave
+var kill_heal_every := 0        # PAYBACK: every this many kills (0 = never)...
+var kill_heal := 0.0            # ...heal this much
+
 # The pet that comes along ("" = none). See Config.PETS.
 var pet := ""
 var pet_damage := 0.0           # what it adds to the character's damage (already inside damage_mult)
@@ -46,7 +52,8 @@ var pet_guard := false
 var pet_feral_speed := 1.0      # FERAL keystone: the pet's attack speed multiplier while the player is badly hurt
 
 
-static func current() -> PlayerStats:
+## `perks`: the run perks chosen so far (id -> how many times); none outside a run.
+static func current(perks: Dictionary = {}) -> PlayerStats:
 	var s := PlayerStats.new()
 	var levels := float(SaveData.level - 1)
 	s.max_hp = Config.PLAYER_MAX_HP + Config.LEVEL_HP_PER_LEVEL * levels + SaveData.passive_value("vitality")
@@ -57,6 +64,20 @@ static func current() -> PlayerStats:
 	s.evasion = SaveData.passive_value("evasion")
 	s.crit_chance = SaveData.passive_value("critical")
 	s.coin_luck = SaveData.passive_value("luck")
+
+	# Run perks (before the pet, so that its bite grows with HARD HITTER too).
+	s.max_hp += _perk(perks, "tough")
+	s.damage_mult *= 1.0 + _perk(perks, "power")
+	s.fire_rate_mult *= 1.0 + _perk(perks, "rapid")
+	s.speed_mult *= 1.0 + _perk(perks, "swift")
+	s.damage_taken_mult *= 1.0 - _perk(perks, "armor")
+	s.evasion = minf(s.evasion + _perk(perks, "dodge"), maxf(Config.PERK_DODGE_CAP, s.evasion))
+	s.crit_chance += _perk(perks, "crit")
+	s.coin_luck += _perk(perks, "greed")
+	s.wave_heal = _perk(perks, "medic")
+	if int(perks.get("leech", 0)) > 0:
+		s.kill_heal_every = int(round(_perk(perks, "leech")))
+		s.kill_heal = Config.PERK_LEECH_HEAL
 
 	# The pet: a share of its rarity's damage bonus, set by the BOND stat.
 	var bond := SaveData.passive_rank("bond")
@@ -70,6 +91,7 @@ static func current() -> PlayerStats:
 		s.pet_guard = SaveData.has_pet_trick(2)
 		if SaveData.has_pet_trick(3):
 			s.pet_attack_speed = Config.PET_FRENZY_SPEED
+		s.pet_bite *= 1.0 + _perk(perks, "pack")
 
 	var keys: Dictionary = Config.KEYSTONES
 	if SaveData.has_keystone("bond"):
@@ -93,29 +115,47 @@ static func current() -> PlayerStats:
 	if SaveData.has_keystone("luck"):
 		s.magnet_mult = float(keys["luck"]["value"])
 		s.crate_rate = float(keys["luck"]["crates"])
+	s.magnet_mult *= 1.0 + Config.PERK_GREED_MAGNET * float(int(perks.get("greed", 0)))
+	s.crate_rate += _perk(perks, "crates")
 	return s
+
+
+## What the run perk `id` gives at the level it has in `perks` (0 if not taken).
+static func _perk(perks: Dictionary, id: String) -> float:
+	var level := int(perks.get(id, 0))
+	return Config.run_perk_value(id, level) if level > 0 else 0.0
 
 
 ## Bonuses a weapon has earned from its own level points.
 ##   damage, fire_rate, reload, duration, spawn: multipliers (1.0 = no bonus)
 ##   steady: multiplier for spread and recoil (1.0 = unchanged, 0.5 = half)
-static func weapon_mods(weapon_id: String) -> Dictionary:
+static func weapon_mods(weapon_id: String, perks: Dictionary = {}) -> Dictionary:
 	return {
 		"damage": 1.0 + SaveData.weapon_value(weapon_id, "power"),
 		"fire_rate": 1.0 + SaveData.weapon_value(weapon_id, "speed"),
 		"steady": 1.0 - SaveData.weapon_value(weapon_id, "stability"),
-		"reload": 1.0 + SaveData.weapon_value(weapon_id, "reload"),
-		"duration": 1.0 + SaveData.weapon_value(weapon_id, "duration"),
+		"reload": (1.0 + SaveData.weapon_value(weapon_id, "reload")) * (1.0 + _perk(perks, "reload")),
+		"duration": (1.0 + SaveData.weapon_value(weapon_id, "duration")) * (1.0 + _perk(perks, "long")),
 		"spawn": 1.0 + SaveData.weapon_value(weapon_id, "spawn"),
 	}
 
 
-## A weapon's own numbers (Config.WEAPONS) with its learned perks applied.
-static func weapon_def(weapon_id: String) -> Dictionary:
+## A weapon's own numbers (Config.WEAPONS) with its learned perks applied, and
+## the run perks that change a weapon (`run_perks`: bigger magazines, piercing).
+static func weapon_def(weapon_id: String, run_perks: Dictionary = {}) -> Dictionary:
 	var base: Dictionary = Config.WEAPONS[weapon_id]
 	var perks: Array = Config.WEAPON_PERKS.get(weapon_id, [])
 	var out := base
 	var copied := false
+	var more_rounds := _perk(run_perks, "mags")
+	var more_pierce := int(round(_perk(run_perks, "pierce")))
+	if (more_rounds > 0.0 and int(base["mag"]) > 0) or (more_pierce > 0 and String(base["kind"]) == "bullet"):
+		out = base.duplicate()
+		copied = true
+		if int(base["mag"]) > 1:
+			out["mag"] = int(ceil(float(int(base["mag"])) * (1.0 + more_rounds)))
+		if String(base["kind"]) == "bullet":
+			out["pierce"] = int(base["pierce"]) + more_pierce
 	for i in perks.size():
 		if not SaveData.weapon_has_perk(weapon_id, i):
 			continue

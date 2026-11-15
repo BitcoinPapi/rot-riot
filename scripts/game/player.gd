@@ -56,16 +56,24 @@ func _ready() -> void:
 	hold_fire(0.3)
 
 
-## Re-read the character's stats (at run start, and when levelling up mid-run).
+## Re-read the character's stats (at run start, when levelling up mid-run,
+## and when a run perk is chosen).
 func refresh_stats(full_heal: bool = false) -> void:
 	var old_max := max_hp
-	stats = PlayerStats.current()
+	stats = PlayerStats.current(game.perks)
 	max_hp = stats.max_hp
 	if full_heal:
 		hp = max_hp
 	else:
 		hp = minf(hp + maxf(max_hp - old_max, 0.0), max_hp)
-	wmods = PlayerStats.weapon_mods(weapon_id)
+	wmods = PlayerStats.weapon_mods(weapon_id, game.perks)
+	# A run perk can change the weapon in hand (more rounds, piercing): the
+	# extra rounds are in the magazine at once.
+	weapon = PlayerStats.weapon_def(weapon_id, game.perks)
+	var size_now := int(weapon["mag"]) * (Config.DUAL_MAG_MULT if dual else 1)
+	if size_now != mag_size:
+		ammo = clampi(ammo + size_now - mag_size, 0, size_now)
+		mag_size = size_now
 
 
 func place(at: Vector2) -> void:
@@ -346,14 +354,14 @@ func weapon_label() -> String:
 
 func _set_weapon(id: String) -> void:
 	weapon_id = id
-	weapon = PlayerStats.weapon_def(id)     # the weapon's numbers, with its perks
+	weapon = PlayerStats.weapon_def(id, game.perks)     # the weapon's numbers, with its perks
 	weapon_time = 0.0
 	weapon_time_max = 0.0
 	dual = false
 	mag_size = int(weapon["mag"])
 	ammo = mag_size
 	reloading = false
-	wmods = PlayerStats.weapon_mods(id)
+	wmods = PlayerStats.weapon_mods(id, game.perks)
 	_gun_tex = Art.t("gun_" + id)
 	_gun_size = Art.size_of("gun_" + id)
 

@@ -60,7 +60,8 @@ Other dev flags (all after `--`, see `scripts/dev/dev_tools.gd`): `--play`,
 `--start=W` starting wave), `--screen=maps|character|skills|armory|pets|settings|pause|gameover|victory`,
 `--forge` (with `--screen=character`: open the forge), `--armory-weapon=ID`,
 `--gear=N` (start with N random pieces, some worn), `--drop-gear` (drop a piece of every tier in a run),
-`--drop-crates` (drop four weapon crates, two of them damaged), `--pets=N` (own the first N pets;
+`--drop-crates` (drop four weapon crates, two of them damaged), `--perk=ID:N,ID:N` (start with
+these run perks), `--perks=N` (owe N perk choices half a second in, to look at the choice), `--pets=N` (own the first N pets;
 needs `--level=18` or more),
 `--at=X,Y` (start the run at that spot of the map; the middle is 1500,1000), `--no-fog` (whole map
 uncovered), `--show-chests` (a closed chest beside the player and an opened one),
@@ -141,7 +142,8 @@ scripts/ui/              ui_kit.gd (theme + helpers), menu_background, main_menu
                          character_screen (the hero, his gear, inventory and forge),
                          skill_screen (the plain list of stat upgrades),
                          armory_screen (plain weapon upgrade pages), pet_screen,
-                         settings_screen, pause_menu, game_over_screen (also the victory screen)
+                         settings_screen, pause_menu, game_over_screen (also the victory screen),
+                         perk_choice (the three cards of a run perk choice, shown over the game)
 scripts/dev/dev_tools.gd bot, autotest, input test, benchmark, screenshots (only with CLI args)
 assets/sprites/, assets/sfx/   empty; drop-in overrides for generated art and sounds
 tools/cooptest.sh        runs the co-op test with 2 or 3 copies of the game on one computer
@@ -360,6 +362,44 @@ every wave stays Shamblers); per wave +6% HP,
 a coin and XP bonus. The slope is deliberately gentle so that every bit of
 character growth buys another wave or two (owner: "incremental feel"). The
 bot reaches wave 6-9 as a new character and ~11 at level 15-30.
+
+**Run perks** (owner: "Every 5 waves, character can choose a new perk (new
+system, choice of 3)"; RUN PERKS section of config.gd). After every 5th wave
+is cleared (= after each boss, `PERK_EVERY`) three cards appear over the
+game (`scripts/ui/perk_choice.gd`) and the player takes one: mouse, arrow
+keys + Enter, or gamepad. **A perk lasts until the run ends** (Claude's
+reading of the request - everything else in the game is permanent; ask the
+owner if he wanted these kept). Taking the same perk again raises its level
+(HARD HITTER II, III...). 16 perks in three colours (`Config.RUN_PERKS`):
+survival (THICK SKIN +25 health, PADDED VEST -8% damage taken, SLIPPERY +5%
+dodge, FIELD DRESSING heal 20% per cleared wave, PAYBACK heal 2 per 8
+kills), firepower (HARD HITTER +12% damage, QUICK TRIGGER +10% attack
+speed, SHARP EYE +6% critical, SLICK RELOAD +20%, BIG MAGAZINES +25%
+rounds, PIERCING SHOTS +1 zombie) and the rest (LIGHT FEET +6% speed, FAT
+PURSE +20% coins, FIRM GRIP crate weapons +25% longer, SUPPLY LINE +25%
+crates, PACK HUNTER pet bites +40% - only offered with a pet). Some have a
+limit (`"max"`); a perk at its limit is not offered again.
+- *While the choice is open* the character stands still and cannot be hurt,
+  the mouse pointer shows, and **the next wave waits** (the wave director
+  asks `Game.perks_pending()`). The first 0.45 s the cards ignore input so
+  nothing is taken by accident. The choice comes 1.8 s after the wave is
+  cleared, so the boss's death gets its moment.
+- *Checkpoint runs*: a run owes one choice for every 5 waves behind it
+  (`Config.perks_earned`), so a run started at wave 11 begins by choosing
+  two perks. Without this, starting deep into a map would be weaker than
+  playing up to it, and checkpoints would be a trap.
+- *Co-op*: each player chooses their own perks, all at the same moment. A
+  player who is still choosing says so in their 30-times-a-second state
+  (flag 16, `Mate.choosing`); the host holds the next wave until nobody is
+  (at most `PERK_HOLD_MAX`), and after 30 s (`PERK_COOP_TIME`) a perk is
+  taken for whoever has not chosen. Alone there is no time limit.
+- The chosen perks show as a row of symbols above the weapon panel (a number
+  on those taken more than once); the pause menu lists them with what they
+  do. Perks are applied in `PlayerStats.current(perks)`, `weapon_def` and
+  `weapon_mods` - never anywhere else; FIELD DRESSING and PAYBACK are the
+  only ones with code of their own (in `game.gd`).
+- Names are plain words on purpose; none is a perk name from a known game
+  (checked: no "Juggernog", "Double Tap", "Scavenger", "Deep Pockets"...).
 
 **Score / combo:** each kill within 2.5 s of the last raises the combo, which
 multiplies score (up to x3). Taking damage resets it.
@@ -650,6 +690,11 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   how it feels with real delay between homes, whether a slow connection
   copes (the host sends up to ~40 KB a second per joiner in the biggest
   fights). Co-op difficulty numbers are first guesses.
+- Run perks: every number is a first guess. With perks a run from wave 1
+  grows stronger than before (10 perks by wave 50), which the wave curve was
+  not made for - watch whether deep runs become too easy. Unseen by a human:
+  the choice with a real mouse, and whether 1.8 s after a boss is the right
+  moment.
 - The new enemies: whether their warnings are long enough to react to,
   whether ranged zombies are fair or annoying, how often each should appear
   (first guesses; the bot gets about as far as before, wave 5-11 as a new
@@ -760,6 +805,10 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   usable while hosting, COPY CODE only ever copies a code that works from
   outside (built, awaiting their second try). If it fails again: ask what
   each screen said; then consider Steam networking or a relay.
+- After v0.9: "Every 5 waves, character can choose a new perk (new system,
+  choice of 3)" -> run perks (built, awaiting feedback). Claude's choices to
+  ask about: they last for the run only; checkpoint runs get the choices
+  they skipped; which perks exist and how strong they are.
 - After v0.9: "decrease the map size by 50%" -> 3000x2000 (half as wide and
   half as tall; chests now at least 600 px from the start). The big map
   was a first guess he had been asked about; this is his answer.

@@ -20,6 +20,8 @@ extends Node
 ##   --cycle            the bot is handed each weapon in turn every 6 seconds
 ##   --wave=N           jump straight to wave N
 ##   --at=X,Y           start the run at this spot of the map (the middle is 1500,1000)
+##   --perk=ID:N,ID:N   start the run with these run perks (Config.RUN_PERKS), N times each
+##   --perks=N          owe N perk choices half a second into the run (to look at the choice)
 ##   --no-fog           the whole map is uncovered from the start
 ##   --show-chests      one second into a run, put a closed treasure chest beside the player and open another
 ##   --coop=host        host a co-op game on this computer and start a run as soon as the other copies have joined
@@ -58,6 +60,7 @@ var _coop_t0 := 0                # (co-op test) when this copy's first run began
 var _coop_testing := false
 var _keep_alive := false
 var _auto_bot := false
+var _auto_perks := true          # automatic runs take the first perk offered (the perk tests switch this off)
 var _auto_failures: Array[String] = []
 
 
@@ -161,6 +164,17 @@ func _process(_delta: float) -> void:
 			game.cam.snap_to(game.player.pos)
 		if _args.has("no-fog") and _frame == 2:
 			game.fog.reveal_all()
+		# --perk=ID:N,ID:N  start with these run perks;  --perks=N  owe N perk choices (to look at the choice)
+		if _args.has("perk") and _frame == 2:
+			for part: String in String(_args["perk"]).split(","):
+				if Config.RUN_PERKS.has(part.get_slice(":", 0)):
+					game.perks[part.get_slice(":", 0)] = maxi(int(part.get_slice(":", 1)), 1)
+			game.player.refresh_stats(true)
+		if _args.has("perks") and _frame == 30:
+			game.call("_owe_perks", int(game.get("_perks_given")) + int(_args["perks"]), 0.1)
+		if _auto_perks and game.choosing() and (_args.has("bot") or _args.has("bench") or _args.has("autotest")
+				or _args.has("inputtest") or _args.has("cooptest")):
+			game.choose_perk(0)
 		if _args.has("horde") and _frame == 60:
 			for part: String in String(_args["horde"]).split(","):
 				var bits := part.split(":")
@@ -378,14 +392,20 @@ func _run_cooptest() -> void:
 			"a piece of gear the host picks up goes into everybody's bag")
 
 	# --- treasure chests: whoever opens it, everybody gets the piece ---
+	# (Counted from here: on a small map somebody may have walked into a chest already.)
+	var chests_before := game.chests_run
+	var chest_gear_before := game.gear_run.size()
 	await _at(25.6)
-	if host and not game.pickups.chests.is_empty():
-		me.place(game.pickups.chests[0].pos + Vector2(8.0, 0.0))
+	if host:
+		for hidden: Pickups.Chest in game.pickups.chests:
+			if not hidden.opened:
+				me.place(hidden.pos + Vector2(8.0, 0.0))
+				break
 	await _at(27.0)
-	_check(game.chests_run == 1 and game.gear_run.size() == gear_before + 2 and game.pickups.chests[0].opened,
-			"a chest the host opens gives everybody the piece (%s; chests %d, gear %d -> %d, open %s)" % [
-			game.gear_run[-1] if not game.gear_run.is_empty() else "-", game.chests_run, gear_before, game.gear_run.size(),
-			str(game.pickups.chests[0].opened)])
+	_check(game.chests_run == chests_before + 1 and game.gear_run.size() == chest_gear_before + 1,
+			"a chest the host opens gives everybody the piece (%s; chests %d -> %d, gear %d -> %d)" % [
+			game.gear_run[-1] if not game.gear_run.is_empty() else "-", chests_before, game.chests_run, chest_gear_before,
+			game.gear_run.size()])
 	print("SAME gear=%s" % ",".join(game.gear_run))
 
 	# --- pausing pauses everybody ---
@@ -399,6 +419,41 @@ func _run_cooptest() -> void:
 		app.resume_game()
 	await _at(29.2)
 	_check(app.state == Main.State.PLAYING and not get_tree().paused, "...and when one resumes, all go on")
+
+	# --- perks: each player chooses their own; the next wave waits until everybody has ---
+	var perk_wave: int = Config.PERK_EVERY
+	await _at(29.4)
+	if slot == 1:
+		_auto_perks = false               # the first joiner takes their time over it
+	if host:
+		_finish_wave(game, perk_wave)
+	await _at(30.2)
+	_check(game.perks_owed == 1 and game.perks.is_empty(), "clearing wave %d earns every player a perk choice" % perk_wave)
+	if host:
+		game.director.intermission = 0.3  # (the next wave would start at once - if nobody were choosing)
+	await _at(32.6)
+	if slot == 1:
+		_check(game.choosing() and game.perks.is_empty(), "my perk choice is open (and I take my time)")
+	else:
+		_check(game.perks.size() == 1 and game.perks_owed == 0 and not game.choosing(), "I have chosen my perk (%s)" % ", ".join(game.perks.keys()))
+		_check(game.perks_pending() and game.perk_waiting_for() == (["JOIN1"] as Array[String]), "...and see that JOIN1 is still choosing")
+	if host:
+		_check(not game.director.in_wave and game.director.wave == perk_wave, "the next wave waits for the player who is still choosing")
+	await _at(33.0)
+	if slot == 1:
+		game.choose_perk(0)
+		_auto_perks = true
+	await _at(34.4)
+	_check(not game.perks_pending() and game.perks.size() == 1, "everybody has a perk of their own")
+	if host:
+		_check(game.director.in_wave and game.director.wave == perk_wave + 1, "...and then the next wave starts")
+	await _at(35.0)
+	if host:
+		_finish_wave(game, perk_wave + 1)
+	await _at(35.6)
+	if host:
+		game.director.intermission = 99999.0
+	_coop_t0 += 6400                      # (the rest of the session follows, 6.4 seconds later than its times say)
 
 	# --- everybody down: the run is over, with the same numbers for all ---
 	var bank_before := SaveData.coins
@@ -1281,6 +1336,134 @@ func _run_autotest() -> void:
 				boss_piece = key
 		_check(boss_piece != "", "a boss always drops a ring or an amulet (%s)" % boss_piece)
 
+	# --- run perks: every 5 waves a choice of three, kept until the run ends ---
+	_auto_bot = false
+	_auto_perks = false
+	GameInput.set_virtual_input(Vector2.ZERO, Vector2.RIGHT, false)
+	# (A clean slate, whatever the fight above left behind.)
+	game.perks = {}
+	game.perks_owed = 0
+	game.perk_offer = [] as Array[String]
+	game.set("_perks_given", 0)
+	game.perk_panel.hide_offer()
+	pl.refresh_stats(true)
+	_check(Config.perks_earned(0) == 0 and Config.perks_earned(4) == 0 and Config.perks_earned(5) == 1 and Config.perks_earned(9) == 1
+			and Config.perks_earned(10) == 2 and Config.perks_earned(25) == 5, "one perk is earned for every %d waves behind you" % Config.PERK_EVERY)
+	_finish_wave(game, Config.PERK_EVERY - 1)
+	await _until(func() -> bool: return not game.director.in_wave, 30)
+	_check(game.perks_owed == 0 and not game.perks_pending(), "clearing wave %d earns no perk yet" % (Config.PERK_EVERY - 1))
+	_finish_wave(game, Config.PERK_EVERY)
+	await _until(func() -> bool: return game.perks_owed == 1, 30)
+	_check(game.perks_owed == 1 and not game.choosing(), "clearing wave %d earns a perk choice (after a moment for the boss)" % Config.PERK_EVERY)
+	game.director.intermission = 0.05
+	await _until(func() -> bool: return game.choosing(), int(Config.PERK_OFFER_DELAY * 60.0) + 60)
+	var offered: Array[String] = game.perk_offer.duplicate()
+	var offer_ok := offered.size() == Config.PERK_CHOICES and game.perk_panel.visible
+	for i in offered.size():
+		if not Config.RUN_PERKS.has(offered[i]) or offered.count(offered[i]) != 1:
+			offer_ok = false
+	_check(offer_ok, "three different perks are offered (%s)" % ", ".join(offered))
+	_check(not game.director.in_wave and game.director.wave == Config.PERK_EVERY and game.perks_pending(),
+			"the next wave waits while the choice is open")
+	# The character waits too, and cannot be hurt meanwhile.
+	var waiting_at := pl.pos
+	var waiting_ammo := pl.ammo
+	var waiting_hp := pl.hp
+	GameInput.set_virtual_input(Vector2.RIGHT, Vector2.RIGHT, true)
+	await _frames(20)
+	game.damage_player(30.0, pl.pos + Vector2.RIGHT * 40.0)
+	await _frames(3)
+	GameInput.set_virtual_input(Vector2.ZERO, Vector2.RIGHT, false)
+	_check(pl.pos.distance_to(waiting_at) < 0.5 and pl.ammo == waiting_ammo and is_equal_approx(pl.hp, waiting_hp),
+			"while choosing, the character stands still, does not shoot and cannot be hurt")
+	# Take one (a known one, to check what it does).
+	game.perk_offer = ["power", "tough", "mags"] as Array[String]
+	var damage_before := pl.stats.damage_mult
+	game.choose_perk(0)
+	_check(int(game.perks.get("power", 0)) == 1 and game.perks_owed == 0 and not game.choosing() and not game.perk_panel.visible
+			and is_equal_approx(pl.stats.damage_mult, damage_before * (1.0 + float(Config.RUN_PERKS["power"]["value"]))),
+			"taking HARD HITTER raises damage by %d%% and closes the choice" % int(round(float(Config.RUN_PERKS["power"]["value"]) * 100.0)))
+	game.director.intermission = 0.05
+	await _until(func() -> bool: return game.director.in_wave, 60)
+	_check(game.director.in_wave and game.director.wave == Config.PERK_EVERY + 1, "...and the next wave starts")
+	game.enemies.clear_all()
+	game.director.to_spawn = 0
+	# Every perk does what its card says (each one taken twice, against a character without perks).
+	var no_perks := PlayerStats.current({})
+	var twice := {}
+	for perk_id: String in Config.RUN_PERK_ORDER:
+		twice[perk_id] = 2
+	var perked := PlayerStats.current(twice)
+	var perk_values := {}
+	for perk_id: String in Config.RUN_PERK_ORDER:
+		perk_values[perk_id] = Config.run_perk_value(perk_id, 2)
+	_check(is_equal_approx(perked.max_hp, no_perks.max_hp + float(perk_values["tough"]))
+			and is_equal_approx(perked.damage_mult, no_perks.damage_mult * (1.0 + float(perk_values["power"])))
+			and is_equal_approx(perked.fire_rate_mult, no_perks.fire_rate_mult * (1.0 + float(perk_values["rapid"])))
+			and is_equal_approx(perked.speed_mult, no_perks.speed_mult * (1.0 + float(perk_values["swift"])))
+			and is_equal_approx(perked.crit_chance, no_perks.crit_chance + float(perk_values["crit"])),
+			"perks: THICK SKIN, HARD HITTER, QUICK TRIGGER, LIGHT FEET and SHARP EYE change health, damage, attack speed, move speed and critical hits")
+	_check(is_equal_approx(perked.damage_taken_mult, no_perks.damage_taken_mult * (1.0 - float(perk_values["armor"])))
+			and float(perk_values["armor"]) < 2.0 * float(Config.RUN_PERKS["armor"]["value"])
+			and is_equal_approx(perked.evasion, no_perks.evasion + float(perk_values["dodge"]))
+			and is_equal_approx(perked.wave_heal, float(perk_values["medic"])) and perked.kill_heal_every == int(round(float(perk_values["leech"])))
+			and perked.kill_heal_every < int(round(Config.run_perk_value("leech", 1))) and no_perks.kill_heal_every == 0,
+			"perks: PADDED VEST, SLIPPERY, FIELD DRESSING and PAYBACK keep you alive (the vest never reaches 100%)")
+	_check(is_equal_approx(perked.coin_luck, no_perks.coin_luck + float(perk_values["greed"])) and perked.magnet_mult > no_perks.magnet_mult
+			and is_equal_approx(perked.crate_rate, no_perks.crate_rate + float(perk_values["crates"])),
+			"perks: FAT PURSE and SUPPLY LINE bring more coins and more crates")
+	var gun_plain: Dictionary = PlayerStats.weapon_def("pistol", {})
+	var gun_perked: Dictionary = PlayerStats.weapon_def("pistol", twice)
+	var mods_plain: Dictionary = PlayerStats.weapon_mods("smg", {})
+	var mods_perked: Dictionary = PlayerStats.weapon_mods("smg", twice)
+	_check(int(gun_perked["mag"]) == int(ceil(float(int(gun_plain["mag"])) * (1.0 + float(perk_values["mags"]))))
+			and int(gun_perked["pierce"]) == int(gun_plain["pierce"]) + 2
+			and int(PlayerStats.weapon_def("launcher", twice)["mag"]) == int(Config.WEAPONS["launcher"]["mag"])
+			and int(PlayerStats.weapon_def("sledge", twice)["mag"]) == 0
+			and is_equal_approx(float(mods_perked["reload"]), float(mods_plain["reload"]) * (1.0 + float(perk_values["reload"])))
+			and is_equal_approx(float(mods_perked["duration"]), float(mods_plain["duration"]) * (1.0 + float(perk_values["long"]))),
+			"perks: BIG MAGAZINES, PIERCING SHOTS, SLICK RELOAD and FIRM GRIP change the weapons (the launcher keeps its one round)")
+	# In the hand right away: more rounds in the magazine being used.
+	game.perks = {}
+	pl.refresh_stats()
+	var rounds_before := pl.mag_size
+	var loaded_before := pl.ammo
+	game.perks = {"mags": 2}
+	pl.refresh_stats()
+	_check(pl.mag_size > rounds_before and pl.ammo - loaded_before == pl.mag_size - rounds_before,
+			"BIG MAGAZINES puts the extra rounds into the magazine in your hands at once (%d -> %d rounds)" % [rounds_before, pl.mag_size])
+	# A perk at its limit, or the pet perk without a pet, is not offered again.
+	game.perks = {"pierce": int(Config.RUN_PERKS["pierce"]["max"]), "dodge": int(Config.RUN_PERKS["dodge"]["max"])}
+	var limits_ok := true
+	for i in 60:
+		var rolled := game.roll_perk_offer()
+		if rolled.size() != Config.PERK_CHOICES or rolled.has("pierce") or rolled.has("dodge") or (pl.stats.pet == "" and rolled.has("pack")):
+			limits_ok = false
+	_check(limits_ok, "a perk at its limit is not offered again, and the pet perk only with a pet")
+	# FIELD DRESSING and PAYBACK in play.
+	game.perks = {"medic": 1, "leech": 1}
+	pl.refresh_stats()
+	pl.hp = pl.max_hp * 0.4
+	_finish_wave(game, Config.PERK_EVERY + 1)
+	await _until(func() -> bool: return pl.hp > pl.max_hp * 0.5, 30)
+	# (At least that much: the wave's XP can bring a level, which heals as well.)
+	_check(pl.hp >= pl.max_hp * (0.4 + Config.run_perk_value("medic", 1)) - 0.5, "FIELD DRESSING heals when a wave is cleared (to %d of %d)" % [int(pl.hp), int(pl.max_hp)])
+	pl.hp = pl.max_hp * 0.4
+	var payback_hp := pl.hp
+	for i in int(Config.run_perk_value("leech", 1)):
+		var fodder := game.enemies.spawn(Config.SHAMBLER, pl.pos + Vector2(300.0 + i * 30.0, -260.0))
+		game.enemies.damage(fodder, fodder.hp + 1.0, Vector2.RIGHT, 0.0, 0.0, 0.0)
+	await _frames(3)
+	_check(is_equal_approx(pl.hp, payback_hp + Config.PERK_LEECH_HEAL), "PAYBACK heals %d health every %d kills" % [int(Config.PERK_LEECH_HEAL),
+			int(Config.run_perk_value("leech", 1))])
+	game.perks = {}
+	game.perks_owed = 0
+	game.set("_perks_given", Config.perks_earned(game.director.cleared))
+	pl.refresh_stats(true)
+	game.director.intermission = 99999.0
+	game.enemies.clear_all()
+	_auto_perks = true
+
 	# --- the pet in a run ---
 	_auto_bot = false
 	GameInput.set_virtual_input(Vector2.ZERO, Vector2.RIGHT, false)
@@ -1352,6 +1535,15 @@ func _run_autotest() -> void:
 	game.director.wave = chest_wave
 	_check(late_tiers > early_tiers, "a chest opened deep into a run holds better gear (average tier %.2f at the start, %.2f at wave 60)" % [
 			early_tiers / 400.0, late_tiers / 400.0])
+	# (Set the scene, whatever the bot has found by now: the player in the
+	# middle, the whole map under fog again, one chest closed and unseen.)
+	pl.place(middle)
+	game.cam.snap_to(pl.pos)
+	game.fog.cover_all()
+	game.fog.reveal(pl.pos)
+	if not chests.is_empty():
+		chests[0].opened = false
+		chests[0].found = false
 	var chest: Pickups.Chest = null
 	for hidden: Pickups.Chest in chests:
 		if not hidden.opened and not hidden.found:
@@ -1691,9 +1883,12 @@ func _run_autotest() -> void:
 	await _frames(10)
 	game = app.game
 	_check(game.start_wave == every + 1 and not game.pickups.crates.is_empty(), "a checkpoint run starts with a weapon crate beside you")
+	_check(game.perks_owed == Config.perks_earned(every) and game.perks_owed >= 1 and game.perks.is_empty(),
+			"...and with the perk choices for the waves it skipped (%d)" % game.perks_owed)
 	game.director.intermission = 0.05
 	await _until(func() -> bool: return game.director.in_wave, 300)
-	_check(game.director.wave == every + 1, "...and begins at wave %d" % (every + 1))
+	_check(game.director.wave == every + 1 and game.perks.size() == 1 and game.perks_owed == 0,
+			"...and begins at wave %d once the perk is chosen" % (every + 1))
 	app.start_run(1, 1)
 	await _frames(10)
 	game = app.game
@@ -2005,6 +2200,66 @@ func _run_inputtest() -> void:
 	_mouse_move(view * 0.3)
 	await _frames(3)
 	_check(GameInput.device == GameInput.Device.KEYBOARD_MOUSE, "moving the mouse switches back to keyboard+mouse")
+
+	# --- the perk choice: keys, gamepad and mouse ---
+	var run: Game = app.game
+	var lock_frames := int(Config.PERK_CLICK_LOCK * 60.0) + 6
+	_auto_perks = false
+	GameInput.set_virtual_input(Vector2.ZERO, Vector2.RIGHT, false)
+	run.director.intermission = 99999.0
+	run.enemies.clear_all()
+	run.perks = {}
+	run.call("_owe_perks", int(run.get("_perks_given")) + 3, 0.05)
+	await _until(func() -> bool: return run.choosing(), 60)
+	# (The very first moment the cards ignore everything, so nothing is taken by accident.)
+	_key(KEY_ENTER, true)
+	await _frames(2)
+	_key(KEY_ENTER, false)
+	await _frames(2)
+	_check(run.choosing() and run.perks.is_empty(), "a key pressed the very moment the perk choice appears takes nothing")
+	await _frames(lock_frames)
+	var cards: Array = run.perk_panel.get("_cards")
+	_check(run.perk_panel.visible and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE and (cards[1] as Button).has_focus(),
+			"the perk choice opens with a card highlighted and the mouse pointer showing")
+	var third_perk := run.perk_offer[2]
+	_key(KEY_RIGHT, true)
+	await _frames(2)
+	_key(KEY_RIGHT, false)
+	await _frames(2)
+	_key(KEY_ENTER, true)
+	await _frames(2)
+	_key(KEY_ENTER, false)
+	await _frames(2)
+	_check(int(run.perks.get(third_perk, 0)) == 1 and run.perks_owed == 2, "the arrow keys and Enter take a perk (%s)" % third_perk)
+	await _until(func() -> bool: return run.choosing(), 60)
+	await _frames(lock_frames)
+	var first_perk := run.perk_offer[0]
+	var first_before := int(run.perks.get(first_perk, 0))
+	_pad_button(JOY_BUTTON_DPAD_LEFT, true)
+	await _frames(2)
+	_pad_button(JOY_BUTTON_DPAD_LEFT, false)
+	await _frames(2)
+	_pad_button(JOY_BUTTON_A, true)
+	await _frames(2)
+	_pad_button(JOY_BUTTON_A, false)
+	await _frames(2)
+	_check(int(run.perks.get(first_perk, 0)) == first_before + 1 and run.perks_owed == 1, "the gamepad takes a perk (%s)" % first_perk)
+	await _until(func() -> bool: return run.choosing(), 60)
+	await _frames(lock_frames)
+	var middle_perk := run.perk_offer[1]
+	var middle_before := int(run.perks.get(middle_perk, 0))
+	var middle_card: Button = cards[1]
+	var card_at: Vector2 = get_viewport().get_final_transform() * (middle_card.global_position + middle_card.size * 0.5)
+	get_viewport().notification(NOTIFICATION_VP_MOUSE_ENTER)
+	_mouse_move(card_at)
+	await _frames(2)
+	_mouse_button(MOUSE_BUTTON_LEFT, true, card_at)
+	await _frames(2)
+	_mouse_button(MOUSE_BUTTON_LEFT, false, card_at)
+	await _frames(3)
+	_check(int(run.perks.get(middle_perk, 0)) == middle_before + 1 and run.perks_owed == 0 and not run.choosing()
+			and not run.perk_panel.visible, "a mouse click takes a perk (%s), and the game goes on" % middle_perk)
+	_auto_perks = true
 
 	# --- the skills page: keys, gamepad and mouse ---
 	app.pause_game()

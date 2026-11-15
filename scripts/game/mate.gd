@@ -19,6 +19,7 @@ var reloading := false
 var down := false                   # fallen: waiting to be picked up
 var wounded := false
 var blinking := false               # just hit: safe for a moment
+var choosing := false               # busy choosing a perk (the next wave waits for them)
 var hp_frac := 1.0
 var pet_id := ""
 var pet_pos := Vector2.ZERO
@@ -70,6 +71,7 @@ func apply_state(s: Array) -> void:
 	down = flags & 4 != 0
 	wounded = flags & 8 != 0
 	blinking = flags & 64 != 0
+	choosing = flags & 16 != 0
 	hp_frac = clampf(float(s[5]), 0.0, 1.0)
 	pet_pos = Vector2(float(s[6]), float(s[7]))
 	if not has_state or pos.distance_to(net_pos) > 400.0:
@@ -188,7 +190,7 @@ func _draw() -> void:
 		draw_set_transform(Vector2(7.0 - _gun_kick, 0.0).rotated(facing), facing + tilt, Vector2.ONE)
 		draw_texture_rect(gun, Rect2(Vector2(0.0, -gun_size.y * 0.5), gun_size), false, tint)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	_label(shown_name, Vector2(0.0, -30.0), blue, 13)
+	_label(shown_name + ("  (choosing a perk)" if choosing else ""), Vector2(0.0, -30.0), blue, 13)
 
 
 func _label(text: String, at: Vector2, tint: Color, font_size: int) -> void:

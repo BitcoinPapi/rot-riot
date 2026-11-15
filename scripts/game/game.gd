@@ -55,6 +55,13 @@ var unlocked_map := -1          # a map unlocked by this run (-1 = none)
 var gear_run: Array[String] = []   # gear picked up this run (already in the bag)
 var chests_run := 0             # treasure chests opened this run
 var sim_usec := 0               # how long the last simulation step took (for the benchmark)
+# Run perks (Config.RUN_PERKS): every few waves the player chooses one of
+# three; they last until the run ends.
+var perks: Dictionary = {}      # the perks chosen this run: id -> how many times
+var perks_owed := 0             # choices still to make
+var perk_offer: Array[String] = []   # the perks on the table right now ([] = no choice is showing)
+var perk_time_left := 0.0       # (co-op) seconds before one is taken for you
+var perk_panel: PerkChoice
 # How far from the middle of the screen "out of sight" is (worked out from
 # the size of the window): zombies come out of the ground between spawn_min
 # and spawn_max.
@@ -67,6 +74,10 @@ var _hitstop := 0.0
 var _hitstop_cooldown := 0.0
 var _time_scale := 1.0
 var _end_timer := 0.0           # counts down to the results screen after death or victory
+var _perks_given := 0           # perk choices earned so far this run (made + still owed)
+var _perk_delay := 0.0          # seconds until the next choice appears
+var _perk_kills := 0            # kills counted toward the PAYBACK perk's next heal
+var _perk_hold := 0.0           # (co-op) how long the next wave has been waiting for another player's choice
 var _slowmo_timer := 0.0
 
 
@@ -160,6 +171,11 @@ func _ready() -> void:
 	hud = Hud.new()
 	hud.game = self
 	hud_layer.add_child(hud)
+	perk_panel = PerkChoice.new()
+	perk_panel.game = self
+	hud_layer.add_child(perk_panel)
+	# A run that starts deep into a map begins with the perks for the waves it skipped.
+	_owe_perks(Config.perks_earned(director.cleared), Config.PERK_START_DELAY)
 
 	GameInput.reload_pressed.connect(_on_reload_pressed)
 
@@ -200,6 +216,7 @@ func together() -> bool:
 
 func _process(delta: float) -> void:
 	var real_dt := minf(delta, 1.0 / 30.0)
+	_tick_perks(real_dt)
 
 	# Short bursts of slow motion (boss kills).
 	if _slowmo_timer > 0.0:
@@ -282,7 +299,8 @@ func _simulate(dt: float) -> void:
 	if state == State.PLAYING:
 		time_alive += dt
 		_tick_combo(dt)
-	player.tick(dt)
+	if not choosing():                           # (choosing a perk: the character waits)
+		player.tick(dt)
 	if player.alive:
 		fog.reveal(player.pos, 1.0, coop.my_slot if coop != null else 0)
 	if coop != null:
@@ -357,6 +375,121 @@ func _on_wave_cleared(wave: int, coin_bonus: int) -> void:
 	else:
 		hud.announce("WAVE %d CLEARED" % wave, "+%d coins   +%d XP" % [coin_bonus, xp_bonus], Color(0.6, 1.0, 0.5))
 	gain_xp(xp_bonus, "")
+	# Run perks: FIELD DRESSING patches you up, and every few waves there is a new perk to choose.
+	if player.alive and player.stats.wave_heal > 0.0 and player.hp < player.max_hp:
+		player.heal(player.max_hp * player.stats.wave_heal)
+		fx.text(player.pos + Vector2(0.0, -40.0), "FIELD DRESSING", Color(0.5, 1.0, 0.5), 16, 1.2)
+	_owe_perks(Config.perks_earned(wave), Config.PERK_OFFER_DELAY)
+
+
+# ----------------------------------------------------------------------------
+#  Run perks: every Config.PERK_EVERY waves, a choice of three
+# ----------------------------------------------------------------------------
+## The run has earned `earned` perk choices in all: note the new ones as owed.
+func _owe_perks(earned: int, delay: float) -> void:
+	if earned <= _perks_given:
+		return
+	perks_owed += earned - _perks_given
+	_perks_given = earned
+	_perk_delay = delay
+
+
+## True while this player's perk choice is on the screen.
+func choosing() -> bool:
+	return not perk_offer.is_empty()
+
+
+## True while anybody still has a perk to choose: the next wave waits for it.
+func perks_pending() -> bool:
+	return perks_owed > 0 or (not perk_waiting_for().is_empty() and _perk_hold < Config.PERK_HOLD_MAX)
+
+
+## (co-op) The names of the other players who are still choosing a perk.
+func perk_waiting_for() -> Array[String]:
+	var names: Array[String] = []
+	if coop != null:
+		for other: int in coop.mates.keys():
+			var mate: Mate = coop.mates[other]
+			if mate.choosing:
+				names.append(mate.shown_name)
+	return names
+
+
+func _tick_perks(real_dt: float) -> void:
+	_perk_hold = _perk_hold + real_dt if not perk_waiting_for().is_empty() else 0.0
+	if perks_owed <= 0 or state != State.PLAYING:
+		if perk_panel.visible:
+			_close_perk_choice()
+		return
+	if perk_offer.is_empty():
+		_perk_delay -= real_dt
+		if _perk_delay <= 0.0 and not player.down:
+			_offer_perks()
+		return
+	# The choice is showing: nothing can hurt the character, the pointer is free.
+	player.invuln = maxf(player.invuln, 0.25)
+	if Input.mouse_mode != Input.MOUSE_MODE_VISIBLE:
+		GameInput.set_gameplay_mode(false)
+	if together():
+		perk_time_left -= real_dt
+		if perk_time_left <= 0.0:
+			choose_perk(randi() % perk_offer.size())
+
+
+## Which perks could be offered right now, shuffled: not the ones at their
+## limit, not the pet perk without a pet.
+func roll_perk_offer() -> Array[String]:
+	var pool: Array[String] = []
+	for id: String in Config.RUN_PERK_ORDER:
+		var perk: Dictionary = Config.RUN_PERKS[id]
+		if int(perk["max"]) > 0 and int(perks.get(id, 0)) >= int(perk["max"]):
+			continue
+		if String(perk.get("needs", "")) == "pet" and player.stats.pet == "":
+			continue
+		pool.append(id)
+	pool.shuffle()
+	return pool.slice(0, Config.PERK_CHOICES)
+
+
+func _offer_perks() -> void:
+	perk_offer = roll_perk_offer()
+	if perk_offer.is_empty():
+		perks_owed = 0                    # (every perk is at its limit)
+		return
+	perk_time_left = Config.PERK_COOP_TIME
+	perk_panel.show_offer(perk_offer, perks, perks_owed)
+	GameInput.set_gameplay_mode(false)
+	Sfx.play("level_up", -5.0)
+
+
+## Take card number `index` of the choice on the table.
+func choose_perk(index: int) -> void:
+	if index < 0 or index >= perk_offer.size():
+		return
+	var id := perk_offer[index]
+	var perk: Dictionary = Config.RUN_PERKS[id]
+	perks[id] = int(perks.get(id, 0)) + 1
+	perks_owed -= 1
+	perk_offer = []
+	player.refresh_stats()
+	var level := int(perks[id])
+	var color: Color = perk["color"]
+	fx.ring(player.pos, 12.0, 150.0, 0.4, Color(color.r, color.g, color.b, 0.9))
+	fx.text(player.pos + Vector2(0.0, -46.0), String(perk["name"]) + ("" if level == 1 else " " + Config.roman(level)), color, 20, 1.6)
+	Sfx.play("ui_buy")
+	if perks_owed > 0:
+		_perk_delay = 0.2                 # (the next one follows at once)
+		perk_panel.hide_offer()
+	else:
+		_close_perk_choice()
+
+
+func _close_perk_choice() -> void:
+	perk_offer = []
+	perk_panel.hide_offer()
+	if state == State.PLAYING or state == State.WON:
+		GameInput.set_gameplay_mode(true)
+		player.hold_fire(0.25)            # (the click on the card is not a shot)
 
 
 ## The last wave of the map is cleared: a moment of glory, then the results.
@@ -425,6 +558,12 @@ func on_remote_kill(id: int, at: Vector2, dir: Vector2, kind: int, variant: int,
 
 ## The gore and the jolt of a kill.
 func _kill_feel(e: Enemy, dir: Vector2, kill_hitstop: float, mine: bool) -> void:
+	# The PAYBACK perk: every few kills (anybody's) a little health back.
+	if player.stats.kill_heal_every > 0 and player.alive and not player.down:
+		_perk_kills += 1
+		if _perk_kills >= player.stats.kill_heal_every:
+			_perk_kills = 0
+			player.heal(player.stats.kill_heal)
 	# Gore: the body tumbles away, blood sprays and pools.
 	if not bool(e.cfg.get("no_corpse", false)):
 		fx.corpse(e, dir)

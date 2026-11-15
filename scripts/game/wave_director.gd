@@ -30,6 +30,8 @@ func tick(dt: float) -> void:
 	if game.state != Game.State.PLAYING or finished:
 		return
 	if not in_wave:
+		if game.perks_pending():
+			return                        # (somebody is choosing a perk: the next wave waits)
 		intermission -= dt
 		if intermission <= 0.0:
 			_start_wave()

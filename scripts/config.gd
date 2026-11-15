@@ -11,7 +11,7 @@ extends Node
 ## ============================================================================
 
 const GAME_TITLE := "ROT RIOT"
-const GAME_VERSION := "0.10.1"
+const GAME_VERSION := "0.11.0"
 const HERO_NAME := "CLIFF"                    # the survivor you play
 # How he looks with nothing equipped (his gear is drawn over this, see scripts/autoload/art.gd).
 const HERO_LOOK := {"skin": "#dfae88", "skin_dark": "#b98660", "hair": "#3a2a1e", "shirt": "#23262b", "shirt_light": "#33373d",
@@ -530,6 +530,48 @@ const BOSS_WAVE_COUNT_MULT := 0.6       # boss waves have fewer regular zombies
 const RUNNER_PACK_CHANCE := 0.14        # chance that a pack is all runners (after runners unlock)
 const WAVE_CLEAR_COINS_BASE := 2        # coin bonus for clearing a wave...
 const WAVE_CLEAR_COINS_PER_WAVE := 1    # ...plus this per wave number
+
+# ----------------------------------------------------------------------------
+#  RUN PERKS - every PERK_EVERY waves the player chooses one of three perks.
+#  A perk lasts until the run ends; taking the same one again makes it
+#  stronger (THICK SKIN II, III ...). A run that starts deep into a map (a
+#  checkpoint) begins with the choices for the waves it skipped.
+#  All perk numbers are here; scripts/game/player_stats.gd applies them.
+# ----------------------------------------------------------------------------
+const PERK_EVERY := 5                   # one choice per this many waves (= after each boss)
+const PERK_CHOICES := 3                 # how many are offered each time
+const PERK_OFFER_DELAY := 1.8           # seconds after the wave is cleared before the choice appears (the boss gets its moment)
+const PERK_START_DELAY := 0.7           # ...and at the start of a run that owes choices
+const PERK_CLICK_LOCK := 0.45           # seconds the cards ignore clicks at first, so nothing is chosen by accident
+const PERK_COOP_TIME := 30.0            # (co-op) seconds to choose before one is taken for you; alone there is no hurry
+const PERK_HOLD_MAX := 150.0            # (co-op host) the next wave never waits longer than this for somebody choosing
+const PERK_DODGE_CAP := 0.6             # dodge chance never goes above this, however many SLIPPERY perks
+# "value" = what one level gives. "text" says it (%s = the value as shown).
+# "max" = how many times it can be taken (0 = no limit). "needs": "pet" = only
+# offered with a pet at your side. "icon" = a symbol from art.gd.
+const RUN_PERK_ORDER := ["tough", "armor", "dodge", "medic", "leech", "power", "rapid", "crit", "reload", "mags", "pierce",
+		"swift", "greed", "long", "crates", "pack"]
+const RUN_PERKS := {
+	"tough": {"name": "THICK SKIN", "text": "+%s max health", "value": 25.0, "max": 0, "icon": "stat_vitality", "color": Color(0.45, 0.9, 0.4)},
+	"armor": {"name": "PADDED VEST", "text": "take %s%% less damage", "value": 0.08, "max": 0, "icon": "stat_defense", "color": Color(0.45, 0.9, 0.4)},
+	"dodge": {"name": "SLIPPERY", "text": "+%s%% chance to dodge a hit", "value": 0.05, "max": 6, "icon": "stat_evasion", "color": Color(0.45, 0.9, 0.4)},
+	"medic": {"name": "FIELD DRESSING", "text": "every cleared wave heals %s%% of your health", "value": 0.2, "max": 4, "icon": "perk_medic", "color": Color(0.45, 0.9, 0.4)},
+	"leech": {"name": "PAYBACK", "text": "every %s kills heal 2 health", "value": 8.0, "max": 3, "icon": "perk_leech", "color": Color(0.45, 0.9, 0.4)},
+	"power": {"name": "HARD HITTER", "text": "+%s%% damage", "value": 0.12, "max": 0, "icon": "stat_strength", "color": Color(1.0, 0.45, 0.35)},
+	"rapid": {"name": "QUICK TRIGGER", "text": "+%s%% attack speed", "value": 0.1, "max": 0, "icon": "stat_dexterity", "color": Color(1.0, 0.45, 0.35)},
+	"crit": {"name": "SHARP EYE", "text": "+%s%% critical hits", "value": 0.06, "max": 0, "icon": "stat_critical", "color": Color(1.0, 0.45, 0.35)},
+	"reload": {"name": "SLICK RELOAD", "text": "reload %s%% faster", "value": 0.2, "max": 0, "icon": "track_reload", "color": Color(1.0, 0.45, 0.35)},
+	"mags": {"name": "BIG MAGAZINES", "text": "+%s%% rounds in every magazine", "value": 0.25, "max": 0, "icon": "perk_mags", "color": Color(1.0, 0.45, 0.35)},
+	"pierce": {"name": "PIERCING SHOTS", "text": "bullets go through %s more zombie", "value": 1.0, "max": 3, "icon": "perk_pierce", "color": Color(1.0, 0.45, 0.35)},
+	"swift": {"name": "LIGHT FEET", "text": "+%s%% move speed", "value": 0.06, "max": 5, "icon": "stat_agility", "color": Color(1.0, 0.8, 0.3)},
+	"greed": {"name": "FAT PURSE", "text": "+%s%% coin drops, and coins fly to you from further", "value": 0.2, "max": 0, "icon": "stat_luck", "color": Color(1.0, 0.8, 0.3)},
+	"long": {"name": "FIRM GRIP", "text": "crate weapons last %s%% longer", "value": 0.25, "max": 0, "icon": "track_duration", "color": Color(1.0, 0.8, 0.3)},
+	"crates": {"name": "SUPPLY LINE", "text": "weapon crates arrive %s%% more often", "value": 0.25, "max": 4, "icon": "track_spawn", "color": Color(1.0, 0.8, 0.3)},
+	"pack": {"name": "PACK HUNTER", "text": "your pet bites %s%% harder", "value": 0.4, "max": 0, "icon": "stat_bond", "needs": "pet", "color": Color(1.0, 0.8, 0.3)},
+}
+const PERK_LEECH_HEAL := 2.0            # PAYBACK: health per heal...
+const PERK_LEECH_STEP := 2.0            # ...and each further level needs this many kills fewer (8, 6, 4)
+const PERK_GREED_MAGNET := 0.25         # FAT PURSE: coins fly to you from this much further per level
 
 # ----------------------------------------------------------------------------
 #  SCORE / COMBO
@@ -1070,6 +1112,46 @@ func wave_enemy_count(wave: int) -> int:
 
 func is_boss_wave(wave: int) -> bool:
 	return wave > 0 and wave % BOSS_EVERY == 0
+
+
+## How many perk choices a run has earned once `wave_cleared` waves lie behind it.
+func perks_earned(wave_cleared: int) -> int:
+	return int(floor(float(maxi(wave_cleared, 0)) / float(PERK_EVERY)))
+
+
+## What `level` levels of a run perk give, as a number (0.24 = 24%).
+func run_perk_value(id: String, level: int) -> float:
+	var perk: Dictionary = RUN_PERKS[id]
+	if id == "leech":
+		# (kills needed per heal: fewer with every level)
+		return maxf(float(perk["value"]) - PERK_LEECH_STEP * float(level - 1), 2.0) if level > 0 else 0.0
+	if id == "armor":
+		return 1.0 - pow(1.0 - float(perk["value"]), float(level))     # 8%, 15%, 22% ... never 100%
+	return float(perk["value"]) * float(level)
+
+
+## The same in words: "+24% damage".
+func run_perk_text(id: String, level: int) -> String:
+	var perk: Dictionary = RUN_PERKS[id]
+	var value := run_perk_value(id, maxi(level, 1))
+	var shown := str(int(round(value)))
+	if String(perk["text"]).contains("%s%%"):
+		shown = str(int(round(value * 100.0)))
+	var text := String(perk["text"]) % shown
+	if id == "pierce" and int(round(value)) > 1:
+		text = text.replace("zombie", "zombies")
+	return text
+
+
+## I, II, III ... for a perk's level.
+func roman(number: int) -> String:
+	var out := ""
+	var left := number
+	for pair: Array in [[10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"]]:
+		while left >= int(pair[0]):
+			out += String(pair[1])
+			left -= int(pair[0])
+	return out
 
 
 func wave_hp_mult(wave: int) -> float:

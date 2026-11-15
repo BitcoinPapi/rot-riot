@@ -88,6 +88,15 @@ works on 4.5 and later.
   - To work out the codes, the game asks a public "what is my internet
     address?" server (run by Google and Cloudflare - the same kind every
     video call uses). Nothing about you or your game is sent to them.
+- **Perks.** Every 5 waves, right after the boss, the game stops and shows
+  you **three perks: choose one** (click it, or use the arrow keys and
+  Enter, or a gamepad). More health, more damage, faster reloads, bullets
+  that go through zombies... A perk stays with you **until that run ends**;
+  taking the same one again makes it stronger. The small symbols above
+  your weapon show what you have, and the pause menu spells it out. If you
+  start a map from a later wave you first choose the perks you would have
+  had by then. With friends, everybody chooses their own, and the next wave
+  waits until everybody has.
 - **Know your zombies.** Besides the plain Shambler, the fast Runner and the
   big Brute there are four with a trick of their own. Each one **warns you
   first**: it stops, swells up and changes colour for a moment. The first
@@ -167,7 +176,7 @@ Close Godot, then double-click **Update Rot Riot.command** inside the project
 folder. A Terminal window opens, downloads the latest version and replaces the
 folder. Your coins, level and upgrades are stored elsewhere and are kept.
 Then open the project in Godot again. The version number is shown in the
-bottom right corner of the main menu (now v0.10.1).
+bottom right corner of the main menu (now v0.11.0).
 
 After an update that changes the upgrade screens, points you had already
 spent are handed back so you can place them again in the new trees.

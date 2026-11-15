@@ -99,14 +99,16 @@ func _draw() -> void:
 	_draw_crate_arrows()
 	_draw_health(p)
 	_draw_weapon(p, h)
+	_draw_perks(h)
 	_draw_xp(w, h)
 	_draw_score(w)
 	_draw_wave(w)
 	_draw_minimap(w, h)
 	_draw_announcement(w, h)
-	_draw_hint(w, h)
+	if not game.choosing():
+		_draw_hint(w, h)
 	_draw_tip(w, h)
-	if p.alive:
+	if p.alive and not game.choosing():
 		_draw_crosshair(p)
 
 
@@ -227,6 +229,26 @@ func _draw_weapon(p: Player, h: float) -> void:
 
 
 ## Character level and XP: a thin bar along the bottom edge of the screen.
+## The perks chosen this run: a row of small symbols above the weapon panel,
+## with a number on those taken more than once.
+func _draw_perks(h: float) -> void:
+	if game.perks.is_empty():
+		return
+	var x := 22.0
+	var y := h - 18.0 - 96.0 - 38.0
+	for id: String in Config.RUN_PERK_ORDER:
+		var level := int(game.perks.get(id, 0))
+		if level <= 0:
+			continue
+		var perk: Dictionary = Config.RUN_PERKS[id]
+		var color: Color = perk["color"]
+		draw_rect(Rect2(x - 2.0, y - 2.0, 32.0, 32.0), Color(0, 0, 0, 0.6))
+		draw_texture_rect(Art.t(String(perk["icon"])), Rect2(x + 2.0, y + 2.0, 24.0, 24.0), false, color)
+		if level > 1:
+			_text(Vector2(x + 29.0, y + 29.0), str(level), 13, Color.WHITE, 2, 4)
+		x += 36.0
+
+
 func _draw_xp(w: float, h: float) -> void:
 	var capped := SaveData.at_level_cap()
 	var frac := 1.0 if capped else clampf(float(SaveData.xp) / float(SaveData.xp_needed()), 0.0, 1.0)
@@ -275,6 +297,11 @@ func _draw_wave(w: float) -> void:
 		_text(Vector2(cx, 62), "map cleared", 15, Color(1.0, 0.85, 0.3, 0.95), 1)
 	elif d.in_wave:
 		_text(Vector2(cx, 62), "%d left" % d.remaining(), 15, Color(1, 1, 1, 0.7), 1)
+	elif game.perks_pending():
+		# (The next wave waits while somebody chooses a perk.)
+		var busy := game.perk_waiting_for()
+		var who := "you choose" if game.perks_owed > 0 else " and ".join(busy) + (" chooses" if busy.size() == 1 else " choose")
+		_text(Vector2(cx, 62), "the next wave waits while %s a perk" % who, 15, Color(1.0, 0.85, 0.3, 0.95), 1)
 	else:
 		_text(Vector2(cx, 62), "next wave in %d" % int(ceil(d.intermission)), 15, Color(0.7, 1.0, 0.6, 0.9), 1)
 	if d.boss_alive():

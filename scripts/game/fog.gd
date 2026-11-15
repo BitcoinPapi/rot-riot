@@ -136,6 +136,16 @@ func reveal_all() -> void:
 	explored = 1.0
 
 
+## Put the whole map under fog again (for tests).
+func cover_all() -> void:
+	_thick.fill(255)
+	_image.fill(Color(1, 1, 1, 1))
+	texture.update(_image)
+	_clear_cells = 0
+	explored = 0.0
+	_last.clear()
+
+
 ## Has the fog over this spot cleared?
 func is_clear(pos: Vector2) -> bool:
 	var ix := clampi(int((pos.x - rect.position.x) / Config.FOG_CELL), 0, _cols - 1)
