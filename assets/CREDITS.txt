@@ -43,7 +43,8 @@ PICTURES MADE WITH AN AI IMAGE GENERATOR  (assets/sprites/, from art_source/)
   ask him before the Steam release, for the same declaration). The frames
   of JanJan holding one gun are made from his picture by tools/make_moves.py.
   The eight gear symbols (gear_helmet.png ... gear_boots.png) are his too,
-  made the same way as plain white shapes.
+  made the same way as plain white shapes, and so are the pictures of the
+  single pieces of gear (gear_item_*.png, gear_drop_*.png).
   (When the game goes on Steam, AI-made pictures have to be declared there.)
 
 NOT IN THIS PROJECT, on purpose: recordings whose licence allows using them

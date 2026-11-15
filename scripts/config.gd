@@ -998,6 +998,7 @@ const GEAR_LIFETIME := 45.0             # seconds a dropped piece waits to be pi
 const GEAR_PICKUP_RADIUS := 30.0
 const GEAR_CRATE_SIZE := 54.0           # how big the case of a dropped piece is drawn (a weapon crate is CRATE_SIZE)
 const GEAR_CRATE_ICON_SIZE := 42.0      # ...and the picture of the piece on its lid
+const GEAR_CRATE_PICTURE_SIZE := 50.0   # ...when the piece has a painted picture of its own (it may hang over the lid a little)
 const GEAR_PICKUP_SHAKE := 0.2
 # What the slots are called on the Character screen.
 const GEAR_SLOT_NAMES := {"helmet": "HELMET", "amulet": "AMULET", "chest": "CHEST", "gloves": "GLOVES", "ring1": "LEFT RING",

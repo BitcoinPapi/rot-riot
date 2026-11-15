@@ -255,22 +255,25 @@ func _make_tile(key: String, empty_type: String, count: int, tile_size: float, o
 	var frame := Color(0.3, 0.32, 0.28)
 	var tint := Color(0.42, 0.44, 0.4)
 	var type := empty_type
+	var picture: Texture2D = null          # the piece's own picture, if it has one
 	if key != "":
 		var item := Config.gear_item_of(key)
 		type = String(Config.GEAR_ITEMS[item]["type"])
 		frame = Config.gear_tier_def(Config.gear_tier_of(key))["color"]
 		tint = Color(String(Config.GEAR_ITEMS[item]["look"]["color"])).lightened(0.25)
+		picture = Art.gear_picture(item)
 	for state: String in ["normal", "hover", "pressed", "disabled"]:
 		var box := UiKit.card_style(frame, state == "hover")
 		box.bg_color = Color(0.07, 0.08, 0.07) if key == "" else Color(frame.r * 0.16 + 0.03, frame.g * 0.16 + 0.03, frame.b * 0.16 + 0.03)
 		box.set_content_margin_all(0.0)
 		tile.add_theme_stylebox_override(state, box)
 	var icon := TextureRect.new()
-	icon.texture = Art.t("gear_" + type)
-	icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, int(tile_size * 0.16))
+	# Its own picture as it was painted, or the symbol of its kind in the piece's colour.
+	icon.texture = picture if picture != null else Art.t("gear_" + type)
+	icon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, int(tile_size * (0.08 if picture != null else 0.16)))
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	icon.modulate = tint
+	icon.modulate = Color.WHITE if picture != null else tint
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	tile.add_child(icon)
 	if count > 1:

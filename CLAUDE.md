@@ -1221,9 +1221,20 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   shapes, more detailed than asked, the ring carries a skull) and are in:
   `assets/sprites/gear_<type>.png`, 96 px, tinted by the game exactly like
   the old symbols (inventory tiles in the piece's colour, cases in the
-  tier's, empty slots grey, the HUD's gear arrows). The 32 per-piece
-  pictures are still to come; when they do, a piece shows its own picture
-  and the type icon stays for empty slots and arrows.
+  tier's, empty slots grey, the HUD's gear arrows).
+  THE PER-PIECE PICTURES COME IN BATCHES (first: six, named like
+  "01_dockworkers_hard_hat.png" - number = place in the list he was given,
+  then the new name; very good paintings with clean edges).
+  `tools/make_gear_pictures.py FOLDER` works out which piece each file is
+  and writes `gear_item_<id>.png` (128 px) and `gear_drop_<id>.png` (72 px)
+  plus the original into `art_source/gear/`; it prints which pieces still
+  lack one. `Art.gear_picture(item, small)`: a piece with a picture shows it
+  as painted on the Character screen's tiles and slots, in the forge and on
+  the lid of its gear case (`GEAR_CRATE_PICTURE_SIZE`); a piece without one
+  shows its kind's symbol, tinted; arrows and empty slots keep the symbols.
+  In so far: 6 of 32 (the four helmets, dog tags, shark tooth necklace).
+  When all are in: put them on the dashboard's gear rows too, and send the
+  friends new files.
 - **v0.15.0, built in one sitting, item by item** ("build the changes and
   implement the ideas. Ask me one by one and i will tell you to go ahead";
   then "ask me the items here instead of my phone" - he wants questions as

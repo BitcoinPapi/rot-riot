@@ -20,6 +20,11 @@ GEAR SYMBOLS: gear_helmet, gear_amulet, gear_chest, gear_gloves, gear_ring, gear
 gear_pants, gear_boots - plain WHITE shapes, 96x96 px; the game colours them (a piece's
 own colour in the inventory, its tier's colour on a gear case, grey in an empty slot).
 
+A PIECE OF GEAR'S OWN PICTURE: gear_item_<item id>.png (128x128, for the inventory and the
+slots) and gear_drop_<item id>.png (72x72, for the lid of a gear case), shown as painted.
+tools/make_gear_pictures.py makes both from the owner's pictures. A piece without them
+shows the symbol of its kind.
+
 MOVEMENT. A character can also have strips of frames: NAME_walk.png, NAME_idle.png,
 NAME_attack.png, NAME_hit.png, NAME_death.png - the frames side by side, each a
 square as tall as the strip, the middle of the chest in the middle of each frame -

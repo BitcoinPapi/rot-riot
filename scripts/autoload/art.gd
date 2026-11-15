@@ -48,12 +48,24 @@ var anims: Dictionary = {}
 var _hero_painted := false
 var _hero_twin := false
 
+## A piece of gear's own picture, for the pieces that have one: item id -> Texture2D
+## (assets/sprites/gear_item_<id>.png, and the small gear_drop_<id>.png for the lid of
+## a gear case; made by tools/make_gear_pictures.py from the owner's pictures).
+var _gear_pictures: Dictionary = {}
+var _gear_drops: Dictionary = {}
+
 
 func _ready() -> void:
 	_hero_painted = _painted("player") != ""
 	_hero_twin = _hero_painted and _painted("player_twin") != ""
 	_build()
 	_build_anims()
+	for item: String in Config.GEAR_ITEMS.keys():
+		var big := "res://assets/sprites/gear_item_%s.png" % item
+		var small := "res://assets/sprites/gear_drop_%s.png" % item
+		if ResourceLoader.exists(big):
+			_gear_pictures[item] = load(big)
+			_gear_drops[item] = load(small) if ResourceLoader.exists(small) else _gear_pictures[item]
 	_images.clear()
 	# The hero is redrawn whenever he puts something on or takes it off.
 	SaveData.gear_changed.connect(refresh_hero)
@@ -83,6 +95,12 @@ func enemy_hurt_tex(kind: int, variant: int) -> Texture2D:
 func enemy_flash_tex(kind: int, variant: int = 0) -> Texture2D:
 	var own := "%s_%d_flash" % [ENEMY_SPRITE[kind], variant]
 	return tex[own] if tex.has(own) else tex["%s_0_flash" % ENEMY_SPRITE[kind]]
+
+
+## A piece of gear's own picture, or null if it has none yet (it then shows the symbol
+## of its kind, "gear_<type>"). `small` = the little one for a gear case on the ground.
+func gear_picture(item: String, small: bool = false) -> Texture2D:
+	return (_gear_drops if small else _gear_pictures).get(item)
 
 
 ## The hero is a painted picture (assets/sprites/player.png), not drawn from shapes.

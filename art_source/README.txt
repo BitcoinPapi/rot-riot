@@ -85,8 +85,17 @@ amulet, chest, gloves, ring, belt, pants, boots), made by the owner with ChatGPT
 white shapes; the game tints them. Each was cut to its edges and fitted into 96x96 px as
 assets/sprites/gear_<type>.png (5 px of room around it) - they replace the small symbols
 drawn in art.gd on the inventory tiles, the Character screen's slots, the gear cases on the
-ground and the arrows that point to gear. A picture per PIECE (32 of them, named by item
-id) is still to come from him.
+ground and the arrows that point to gear.
+
+GEAR PICTURES. gear/<item id>.webp: one painted picture per piece of gear, made by the owner
+with ChatGPT (1024 px, see-through background; kept here at quality 92). He names the files
+after the piece with a number in front ("01_dockworkers_hard_hat.png"); the script works out
+which piece each one is and writes the game's two sizes:
+  tools/make_gear_pictures.py FOLDER      -> assets/sprites/gear_item_<id>.png (128 px: tiles)
+                                             assets/sprites/gear_drop_<id>.png  (72 px: gear cases)
+It prints which pieces still have no picture. In so far (6 of 32): hard_hat, gas_mask,
+hunting_cap, riot_helmet, dog_tags, tooth_necklace. A piece without one shows the symbol of
+its kind.
 
 For example (a still sprite):
   tools/make_sprite.py art_source/brute.webp brute_0      --length 92 --center 620,635

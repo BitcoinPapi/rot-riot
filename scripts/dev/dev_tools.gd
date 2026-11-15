@@ -9,7 +9,8 @@ extends Node
 ##   --forge            with --screen=character: open the forge
 ##   --gear=N           start with N random pieces of gear, some of them worn
 ##   --pets=N           own the first N pets and take the last of them along (use with --level=18 or more)
-##   --drop-gear        one second into a run, drop a piece of every tier around the player (and one on top of them)
+##   --drop-gear        one second into a run, drop a piece of every tier around the player (and one on top of them);
+##                      --drop-gear=ITEM:TIER,ITEM:TIER drops those pieces instead
 ##   --drop-crates      one second into a run, drop four weapon crates around the player (two of them damaged)
 ##   --map=N            play map N (unlocks it); --best=W sets the best wave cleared there, --start=W the starting wave
 ##   --level=N          start as a level N character with points to spend (for screenshots)
@@ -203,6 +204,8 @@ func _process(_delta: float) -> void:
 			game.open_chest(game.pickups.chests[1])
 		if _args.has("drop-gear") and _frame == 60:
 			var drops := ["hard_hat:1", "work_gloves:2", "iron_band:3", "combat_boots:4", "gorger_fang:5"]
+			if String(_args["drop-gear"]).contains(":"):
+				drops.assign(String(_args["drop-gear"]).split(","))       # --drop-gear=hard_hat:1,dog_tags:5 : these pieces
 			for i in drops.size():
 				game.pickups.spawn_gear(game.player.pos + Vector2.from_angle(-2.4 + 0.75 * i) * 190.0, drops[i])
 			game.pickups.spawn_gear(game.player.pos + Vector2(4.0, 0.0), "lucky_ring:2")
@@ -2010,6 +2013,32 @@ func _run_autotest() -> void:
 			hero_ok = false
 	_check(hero_ok and Art.size_of("player") == Art.size_of("player_hurt") and Art.size_of("player") == Art.size_of("player_flash"),
 			"the hero has all his pictures (%s), and so does another player's figure" % ("painted" if ResourceLoader.exists("res://assets/sprites/player.png") else "drawn"))
+
+	# --- gear: a piece with a painted picture of its own shows it; the others show the symbol of their kind ---
+	var painted_gear: Array[String] = []
+	var plain_gear := ""
+	var gear_pics_ok := Art.gear_picture("no_such_piece") == null
+	for gear_id: String in Config.GEAR_ORDER:
+		if Art.gear_picture(gear_id) == null:
+			plain_gear = gear_id
+		else:
+			painted_gear.append(gear_id)
+			if Art.gear_picture(gear_id, true) == null:
+				gear_pics_ok = false                 # (its small picture for the gear case is missing)
+	var bag_screen: CharacterScreen = (app.get("_screens") as Dictionary)["character"]
+	if not painted_gear.is_empty():
+		var shown_tile: Button = bag_screen.call("_make_tile", Config.gear_key(painted_gear[0], 1), "", 1, 64.0, func() -> void: pass, func() -> void: pass)
+		var shown_pic: TextureRect = shown_tile.get_child(0)
+		if shown_pic.texture != Art.gear_picture(painted_gear[0]) or shown_pic.modulate != Color.WHITE:
+			gear_pics_ok = false
+		shown_tile.free()
+	if plain_gear != "":
+		var plain_tile: Button = bag_screen.call("_make_tile", Config.gear_key(plain_gear, 1), "", 1, 64.0, func() -> void: pass, func() -> void: pass)
+		if (plain_tile.get_child(0) as TextureRect).texture != Art.t("gear_" + String(Config.GEAR_ITEMS[plain_gear]["type"])):
+			gear_pics_ok = false
+		plain_tile.free()
+	_check(gear_pics_ok, "%d of the %d pieces of gear have a painted picture of their own and show it; the others show the symbol of their kind" % [
+			painted_gear.size(), Config.GEAR_ORDER.size()])
 
 	# --- the Gang Fighter: a plain walker, quicker and tougher than a Shambler, with a harder hit ---
 	var fighter_cfg: Dictionary = Config.ENEMIES[Config.FIGHTER]

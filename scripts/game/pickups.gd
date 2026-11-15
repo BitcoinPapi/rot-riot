@@ -702,11 +702,15 @@ func _draw() -> void:
 		draw_texture_rect(_gear_crate_tex, box, false)
 		draw_texture_rect(_gear_band_tex, box, false, color)
 		# The piece itself, large, on the lid.
-		var icon: Texture2D = Art.t("gear_" + String(Config.GEAR_ITEMS[Config.gear_item_of(l.key)]["type"]))
-		var isize := Vector2(Config.GEAR_CRATE_ICON_SIZE, Config.GEAR_CRATE_ICON_SIZE) * drop
+		# (Its own picture as it was painted, if it has one; otherwise the symbol of its
+		# kind in the tier's colour.)
+		var gear_item := Config.gear_item_of(l.key)
+		var painted: Texture2D = Art.gear_picture(gear_item, true)
+		var icon: Texture2D = painted if painted != null else Art.t("gear_" + String(Config.GEAR_ITEMS[gear_item]["type"]))
+		var isize := Vector2.ONE * (Config.GEAR_CRATE_PICTURE_SIZE if painted != null else Config.GEAR_CRATE_ICON_SIZE) * drop
 		var icon_at := l.pos + Vector2(0.0, -2.0 - 2.0 * sin(_time * 3.0 + l.pos.y * 0.05))
 		draw_texture_rect(icon, Rect2(icon_at - isize * 0.5 + Vector2(2.0, 3.0), isize), false, Color(0, 0, 0, 0.6))
-		draw_texture_rect(icon, Rect2(icon_at - isize * 0.5, isize), false, color.lightened(0.55))
+		draw_texture_rect(icon, Rect2(icon_at - isize * 0.5, isize), false, Color.WHITE if painted != null else color.lightened(0.55))
 		# A better tier twinkles more: one glint per tier wanders over the case.
 		for k in tier:
 			var t := _time * 1.5 + float(k) * 1.9 + l.pos.x * 0.013
