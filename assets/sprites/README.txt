@@ -1,7 +1,7 @@
 Drop PNG files here to replace the placeholder shapes.
 
 Name the file like the sprite (see scripts/autoload/art.gd), for example:
-  player.png  shambler_0.png  runner_0.png  brute_0.png  boss_0.png
+  shambler_0.png  runner_0.png  brute_0.png  boss_0.png
   gun_pistol.png  coin.png  crate.png  medkit.png  rock.png
 
 Draw characters facing RIGHT, at twice the size listed in art.gd
@@ -32,11 +32,14 @@ and the same again as NAME_walk_hurt.png ... for the wounded look. The game then
 shows the character moving instead of as one still picture (the still picture is
 still needed: menus, the hit flash and the dashboard use it). tools/make_sprite.py
 cuts the strips out of the sheets the owner sends (read "ANIMATIONS" at its top).
-In use: gobber_0, player (JanJan with one gun: both hands on it) and player_twin
-(JanJan with a gun in each fist).
+In use: gobber_0.
+
+THE HERO is not a picture here: JanJan is drawn by the game as a puppet of several pieces
+(scripts/art/hero_art.gd, put together by scripts/game/hero_rig.gd), so that his arms can
+reach the gun he holds and the gear he wears can show on him. A player.png or hero_front.png
+dropped here is NOT used.
 
 In use now (all from pictures the owner made with ChatGPT; see art_source/):
-  player, hero_front (JanJan in a run and in the menus)
   shambler_0 .. shambler_3 (made from the Gang Fighter's picture, without his machete)
   runner_0, runner_1   brute_0   chucker_0   gasbag_0   gobber_0   lunger_0
   fighter_0 (the Gang Fighter)   boss_0, boss_1, boss_2 (the bosses of maps 1-3)

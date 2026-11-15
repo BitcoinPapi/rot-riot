@@ -15,8 +15,11 @@ extends Node
 
 const PX := 2.0   # sprites are rasterised at 2x and drawn at half size, so they stay sharp in fullscreen
 
+const HERO_PX := 3.0   # ...and the hero's pieces at 3x: he is on screen all the time, often enlarged
+
 var tex: Dictionary = {}     # name -> Texture2D
 var sizes: Dictionary = {}   # name -> Vector2 (size in game pixels)
+var origins: Dictionary = {} # name -> Vector2: where the drawing's own (0, 0) is inside the picture (the hero's pieces)
 var _images: Dictionary = {} # name -> Image (kept only while building)
 
 const SHAMBLER_VARIANTS := 4
@@ -45,9 +48,6 @@ const NO_ANIMS := {}
 var anims: Dictionary = {}
 
 
-var _hero_painted := false
-var _hero_twin := false
-
 ## A piece of gear's own picture, for the pieces that have one: item id -> Texture2D
 ## (assets/sprites/gear_item_<id>.png, and the small gear_drop_<id>.png for the lid of
 ## a gear case; made by tools/make_gear_pictures.py from the owner's pictures).
@@ -56,8 +56,6 @@ var _gear_drops: Dictionary = {}
 
 
 func _ready() -> void:
-	_hero_painted = _painted("player") != ""
-	_hero_twin = _hero_painted and _painted("player_twin") != ""
 	_build()
 	_build_anims()
 	for item: String in Config.GEAR_ITEMS.keys():
@@ -103,34 +101,10 @@ func gear_picture(item: String, small: bool = false) -> Texture2D:
 	return (_gear_drops if small else _gear_pictures).get(item)
 
 
-## The hero is a painted picture (assets/sprites/player.png), not drawn from shapes.
-func hero_painted() -> bool:
-	return _hero_painted
-
-
-## ...and has a second picture for holding a gun in each hand (player_twin.png).
-func hero_twin() -> bool:
-	return _hero_twin
-
-
-## What to add to the hero's sprite name for what he holds: "" (one gun, or the hero
-## drawn from shapes) or "_twin" (the painted hero with a gun in each hand).
-func hero_pose(two_guns: bool) -> String:
-	return "_twin" if two_guns and hero_twin() else ""
-
-
-## Where the rear end of the hero's gun(s) sits: one spot, or two (in his left hand, in
-## his right hand) when he holds two. Game px from the middle of his sprite, x ahead, y
-## to his right. `weapon` is the gun's entry in Config.WEAPONS (for its "hold").
-func hero_guns(two_guns: bool, weapon: Dictionary) -> Array:
-	var back: float = float(weapon.get("hold", Config.HERO_HOLD)) if _hero_painted else Config.HERO_HOLD
-	var hands: Array = [Config.HERO_HANDS if _hero_painted else Config.HERO_HANDS_DRAWN]
-	if two_guns:
-		hands = Config.HERO_TWIN_HANDS if _hero_twin else Config.HERO_TWIN_HANDS_DRAWN
-	var spots: Array = []
-	for hand: Vector2 in hands:
-		spots.append(Vector2(hand.x - back, hand.y))
-	return spots
+## Where a drawing's own (0, 0) is inside its picture, in game pixels from the picture's
+## top left corner (the hero's pieces: a joint, the middle of his head...).
+func origin_of(sprite: String) -> Vector2:
+	return origins[sprite]
 
 
 ## The animations of a sprite ({} = it is one still picture).
@@ -173,9 +147,6 @@ func _build_anims() -> void:
 			# (A look without a picture of its own moves like the first look, whose picture it uses.)
 			if not anims.has(sprite) and anims.has(first) and not ResourceLoader.exists("res://assets/sprites/%s.png" % sprite):
 				anims[sprite] = anims[first]
-	if hero_painted():
-		_load_anims("player")
-		_load_anims("player_twin")
 
 
 func _load_anims(sprite: String) -> void:
@@ -293,6 +264,7 @@ func _build() -> void:
 	_flash("fighter_0")
 
 	# --- player and weapons ---
+	_svg_at("hero_shadow", Vector2(56, 44), Vector2(29, 22), HeroArt.top_shadow(), PX)
 	refresh_hero()
 	_svg("gun_pistol", 24, 12, SVG_GUN_PISTOL, false)
 	_svg("gun_shotgun", 42, 14, SVG_GUN_SHOTGUN, false)
@@ -419,47 +391,68 @@ func _pet_svg(look: Dictionary) -> String:
 
 
 # ----------------------------------------------------------------------------
-#  The hero. His pictures are built from Config.HERO_LOOK plus whatever gear
-#  he is wearing (each piece's "look" in Config.GEAR_ITEMS), so he looks the
-#  same in the menus (front view, "hero_front") and in the game (top-down
-#  "player", with its wounded and hit-flash versions).
+#  The hero. He is a puppet drawn by HeroArt from Config.HERO_LOOK plus
+#  whatever gear he is wearing (each piece's "look" in Config.GEAR_ITEMS):
+#  seen from above he is a handful of pieces that HeroRig puts together in the
+#  game ("player_body", "player_head", "player_arm_l", "player_arm_r",
+#  "player_fore", "player_leg", "player_boot", with wounded and hit-flash
+#  versions); in the menus he is one picture from the front ("hero_front").
 # ----------------------------------------------------------------------------
 ## Redraw the hero from the gear worn right now.
 func refresh_hero() -> void:
 	var worn: Dictionary = SaveData.gear_worn
-	var top := _hero_top_svg(worn)
-	_svg("player", 56, 56, top)
-	_svg("player_hurt", 56, 56, top + WOUNDS_PLAYER)   # battle-worn look at low health
-	_flash("player")
-	if hero_twin():
-		# (painted hero only) His second picture: fists apart, for a gun in each hand.
-		_svg("player_twin", 56, 56, top)
-		_svg("player_twin_hurt", 56, 56, top + WOUNDS_PLAYER)
-		_flash("player_twin")
-	_svg("hero_front", 220, 400, _hero_front_svg(worn))
-	for sprite: String in ["player", "player_hurt", "hero_front", "player_twin", "player_twin_hurt"]:
-		_images.erase(sprite)
+	_build_hero("player", worn)
+	build_front(worn, "hero_front")
+
+
+## The hero from the front (the menus' picture) in the gear `worn`, as the picture `sprite`.
+func build_front(worn: Dictionary, sprite: String) -> void:
+	var looks := {}
+	for slot: String in Config.GEAR_SLOTS:
+		looks[slot] = _worn_look(worn, slot)
+	_svg_at(sprite, Vector2(260, 400), Vector2(130, 200), HeroArt.front(Config.HERO_LOOK, looks), HERO_PX)
+	_images.erase(sprite)
 
 
 ## Another co-op player seen from above, wearing their own gear. `sprite` is
-## the name the pictures get: "mate1" also makes "mate1_hurt" and "mate1_flash".
+## the name their pieces get: "mate1" makes "mate1_body", "mate1_head"...
 func build_mate(worn: Dictionary, sprite: String) -> void:
-	if _painted("player") != "":
-		# The hero is a painted picture now: every player is shown as him (their ring
-		# and their name tell them apart). A picture cannot wear each player's gear.
-		for tail: String in ["", "_hurt", "_flash"]:
-			tex[sprite + tail] = tex["player" + tail]
-			sizes[sprite + tail] = sizes["player" + tail]
-			if hero_twin():
-				tex[sprite + "_twin" + tail] = tex["player_twin" + tail]
-				sizes[sprite + "_twin" + tail] = sizes["player_twin" + tail]
-		return
-	var top := _hero_top_svg(worn)
-	_svg(sprite, 56, 56, top)
-	_svg(sprite + "_hurt", 56, 56, top + WOUNDS_PLAYER)
-	_flash(sprite)
-	for built: String in [sprite, sprite + "_hurt"]:
-		_images.erase(built)
+	_build_hero(sprite, worn)
+
+
+## What the hero's pieces look like for the gear in `worn`:
+## piece -> [the drawing, its size, where its own (0, 0) is inside it].
+func hero_pieces(worn: Dictionary) -> Dictionary:
+	var h: Dictionary = Config.HERO_LOOK
+	var helmet := _worn_look(worn, "helmet")
+	var chest := _worn_look(worn, "chest")
+	var gloves := _worn_look(worn, "gloves")
+	var belt := _worn_look(worn, "belt")
+	var pants := _worn_look(worn, "pants")
+	var boots := _worn_look(worn, "boots")
+	return {
+		"body": [HeroArt.top_body(h, chest, belt, false), Vector2(40, 42), Vector2(27, 21)],
+		"body_hurt": [HeroArt.top_body(h, chest, belt, true), Vector2(40, 42), Vector2(27, 21)],
+		"head": [HeroArt.top_head(h, helmet, false), Vector2(26, 22), Vector2(11, 11)],
+		"head_hurt": [HeroArt.top_head(h, helmet, true), Vector2(26, 22), Vector2(11, 11)],
+		"arm_l": [HeroArt.top_arm_upper(h, chest, true), Vector2(28, 14), Vector2(7, 7)],
+		"arm_r": [HeroArt.top_arm_upper(h, chest, false), Vector2(28, 14), Vector2(7, 7)],
+		"fore": [HeroArt.top_arm_fore(h, chest, gloves), Vector2(28, 12), Vector2(6, 6)],
+		"leg": [HeroArt.top_leg(h, pants), Vector2(16, 10), Vector2(13, 5)],
+		"boot": [HeroArt.top_boot(h, boots), Vector2(14, 10), Vector2(5, 5)],
+	}
+
+
+func _build_hero(prefix: String, worn: Dictionary) -> void:
+	var pieces := hero_pieces(worn)
+	for piece: String in pieces:
+		var made: Array = pieces[piece]
+		var sprite := "%s_%s" % [prefix, piece]
+		_svg_at(sprite, made[1], made[2], made[0], HERO_PX)
+		if not piece.ends_with("_hurt"):
+			_flash(sprite)
+			origins[sprite + "_flash"] = made[2]
+		_images.erase(sprite)
 
 
 ## The "look" of the piece worn in a slot ({} = nothing there).
@@ -471,239 +464,6 @@ func _worn_look(worn: Dictionary, slot: String) -> Dictionary:
 	if not Config.GEAR_ITEMS.has(item):
 		return {}
 	return Config.GEAR_ITEMS[item]["look"]
-
-
-## The hero seen from above (56x56, facing right, holding his gun in front).
-func _hero_top_svg(worn: Dictionary) -> String:
-	var h: Dictionary = Config.HERO_LOOK
-	var dark := "#15130f"
-	var skin := String(h["skin"])
-	var shirt := String(h["shirt"])
-	var strap := String(h["strap"])
-	var helmet := _worn_look(worn, "helmet")
-	var chest := _worn_look(worn, "chest")
-	var gloves := _worn_look(worn, "gloves")
-	var belt := _worn_look(worn, "belt")
-	var chest_style := String(chest.get("style", ""))
-	var covered := chest_style == "jacket" or chest_style == "armor"      # sleeves down to the wrist
-	var torso := String(chest["color"]) if covered else shirt
-	var arm := torso if covered else skin
-	var hand := skin if gloves.is_empty() else String(gloves["color"])
-	var out := "<circle cx=\"0\" cy=\"0\" r=\"20\" fill=\"#000000\" fill-opacity=\"0.24\"/>"
-
-	# Arms reaching forward to the gun, hands on it.
-	for side: float in [-1.0, 1.0]:
-		var line := "M0,%s L13,%s" % [str(side * 10.5), str(side * 4.0)]
-		out += "<path d=\"%s\" stroke=\"%s\" stroke-width=\"9\" stroke-linecap=\"round\" fill=\"none\"/>" % [line, dark]
-		out += "<path d=\"%s\" stroke=\"%s\" stroke-width=\"5.6\" stroke-linecap=\"round\" fill=\"none\"/>" % [line, arm]
-		if not covered:
-			# The short sleeve of his shirt.
-			out += "<path d=\"M0,%s L5,%s\" stroke=\"%s\" stroke-width=\"5.6\" stroke-linecap=\"round\" fill=\"none\"/>" % [
-					str(side * 10.5), str(side * 8.0), shirt]
-		out += "<circle cx=\"14\" cy=\"%s\" r=\"3.5\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.2\"/>" % [str(side * 3.6), hand, dark]
-		if String(gloves.get("style", "")) == "wraps":
-			out += "<path d=\"M12.4,%s L15.6,%s\" stroke=\"%s\" stroke-width=\"1\"/>" % [str(side * 3.6 - 1.6), str(side * 3.6 + 1.6), String(gloves["trim"])]
-
-	# Belt pouches peeking out at the hips.
-	var pouch := String(h["pouch"]) if belt.is_empty() else String(belt["color"])
-	for side: float in [-1.0, 1.0]:
-		out += "<rect x=\"-8\" y=\"%s\" width=\"6.5\" height=\"4\" rx=\"1.2\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1\"/>" % [
-				str(side * 13.6 - 2.0), pouch, dark]
-
-	# Shoulders and back.
-	out += "<ellipse cx=\"-2\" cy=\"0\" rx=\"10.4\" ry=\"14.6\" fill=\"%s\"/>" % dark
-	out += "<ellipse cx=\"-2\" cy=\"0\" rx=\"8.8\" ry=\"13\" fill=\"%s\"/>" % torso
-	if not covered:
-		# His harness: a strap over each shoulder and one across the back.
-		for side: float in [-1.0, 1.0]:
-			out += "<path d=\"M-9.5,%s L4.5,%s\" stroke=\"%s\" stroke-width=\"2.2\" stroke-linecap=\"round\"/>" % [str(side * 6.6), str(side * 6.6), strap]
-		out += "<path d=\"M-7,-6.6 L-7,6.6\" stroke=\"%s\" stroke-width=\"2\"/>" % strap
-	match chest_style:
-		"vest":
-			out += "<ellipse cx=\"-2.5\" cy=\"0\" rx=\"7.6\" ry=\"8.6\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1\"/>" % [String(chest["color"]), String(chest["trim"])]
-		"bandolier":
-			out += "<path d=\"M-9,-9 L5,9\" stroke=\"%s\" stroke-width=\"3.4\" stroke-linecap=\"round\"/>" % String(chest["color"])
-			for k in 4:
-				out += "<circle cx=\"%s\" cy=\"%s\" r=\"0.9\" fill=\"%s\"/>" % [str(-7.0 + 3.4 * k), str(-6.4 + 4.3 * k), String(chest["trim"])]
-		"armor":
-			for side: float in [-1.0, 1.0]:
-				out += "<circle cx=\"0\" cy=\"%s\" r=\"4.8\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.2\"/>" % [str(side * 11.4), String(chest["color"]), dark]
-			out += "<path d=\"M-8,-6 L-8,6\" stroke=\"%s\" stroke-width=\"1.5\" stroke-linecap=\"round\"/>" % String(chest["trim"])
-		"jacket":
-			out += "<path d=\"M2,-6.5 Q6.5,0 2,6.5\" stroke=\"%s\" stroke-width=\"1.8\" fill=\"none\" stroke-linecap=\"round\"/>" % String(chest["trim"])
-
-	# Head: short dark hair, a sliver of face at the front.
-	out += "<circle cx=\"2.5\" cy=\"0\" r=\"8.6\" fill=\"%s\"/>" % dark
-	out += "<circle cx=\"2.5\" cy=\"0\" r=\"7.1\" fill=\"%s\"/>" % skin
-	out += "<path d=\"M6.3,-6 A7.1,7.1 0 1 0 6.3,6 Q3.2,0 6.3,-6 Z\" fill=\"%s\"/>" % String(h["hair"])
-	var brim := "M6.5,-6 Q14.5,0 6.5,6 Q8.6,0 6.5,-6 Z"
-	match String(helmet.get("style", "")):
-		"hardhat":
-			out += "<ellipse cx=\"8.4\" cy=\"0\" rx=\"3.4\" ry=\"6.6\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.1\"/>" % [String(helmet["color"]), dark]
-			out += "<circle cx=\"2.5\" cy=\"0\" r=\"8.8\" fill=\"%s\"/><circle cx=\"2.5\" cy=\"0\" r=\"7.5\" fill=\"%s\"/>" % [dark, String(helmet["color"])]
-			out += "<path d=\"M-4.4,0 L9.2,0\" stroke=\"%s\" stroke-width=\"1.7\" stroke-linecap=\"round\"/>" % String(helmet["trim"])
-		"cap":
-			out += "<circle cx=\"2.5\" cy=\"0\" r=\"7.2\" fill=\"%s\"/>" % String(helmet["color"])
-			out += "<path d=\"%s\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/>" % [brim, String(helmet["trim"]), dark]
-			out += "<circle cx=\"1.6\" cy=\"0\" r=\"1.5\" fill=\"%s\"/>" % String(helmet["trim"])
-		"mask":
-			out += "<ellipse cx=\"8.2\" cy=\"0\" rx=\"3.3\" ry=\"5\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1\"/>" % [String(helmet["color"]), dark]
-			for side: float in [-1.0, 1.0]:
-				out += "<circle cx=\"9.8\" cy=\"%s\" r=\"2.3\" fill=\"%s\" stroke=\"%s\" stroke-width=\"0.8\"/>" % [str(side * 5.6), String(helmet["trim"]), dark]
-		"visor":
-			out += "<circle cx=\"2.5\" cy=\"0\" r=\"8.8\" fill=\"%s\"/><circle cx=\"2.5\" cy=\"0\" r=\"7.5\" fill=\"%s\"/>" % [dark, String(helmet["color"])]
-			out += "<path d=\"%s\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.1\" stroke-linejoin=\"round\"/>" % [brim, String(helmet["trim"]), dark]
-	return out
-
-
-## The hero standing, seen from the front (220x400) - for the menus.
-func _hero_front_svg(worn: Dictionary) -> String:
-	var h: Dictionary = Config.HERO_LOOK
-	var dark := "#15130f"
-	var skin := String(h["skin"])
-	var shirt := String(h["shirt"])
-	var strap := String(h["strap"])
-	var metal := String(h["metal"])
-	var helmet := _worn_look(worn, "helmet")
-	var chest := _worn_look(worn, "chest")
-	var gloves := _worn_look(worn, "gloves")
-	var belt := _worn_look(worn, "belt")
-	var pants := _worn_look(worn, "pants")
-	var boots := _worn_look(worn, "boots")
-	var amulet := _worn_look(worn, "amulet")
-	var chest_style := String(chest.get("style", ""))
-	var covered := chest_style == "jacket" or chest_style == "armor"
-	var out := "<ellipse cx=\"0\" cy=\"190\" rx=\"74\" ry=\"9\" fill=\"#000000\" fill-opacity=\"0.35\"/>"
-
-	# Legs, knee pads, the holster on his thigh.
-	var leg := String(h["pants"]) if pants.is_empty() else String(pants["color"])
-	var knee := String(h["pads"]) if pants.is_empty() else String(pants["trim"])
-	for side: float in [-1.0, 1.0]:
-		var x := -36.0 if side < 0.0 else 6.0
-		out += "<rect x=\"%s\" y=\"36\" width=\"30\" height=\"138\" rx=\"9\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2.4\"/>" % [str(x), leg, dark]
-		out += "<rect x=\"%s\" y=\"98\" width=\"27\" height=\"25\" rx=\"7\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.6\"/>" % [str(x + 1.5), knee, dark]
-	out += "<rect x=\"6\" y=\"62\" width=\"30\" height=\"6\" fill=\"%s\"/>" % String(h["pads"])
-	out += "<rect x=\"27\" y=\"58\" width=\"15\" height=\"34\" rx=\"3\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.6\"/>" % [String(h["pads"]), dark]
-
-	# Boots.
-	var boot := String(h["boots"]) if boots.is_empty() else String(boots["color"])
-	var sole := "#3a3d42" if boots.is_empty() else String(boots["trim"])
-	var boot_top := 170.0 if String(boots.get("style", "boots")) == "shoes" else 158.0
-	for side: float in [-1.0, 1.0]:
-		var x := -41.0 if side < 0.0 else 3.0
-		out += "<rect x=\"%s\" y=\"%s\" width=\"38\" height=\"%s\" rx=\"7\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2.4\"/>" % [
-				str(x), str(boot_top), str(190.0 - boot_top), boot, dark]
-		out += "<rect x=\"%s\" y=\"183\" width=\"36\" height=\"5\" rx=\"2\" fill=\"%s\"/>" % [str(x + 1.0), sole]
-
-	# Arms (behind the body), the pistol in his right hand.
-	var sleeve := String(chest["color"]) if covered else skin
-	var hand := skin if gloves.is_empty() else String(gloves["color"])
-	out += "<rect x=\"57\" y=\"56\" width=\"11\" height=\"46\" rx=\"2\" fill=\"#2a2c30\" stroke=\"%s\" stroke-width=\"2\"/>" % dark
-	for side: float in [-1.0, 1.0]:
-		var arm := "M%s,-78 L%s,-14 L%s,44" % [str(side * 52.0), str(side * 60.0), str(side * 62.0)]
-		out += "<path d=\"%s\" stroke=\"%s\" stroke-width=\"26\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill=\"none\"/>" % [arm, dark]
-		out += "<path d=\"%s\" stroke=\"%s\" stroke-width=\"21.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\" fill=\"none\"/>" % [arm, sleeve]
-		if not covered:
-			out += "<path d=\"M%s,-78 L%s,-46\" stroke=\"%s\" stroke-width=\"21.4\" stroke-linecap=\"round\" fill=\"none\"/>" % [str(side * 52.0), str(side * 56.0), shirt]
-		if not gloves.is_empty():
-			out += "<path d=\"M%s,24 L%s,44\" stroke=\"%s\" stroke-width=\"21.4\" stroke-linecap=\"round\" fill=\"none\"/>" % [str(side * 61.0), str(side * 62.0), hand]
-		out += "<circle cx=\"%s\" cy=\"52\" r=\"11.5\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2\"/>" % [str(side * 62.0), hand, dark]
-		if String(gloves.get("style", "")) == "wraps":
-			for k in 3:
-				out += "<path d=\"M%s,%s L%s,%s\" stroke=\"%s\" stroke-width=\"1.6\"/>" % [str(side * 62.0 - 9.0), str(44.0 + 6.0 * k),
-						str(side * 62.0 + 9.0), str(47.0 + 6.0 * k), String(gloves["trim"])]
-
-	# Rings: a small band on each hand.
-	for pair: Array in [["ring1", -1.0], ["ring2", 1.0]]:
-		var ring := _worn_look(worn, String(pair[0]))
-		if not ring.is_empty():
-			out += "<circle cx=\"%s\" cy=\"58\" r=\"3.4\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.2\"/>" % [str(float(pair[1]) * 67.0), String(ring["color"]), dark]
-
-	# Body: black shirt, or what he wears over it.
-	var torso_shape := "M-46,-90 Q0,-102 46,-90 L38,40 L-38,40 Z"
-	out += "<path d=\"%s\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2.4\" stroke-linejoin=\"round\"/>" % [torso_shape, String(chest["color"]) if covered else shirt, dark]
-	if not covered:
-		out += "<path d=\"M-20,-90 Q0,-96 20,-90 L16,34 L-16,34 Z\" fill=\"%s\" fill-opacity=\"0.4\"/>" % String(h["shirt_light"])
-		# His harness: shoulder straps and a chest strap with a buckle.
-		for side: float in [-1.0, 1.0]:
-			out += "<path d=\"M%s,-95 L%s,38\" stroke=\"%s\" stroke-width=\"8.6\"/>" % [str(side * 29.0), str(side * 22.0), dark]
-			out += "<path d=\"M%s,-95 L%s,38\" stroke=\"%s\" stroke-width=\"6\"/>" % [str(side * 29.0), str(side * 22.0), strap]
-		out += "<rect x=\"-41\" y=\"-42\" width=\"82\" height=\"10\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.6\"/>" % [strap, dark]
-		out += "<rect x=\"-8\" y=\"-45\" width=\"16\" height=\"16\" rx=\"2\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.6\"/>" % [metal, dark]
-	match chest_style:
-		"jacket":
-			for side: float in [-1.0, 1.0]:
-				out += "<path d=\"M%s,-97 L%s,38\" stroke=\"%s\" stroke-width=\"3\" stroke-linecap=\"round\"/>" % [str(side * 12.0), str(side * 5.0), String(chest["trim"])]
-			out += "<path d=\"M0,-80 L0,38\" stroke=\"%s\" stroke-width=\"1.6\"/>" % dark
-		"vest":
-			out += "<path d=\"M-34,-90 Q0,-99 34,-90 L32,34 L-32,34 Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2.4\" stroke-linejoin=\"round\"/>" % [String(chest["color"]), dark]
-			for side: float in [-1.0, 1.0]:
-				out += "<rect x=\"%s\" y=\"-18\" width=\"20\" height=\"24\" rx=\"3\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.4\"/>" % [
-						str(-26.0 if side < 0.0 else 6.0), String(chest["trim"]), dark]
-		"bandolier":
-			out += "<path d=\"M-38,-88 L34,34\" stroke=\"%s\" stroke-width=\"15\"/>" % dark
-			out += "<path d=\"M-38,-88 L34,34\" stroke=\"%s\" stroke-width=\"12\"/>" % String(chest["color"])
-			for k in 7:
-				out += "<rect x=\"%s\" y=\"%s\" width=\"4\" height=\"9\" rx=\"1.5\" fill=\"%s\" stroke=\"%s\" stroke-width=\"0.8\" transform=\"rotate(-30 %s %s)\"/>" % [
-						str(-33.0 + 9.4 * k), str(-83.0 + 16.0 * k), String(chest["trim"]), dark, str(-31.0 + 9.4 * k), str(-78.5 + 16.0 * k)]
-		"armor":
-			out += "<path d=\"M-36,-88 Q0,-97 36,-88 L30,8 Q0,20 -30,8 Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2.4\" stroke-linejoin=\"round\"/>" % [String(chest["color"]), dark]
-			out += "<path d=\"M-30,-40 Q0,-34 30,-40\" stroke=\"%s\" stroke-width=\"2.6\" fill=\"none\"/>" % String(chest["trim"])
-			for side: float in [-1.0, 1.0]:
-				out += "<ellipse cx=\"%s\" cy=\"-84\" rx=\"17\" ry=\"13\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2.4\"/>" % [str(side * 50.0), String(chest["color"]), dark]
-
-	# Belt with a buckle and pouches.
-	var belt_color := String(h["belt"]) if belt.is_empty() else String(belt["color"])
-	var buckle := metal if belt.is_empty() else String(belt["trim"])
-	var pouch := String(h["pouch"]) if belt.is_empty() else String(belt["color"])
-	for side: float in [-1.0, 1.0]:
-		out += "<rect x=\"%s\" y=\"44\" width=\"18\" height=\"24\" rx=\"3\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.6\"/>" % [
-				str(-41.0 if side < 0.0 else 23.0), pouch, dark]
-	out += "<rect x=\"-41\" y=\"30\" width=\"82\" height=\"16\" rx=\"3\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2\"/>" % [belt_color, dark]
-	out += "<rect x=\"-10\" y=\"31\" width=\"20\" height=\"14\" rx=\"2\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.4\"/>" % [buckle, dark]
-
-	# Neck and head: short dark hair, a steady look.
-	out += "<rect x=\"-10\" y=\"-114\" width=\"20\" height=\"24\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2\"/>" % [String(h["skin_dark"]), dark]
-	for side: float in [-1.0, 1.0]:
-		out += "<ellipse cx=\"%s\" cy=\"-136\" rx=\"4.5\" ry=\"7.5\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.8\"/>" % [str(side * 27.0), skin, dark]
-	out += "<ellipse cx=\"0\" cy=\"-138\" rx=\"27\" ry=\"31\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2.4\"/>" % [skin, dark]
-	out += "<path d=\"M-28,-140 Q-31,-175 0,-175 Q31,-175 28,-140 Q24,-158 8,-156 Q-10,-154 -22,-161 Q-27,-152 -28,-140 Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2\" stroke-linejoin=\"round\"/>" % [
-			String(h["hair"]), dark]
-	for side: float in [-1.0, 1.0]:
-		out += "<ellipse cx=\"%s\" cy=\"-135\" rx=\"3.4\" ry=\"2.3\" fill=\"#1b1b1b\"/>" % str(side * 10.0)
-		out += "<path d=\"M%s,-144 L%s,-141.5\" stroke=\"%s\" stroke-width=\"2.8\" stroke-linecap=\"round\"/>" % [str(side * 16.0), str(side * 5.0), String(h["hair"])]
-	out += "<path d=\"M0,-133 L-2,-125\" stroke=\"%s\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>" % String(h["skin_dark"])
-	out += "<path d=\"M-7,-118 L7,-118\" stroke=\"#7a4a3a\" stroke-width=\"2.2\" stroke-linecap=\"round\"/>"
-	match String(helmet.get("style", "")):
-		"hardhat":
-			out += "<path d=\"M-31,-148 Q-31,-182 0,-182 Q31,-182 31,-148 Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2.4\" stroke-linejoin=\"round\"/>" % [String(helmet["color"]), dark]
-			out += "<rect x=\"-5\" y=\"-182\" width=\"10\" height=\"32\" fill=\"%s\"/>" % String(helmet["trim"])
-			out += "<rect x=\"-37\" y=\"-152\" width=\"74\" height=\"9\" rx=\"4\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2\"/>" % [String(helmet["color"]), dark]
-		"cap":
-			out += "<path d=\"M-29,-149 Q-29,-178 0,-178 Q29,-178 29,-149 Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2.4\" stroke-linejoin=\"round\"/>" % [String(helmet["color"]), dark]
-			out += "<path d=\"M-30,-151 Q2,-160 36,-151 L40,-143 Q2,-151 -30,-145 Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2\" stroke-linejoin=\"round\"/>" % [String(helmet["trim"]), dark]
-		"mask":
-			out += "<path d=\"M-27,-128 L27,-128\" stroke=\"%s\" stroke-width=\"3\"/>" % String(helmet["trim"])
-			out += "<path d=\"M-18,-133 Q0,-139 18,-133 L14,-111 Q0,-103 -14,-111 Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2\" stroke-linejoin=\"round\"/>" % [String(helmet["color"]), dark]
-			for side: float in [-1.0, 1.0]:
-				out += "<circle cx=\"%s\" cy=\"-114\" r=\"8.5\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2\"/>" % [str(side * 21.0), String(helmet["trim"]), dark]
-		"visor":
-			out += "<path d=\"M-31,-132 Q-34,-182 0,-182 Q34,-182 31,-132 L26,-119 L-26,-119 Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"2.4\" stroke-linejoin=\"round\"/>" % [String(helmet["color"]), dark]
-			out += "<rect x=\"-24\" y=\"-149\" width=\"48\" height=\"19\" rx=\"6\" fill=\"%s\" fill-opacity=\"0.9\" stroke=\"%s\" stroke-width=\"1.6\"/>" % [String(helmet["trim"]), dark]
-
-	# Amulet on a thin chain.
-	if not amulet.is_empty():
-		out += "<path d=\"M-13,-97 L0,-72 L13,-97\" stroke=\"%s\" stroke-width=\"1.8\" fill=\"none\"/>" % metal
-		match String(amulet["style"]):
-			"tags":
-				out += "<rect x=\"-7\" y=\"-74\" width=\"9\" height=\"14\" rx=\"2\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.4\"/>" % [String(amulet["color"]), dark]
-				out += "<rect x=\"-1\" y=\"-71\" width=\"9\" height=\"14\" rx=\"2\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.4\"/>" % [String(amulet["color"]), dark]
-			"medal":
-				out += "<rect x=\"-5\" y=\"-76\" width=\"10\" height=\"9\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.2\"/>" % [String(amulet["trim"]), dark]
-				out += "<circle cx=\"0\" cy=\"-61\" r=\"7.5\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.6\"/>" % [String(amulet["color"]), dark]
-			_:
-				out += "<path d=\"M-6,-73 L6,-73 L0,-54 Z\" fill=\"%s\" stroke=\"%s\" stroke-width=\"1.6\" stroke-linejoin=\"round\"/>" % [String(amulet["color"]), dark]
-	return out
 
 
 ## Rasterise an SVG drawing into a texture. `centered` puts (0,0) in the middle
@@ -747,6 +507,25 @@ func _svg(sprite: String, w: int, h: int, body: String, centered: bool = true) -
 		img.convert(Image.FORMAT_RGBA8)
 	tex[sprite] = ImageTexture.create_from_image(img)
 	sizes[sprite] = Vector2(w, h)
+	_images[sprite] = img
+
+
+## The same for a drawing whose own (0, 0) is somewhere inside it: `origin` says where,
+## in game pixels from the picture's top left corner. `px` = how sharp it is made.
+func _svg_at(sprite: String, size: Vector2, origin: Vector2, body: String, px: float) -> void:
+	var svg := "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"%d\" height=\"%d\" viewBox=\"%s %s %d %d\">%s</svg>" % [
+		int(size.x), int(size.y), str(-origin.x), str(-origin.y), int(size.x), int(size.y), body]
+	var img := Image.new()
+	var err := img.load_svg_from_string(svg, px)
+	if err != OK or img.is_empty():
+		push_error("Art: could not build sprite '%s'" % sprite)
+		img = Image.create(int(size.x * px), int(size.y * px), false, Image.FORMAT_RGBA8)
+		img.fill(Color.MAGENTA)
+	if img.get_format() != Image.FORMAT_RGBA8:
+		img.convert(Image.FORMAT_RGBA8)
+	tex[sprite] = ImageTexture.create_from_image(img)
+	sizes[sprite] = size
+	origins[sprite] = origin
 	_images[sprite] = img
 
 
@@ -1052,18 +831,6 @@ const WOUNDS_BOSS := """
 <circle cx="50" cy="36" r="10.5" fill="#5a0c0c"/>
 <path d="M20,-40 L40,-37" stroke="#5a0c0c" stroke-width="8" stroke-linecap="round"/>
 <circle cx="-30" cy="-32" r="3" fill="#5a0c0c"/><circle cx="-20" cy="40" r="3.4" fill="#5a0c0c"/><circle cx="0" cy="-48" r="2.6" fill="#5a0c0c"/>
-"""
-
-# The player at low health: bloodied and bandaged, still standing.
-const WOUNDS_PLAYER := """
-<path d="M-7,-12 L-1,-9.5 L-5,-4.5 L-9,-7 Z" fill="#7a1010"/>
-<path d="M-6,8 L-1,5.4 L1,10 L-4,12 Z" fill="#7a1010"/>
-<path d="M4.4,8.4 L9,6" stroke="#1c1712" stroke-width="5" stroke-linecap="round"/>
-<path d="M4.4,8.4 L9,6" stroke="#ece6d2" stroke-width="3.2" stroke-linecap="round"/>
-<path d="M5.8,7.6 L7.6,6.7" stroke="#c9422f" stroke-width="1.4" stroke-linecap="round"/>
-<path d="M-0.5,-4.5 L4,-1.2 L1,2.4" stroke="#7a1010" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-<path d="M8.4,-5.4 L11.2,-2.8" stroke="#0c0e11" stroke-width="1"/>
-<circle cx="-3" cy="13" r="1.3" fill="#7a1010"/><circle cx="10" cy="-9.4" r="1.2" fill="#7a1010"/><circle cx="-11" cy="2" r="1.1" fill="#7a1010"/>
 """
 
 const SVG_GUN_PISTOL := """

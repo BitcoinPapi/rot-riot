@@ -28,6 +28,9 @@ centres below were found by looking at the result in the game
   boss_machwe_fe.webp   boss_1         168    500,560    (map 2's boss)
   boss_papa_zo.webp     boss_2         168    480,580    (map 3's boss)
 
+  (THE HERO IS DRAWN SINCE v0.16: the three janjan lines below, his sheets and tools/make_moves.py
+  are what made the PAINTED hero of v0.14 / v0.15. The pictures are kept as the model for the drawing
+  in scripts/art/hero_art.gd; their sprites are no longer in assets/sprites.)
   janjan_aiming.webp    player          64    528,629    --turn 30    (the hero with ONE gun: both arms stretched
                                                          out, hands empty - the game draws the gun in
                                                          them. He aims up and to the right in the
@@ -93,9 +96,8 @@ after the piece with a number in front ("01_dockworkers_hard_hat.png"); the scri
 which piece each one is and writes the game's two sizes:
   tools/make_gear_pictures.py FOLDER      -> assets/sprites/gear_item_<id>.png (128 px: tiles)
                                              assets/sprites/gear_drop_<id>.png  (72 px: gear cases)
-It prints which pieces still have no picture. In so far (6 of 32): hard_hat, gas_mask,
-hunting_cap, riot_helmet, dog_tags, tooth_necklace. A piece without one shows the symbol of
-its kind.
+It prints which pieces still have no picture. ALL 32 are in (two batches: six, then 26).
+A piece without a picture would show the symbol of its kind.
 
 For example (a still sprite):
   tools/make_sprite.py art_source/brute.webp brute_0      --length 92 --center 620,635

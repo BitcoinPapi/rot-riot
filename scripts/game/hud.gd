@@ -495,7 +495,7 @@ func _draw_crate_arrows() -> void:
 		for other: int in game.coop.mates.keys():
 			var mate: Mate = game.coop.mates[other]
 			if mate.has_state:
-				_edge_arrow(mate.pos, Color(1.0, 0.35, 0.3) if mate.down else mate.color, Art.t("mate%d" % other), Color.WHITE)
+				_edge_arrow(mate.pos, Color(1.0, 0.35, 0.3) if mate.down else mate.color, Art.t("mate%d_head" % other), Color.WHITE)
 	for chest: Pickups.Chest in game.pickups.chests:
 		if chest.found and not chest.opened:
 			_edge_arrow(chest.pos, Color(1.0, 0.82, 0.3), Art.t("chest"), Color.WHITE)

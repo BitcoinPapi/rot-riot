@@ -33,18 +33,20 @@ PICTURES MADE WITH AN AI IMAGE GENERATOR  (assets/sprites/, from art_source/)
 
   Made by the game's owner with ChatGPT's image generator, from his own
   descriptions, then cut to size for the game:
-    the hero JanJan (in a run and in the menus), the Runner, Brute, Chucker,
-    Gasbag, Gobber, Lunger and Gang Fighter (and the Shambler, which is the
-    Gang Fighter's picture without his machete), and the bosses of maps 1 to
-    3 (November 2026) - the list is in art_source/README.txt
-  The movement frames of the Gobber and of JanJan with a gun in each hand
-  (walk, idle, attack, hit, death) were sent by the owner as sheets made
-  from those same pictures (which tool made them is not written down yet -
-  ask him before the Steam release, for the same declaration). The frames
-  of JanJan holding one gun are made from his picture by tools/make_moves.py.
+    the Runner, Brute, Chucker, Gasbag, Gobber, Lunger and Gang Fighter (and
+    the Shambler, which is the Gang Fighter's picture without his machete),
+    and the bosses of maps 1 to 3 (November 2026) - the list is in
+    art_source/README.txt
+  The movement frames of the Gobber (walk, idle, attack, hit, death) were
+  sent by the owner as sheets made from that same picture (which tool made
+  them is not written down yet - ask him before the Steam release, for the
+  same declaration).
   The eight gear symbols (gear_helmet.png ... gear_boots.png) are his too,
-  made the same way as plain white shapes, and so are the pictures of the
-  single pieces of gear (gear_item_*.png, gear_drop_*.png).
+  made the same way as plain white shapes, and so are the pictures of all
+  32 pieces of gear (gear_item_*.png, gear_drop_*.png).
+  The hero JanJan was such a picture in v0.14 and v0.15. Since v0.16 he is
+  DRAWN by the game (scripts/art/hero_art.gd), after the owner's paintings
+  of him, which are kept in art_source/ but are no longer in the game.
   (When the game goes on Steam, AI-made pictures have to be declared there.)
 
 NOT IN THIS PROJECT, on purpose: recordings whose licence allows using them

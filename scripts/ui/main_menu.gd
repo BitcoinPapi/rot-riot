@@ -65,10 +65,10 @@ func _init() -> void:
 	_hero.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_hero.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hero.set_anchors_preset(Control.PRESET_CENTER)
-	_hero.offset_left = -510.0
-	_hero.offset_right = -290.0
-	_hero.offset_top = -90.0
-	_hero.offset_bottom = 290.0
+	_hero.offset_left = -545.0
+	_hero.offset_right = -285.0
+	_hero.offset_top = -160.0
+	_hero.offset_bottom = 240.0
 	add_child(_hero)
 
 	var version := UiKit.label("v" + Config.GAME_VERSION, 14, Color(1, 1, 1, 0.35))

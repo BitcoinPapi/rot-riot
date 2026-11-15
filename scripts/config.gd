@@ -16,8 +16,19 @@ const HERO_NAME := "JANJAN"                   # the soldier you play, as everybo
 const HERO_FULL_NAME := "JEAN-BAPTISTE"       # ...and his real name
 const GAME_TAGLINE := "TAKE THE COUNTRY BACK"   # under the title on the main menu
 # How he looks with nothing equipped (his gear is drawn over this, see scripts/autoload/art.gd).
-const HERO_LOOK := {"skin": "#7a5032", "skin_dark": "#5b3a24", "hair": "#14100d", "shirt": "#4d5c36", "shirt_light": "#607246",
-	"strap": "#2f2b22", "pants": "#3f4c2e", "pads": "#1f231a", "boots": "#17181b", "belt": "#2c2a22", "pouch": "#7b6c49", "metal": "#b9bec4"}
+# How he looks, after the owner's paintings of him: dark skin, short black hair, a torn
+# sand-coloured shirt, a red scarf, camouflage trousers and backpack, tan webbing, dark
+# fingerless gloves, brown boots, the flag on his left shoulder. What he wears changes
+# him (each piece's "look" in GEAR_ITEMS). Drawn by scripts/art/hero_art.gd.
+const HERO_LOOK := {"ink": "#15130f",
+	"skin": "#8a5636", "skin_dark": "#5e3821", "skin_light": "#aa7149", "hair": "#1a1613", "hair_light": "#322b25",
+	"shirt": "#cbb994", "shirt_dark": "#a08c64", "scarf": "#c9281f", "scarf_dark": "#8e1a15",
+	"camo": "#7f7c49", "camo_dark": "#565b33", "camo_light": "#a1975f", "camo_deep": "#3f3f27",
+	"web": "#a98a4e", "web_dark": "#7c6434", "buckle": "#d1b062",
+	"glove": "#4a4944", "glove_pad": "#8f8b5f", "boots": "#5c4231", "sole": "#2a211a", "lace": "#2f2620",
+	"mag": "#5c6168", "metal": "#b9bec4", "flag_blue": "#1f3fa6", "flag_red": "#cf2030", "flag_white": "#efefe8",
+	# (still used by the old menu figure until the new one replaces it)
+	"shirt_light": "#d8c8a6", "strap": "#a98a4e", "pants": "#7f7c49", "pads": "#565b33", "belt": "#a98a4e", "pouch": "#a98a4e"}
 
 # ----------------------------------------------------------------------------
 #  THE MAP - one clearing in the woods, about two screens wide and a little
@@ -177,7 +188,7 @@ const WEAPONS := {
 		"shake": 0.17, "kick": 5.0, "recoil_gun": 6.0, "recoil_push": 0.0,
 		"hitstop_kill": 0.028, "flash_size": 30.0, "casing": "brass",
 		"tracer_len": 26.0, "tracer_width": 3.0, "tracer_color": Color(1.0, 0.92, 0.55),
-		"muzzle_dist": 30.0, "hold": 6.0, "sound": "pistol", "color": Color(0.80, 0.82, 0.86),
+		"muzzle_dist": 30.0, "hold": 6.0, "butt": Vector2(19.0, 1.5), "mag_at": 5.0, "sound": "pistol", "color": Color(0.80, 0.82, 0.86),
 	},
 	"smg": {
 		# Light and very fast: a hose of weak bullets, and you move quicker with it.
@@ -189,7 +200,7 @@ const WEAPONS := {
 		"shake": 0.07, "kick": 2.5, "recoil_gun": 3.0, "recoil_push": 8.0,
 		"hitstop_kill": 0.012, "flash_size": 26.0, "casing": "brass",
 		"tracer_len": 24.0, "tracer_width": 2.0, "tracer_color": Color(1.0, 0.95, 0.7),
-		"muzzle_dist": 34.0, "hold": 11.0, "sound": "smg", "color": Color(0.55, 0.85, 0.9),
+		"muzzle_dist": 34.0, "hold": 11.0, "fore": 21.0, "butt": Vector2(5.0, 4.0), "mag_at": 16.0, "sound": "smg", "color": Color(0.55, 0.85, 0.9),
 	},
 	"shotgun": {
 		"name": "SHOTGUN", "kind": "bullet", "rarity": "common", "dual": true, "duration": 20.0,
@@ -200,7 +211,7 @@ const WEAPONS := {
 		"shake": 0.52, "kick": 16.0, "recoil_gun": 13.0, "recoil_push": 170.0,
 		"hitstop_kill": 0.05, "flash_size": 62.0, "casing": "shell",
 		"tracer_len": 20.0, "tracer_width": 2.5, "tracer_color": Color(1.0, 0.80, 0.40),
-		"muzzle_dist": 38.0, "hold": 14.0, "sound": "shotgun", "color": Color(0.95, 0.55, 0.20),
+		"muzzle_dist": 38.0, "hold": 14.0, "fore": 23.0, "butt": Vector2(2.0, 4.0), "mag_at": 18.0, "sound": "shotgun", "color": Color(0.95, 0.55, 0.20),
 	},
 	"machinegun": {
 		"name": "MACHINE GUN", "kind": "bullet", "rarity": "uncommon", "dual": true, "duration": 20.0,
@@ -211,7 +222,7 @@ const WEAPONS := {
 		"shake": 0.11, "kick": 3.5, "recoil_gun": 4.0, "recoil_push": 16.0,
 		"hitstop_kill": 0.014, "flash_size": 34.0, "casing": "brass",
 		"tracer_len": 34.0, "tracer_width": 2.5, "tracer_color": Color(1.0, 0.95, 0.60),
-		"muzzle_dist": 40.0, "hold": 15.0, "sound": "machinegun", "color": Color(0.95, 0.85, 0.25),
+		"muzzle_dist": 40.0, "hold": 15.0, "fore": 26.0, "butt": Vector2(1.0, 4.0), "mag_at": 19.0, "sound": "machinegun", "color": Color(0.95, 0.85, 0.25),
 	},
 	"rifle": {
 		# Slow, loud, and each bullet goes straight through a whole line of zombies.
@@ -224,7 +235,7 @@ const WEAPONS := {
 		"shake": 0.5, "kick": 18.0, "recoil_gun": 14.0, "recoil_push": 150.0,
 		"hitstop_kill": 0.06, "flash_size": 56.0, "casing": "brass",
 		"tracer_len": 90.0, "tracer_width": 4.0, "tracer_color": Color(1.0, 0.97, 0.8),
-		"muzzle_dist": 46.0, "hold": 17.0, "sound": "rifle", "color": Color(0.75, 0.6, 0.4),
+		"muzzle_dist": 46.0, "hold": 17.0, "fore": 29.0, "butt": Vector2(0.0, 4.0), "mag_at": 24.0, "sound": "rifle", "color": Color(0.75, 0.6, 0.4),
 	},
 	"launcher": {
 		"name": "LAUNCHER", "kind": "grenade", "rarity": "rare", "dual": false, "duration": 18.0,
@@ -239,7 +250,7 @@ const WEAPONS := {
 		"shake": 0.36, "kick": 14.0, "recoil_gun": 14.0, "recoil_push": 200.0,
 		"hitstop_kill": 0.0, "flash_size": 48.0, "casing": "",
 		"tracer_len": 0.0, "tracer_width": 0.0, "tracer_color": Color(1.0, 0.55, 0.20),
-		"muzzle_dist": 40.0, "hold": 22.0, "sound": "launcher", "color": Color(0.45, 0.80, 0.35),
+		"muzzle_dist": 40.0, "hold": 22.0, "fore": 31.0, "butt": Vector2(-8.0, 8.5), "mag_at": 36.0, "sound": "launcher", "color": Color(0.45, 0.80, 0.35),
 	},
 	"flamethrower": {
 		# A short cone of fire. Each puff does little, but it passes through
@@ -258,7 +269,7 @@ const WEAPONS := {
 		"shake": 0.025, "kick": 0.6, "recoil_gun": 1.5, "recoil_push": 0.0,
 		"hitstop_kill": 0.0, "flash_size": 0.0, "casing": "",
 		"tracer_len": 0.0, "tracer_width": 0.0, "tracer_color": Color(1.0, 0.6, 0.15),
-		"muzzle_dist": 40.0, "hold": 14.0, "sound": "flame", "color": Color(1.0, 0.5, 0.15),
+		"muzzle_dist": 40.0, "hold": 14.0, "fore": 24.0, "butt": Vector2(1.0, 5.0), "mag_at": 7.0, "sound": "flame", "color": Color(1.0, 0.5, 0.15),
 	},
 	"chainsaw": {
 		# It SWEEPS from side to side in front of you while the trigger is held (Kosta's idea,
@@ -282,7 +293,7 @@ const WEAPONS := {
 		"shake_hit": 0.09, "hitstop_hit": 0.0,
 		"hitstop_kill": 0.0, "flash_size": 0.0, "casing": "",
 		"tracer_len": 0.0, "tracer_width": 0.0, "tracer_color": Color(1, 1, 1),
-		"muzzle_dist": 40.0, "hold": 8.0, "sound": "chainsaw", "color": Color(1.0, 0.45, 0.2),
+		"muzzle_dist": 40.0, "hold": 5.0, "fore": 13.0, "fore_side": -5.0, "butt": Vector2(8.0, 3.0), "sound": "chainsaw", "color": Color(1.0, 0.45, 0.2),
 	},
 }
 
@@ -950,44 +961,44 @@ const GEAR_ORDER := [
 ]
 const GEAR_ITEMS := {
 	"hard_hat": {"name": "Dockworker's Hard Hat", "type": "helmet", "stats": {"defense": 2}, "from": "zombies", "map": 1, "look": {"style": "hardhat", "color": "#e2b83a", "trim": "#8a6a12"}},
-	"gas_mask": {"name": "Soldier's Gas Mask", "type": "helmet", "stats": {"vitality": 2}, "from": "zombies", "map": 1, "look": {"style": "mask", "color": "#5b6166", "trim": "#2c3033"}},
-	"hunting_cap": {"name": "Sharpshooter's Cap", "type": "helmet", "stats": {"critical": 2}, "from": "brutes", "map": 1, "look": {"style": "cap", "color": "#8a5a36", "trim": "#5a3a1e"}},
-	"riot_helmet": {"name": "Army Combat Helmet", "type": "helmet", "stats": {"defense": 2, "vitality": 1}, "from": "zombies", "map": 2, "look": {"style": "visor", "color": "#2f3f5c", "trim": "#8fb7d9"}},
+	"gas_mask": {"name": "Soldier's Gas Mask", "type": "helmet", "stats": {"vitality": 2}, "from": "zombies", "map": 1, "look": {"style": "mask", "color": "#5d6238", "trim": "#2a2c20"}},
+	"hunting_cap": {"name": "Sharpshooter's Cap", "type": "helmet", "stats": {"critical": 2}, "from": "brutes", "map": 1, "look": {"style": "cap", "color": "#6f7245", "trim": "#49522f"}},
+	"riot_helmet": {"name": "Army Combat Helmet", "type": "helmet", "stats": {"defense": 2, "vitality": 1}, "from": "zombies", "map": 2, "look": {"style": "helmet", "color": "#6d6f44", "trim": "#4a5230"}},
 
 	"dog_tags": {"name": "Brother's Dog Tags", "type": "amulet", "stats": {"vitality": 3}, "from": "bosses", "map": 1, "look": {"style": "tags", "color": "#c9ced3", "trim": "#8a8f94"}},
 	"tooth_necklace": {"name": "Shark Tooth Necklace", "type": "amulet", "stats": {"critical": 3}, "from": "bosses", "map": 1, "look": {"style": "tooth", "color": "#efe6cf", "trim": "#8a7f66"}},
-	"old_medal": {"name": "Independence Medal", "type": "amulet", "stats": {"defense": 3}, "from": "bosses", "map": 1, "look": {"style": "medal", "color": "#d4a437", "trim": "#8a2f2f"}},
-	"gorger_fang": {"name": "Boss's Gold Chain", "type": "amulet", "stats": {"strength": 2, "vitality": 2}, "from": "bosses", "map": 2, "look": {"style": "tooth", "color": "#c8322b", "trim": "#5a1210"}},
+	"old_medal": {"name": "Independence Medal", "type": "amulet", "stats": {"defense": 3}, "from": "bosses", "map": 1, "look": {"style": "medal", "color": "#c98a3a", "trim": "#7a4f1c"}},
+	"gorger_fang": {"name": "Boss's Gold Chain", "type": "amulet", "stats": {"strength": 2, "vitality": 2}, "from": "bosses", "map": 2, "look": {"style": "chain", "color": "#e0b23c", "trim": "#c8322b"}},
 
-	"iron_band": {"name": "Ironworker's Ring", "type": "ring", "stats": {"strength": 3}, "from": "bosses", "map": 1, "look": {"style": "ring", "color": "#9aa0a6", "trim": "#5c6166"}},
-	"lucky_ring": {"name": "Gourde Coin Ring", "type": "ring", "stats": {"luck": 3}, "from": "bosses", "map": 1, "look": {"style": "ring", "color": "#5fd068", "trim": "#2f7a36"}},
-	"snake_ring": {"name": "Hummingbird Ring", "type": "ring", "stats": {"evasion": 3}, "from": "bosses", "map": 1, "look": {"style": "ring", "color": "#4fd8c9", "trim": "#237a70"}},
-	"blood_ring": {"name": "Boss's Signet Ring", "type": "ring", "stats": {"critical": 2, "strength": 2}, "from": "bosses", "map": 2, "look": {"style": "ring", "color": "#c8322b", "trim": "#6b1512"}},
+	"iron_band": {"name": "Ironworker's Ring", "type": "ring", "stats": {"strength": 3}, "from": "bosses", "map": 1, "look": {"style": "ring", "color": "#6a625e", "trim": "#3a3432"}},
+	"lucky_ring": {"name": "Gourde Coin Ring", "type": "ring", "stats": {"luck": 3}, "from": "bosses", "map": 1, "look": {"style": "ring", "color": "#d0a13a", "trim": "#8a6a1a"}},
+	"snake_ring": {"name": "Hummingbird Ring", "type": "ring", "stats": {"evasion": 3}, "from": "bosses", "map": 1, "look": {"style": "ring", "color": "#c9d0d4", "trim": "#2fb5b0"}},
+	"blood_ring": {"name": "Boss's Signet Ring", "type": "ring", "stats": {"critical": 2, "strength": 2}, "from": "bosses", "map": 2, "look": {"style": "ring", "color": "#d4a437", "trim": "#b3202a"}},
 
-	"tool_belt": {"name": "Machete Belt", "type": "belt", "stats": {"strength": 2}, "from": "zombies", "map": 1, "look": {"style": "belt", "color": "#8a5a36", "trim": "#c9a15a"}},
-	"ammo_belt": {"name": "Soldier's Ammo Belt", "type": "belt", "stats": {"dexterity": 2}, "from": "zombies", "map": 1, "look": {"style": "belt", "color": "#4a5a2a", "trim": "#d4a437"}},
-	"money_belt": {"name": "Trader's Money Belt", "type": "belt", "stats": {"luck": 2}, "from": "brutes", "map": 1, "look": {"style": "belt", "color": "#b58a2a", "trim": "#f3d27a"}},
-	"champion_belt": {"name": "Champion's Belt", "type": "belt", "stats": {"vitality": 2, "strength": 1}, "from": "zombies", "map": 2, "look": {"style": "belt", "color": "#b9342b", "trim": "#f3d27a"}},
+	"tool_belt": {"name": "Machete Belt", "type": "belt", "stats": {"strength": 2}, "from": "zombies", "map": 1, "look": {"style": "machete", "color": "#8a5a36", "trim": "#c9a15a"}},
+	"ammo_belt": {"name": "Soldier's Ammo Belt", "type": "belt", "stats": {"dexterity": 2}, "from": "zombies", "map": 1, "look": {"style": "ammo", "color": "#5f6a3a", "trim": "#2f3226"}},
+	"money_belt": {"name": "Trader's Money Belt", "type": "belt", "stats": {"luck": 2}, "from": "brutes", "map": 1, "look": {"style": "money", "color": "#b98a3a", "trim": "#f0cf7a"}},
+	"champion_belt": {"name": "Champion's Belt", "type": "belt", "stats": {"vitality": 2, "strength": 1}, "from": "zombies", "map": 2, "look": {"style": "champion", "color": "#7a3a26", "trim": "#e0b040"}},
 
-	"running_shoes": {"name": "Street Football Boots", "type": "boots", "stats": {"agility": 2}, "from": "zombies", "map": 1, "look": {"style": "shoes", "color": "#d94a3a", "trim": "#f2efe6"}},
-	"steel_toecaps": {"name": "Steel-Toed Dock Boots", "type": "boots", "stats": {"vitality": 2}, "from": "zombies", "map": 1, "look": {"style": "boots", "color": "#3a3d42", "trim": "#b0b6bc"}},
-	"soft_soles": {"name": "Rope Sandals", "type": "boots", "stats": {"evasion": 2}, "from": "brutes", "map": 1, "look": {"style": "shoes", "color": "#6b5a4a", "trim": "#cdbb9c"}},
-	"combat_boots": {"name": "Army Combat Boots", "type": "boots", "stats": {"agility": 2, "defense": 1}, "from": "zombies", "map": 2, "look": {"style": "boots", "color": "#23262a", "trim": "#55595f"}},
+	"running_shoes": {"name": "Street Football Boots", "type": "boots", "stats": {"agility": 2}, "from": "zombies", "map": 1, "look": {"style": "shoes", "color": "#7c5b42", "trim": "#f2efe6"}},
+	"steel_toecaps": {"name": "Steel-Toed Dock Boots", "type": "boots", "stats": {"vitality": 2}, "from": "zombies", "map": 1, "look": {"style": "boots", "color": "#6b4630", "trim": "#3a3d42"}},
+	"soft_soles": {"name": "Rope Sandals", "type": "boots", "stats": {"evasion": 2}, "from": "brutes", "map": 1, "look": {"style": "sandals", "color": "#b9965f", "trim": "#7a4a2a"}},
+	"combat_boots": {"name": "Army Combat Boots", "type": "boots", "stats": {"agility": 2, "defense": 1}, "from": "zombies", "map": 2, "look": {"style": "boots", "color": "#a8875a", "trim": "#6b5334"}},
 
-	"cargo_pants": {"name": "Smuggler's Cargo Pants", "type": "pants", "stats": {"luck": 2}, "from": "zombies", "map": 1, "look": {"style": "pants", "color": "#6b6a45", "trim": "#4a4a30"}},
-	"track_pants": {"name": "Courier's Track Pants", "type": "pants", "stats": {"agility": 2}, "from": "zombies", "map": 1, "look": {"style": "pants", "color": "#2a3f7a", "trim": "#f2efe6"}},
-	"padded_trousers": {"name": "Field Hand's Leg Guards", "type": "pants", "stats": {"defense": 2}, "from": "brutes", "map": 1, "look": {"style": "pants", "color": "#4a4038", "trim": "#2c2622"}},
-	"hunter_leggings": {"name": "Scout's Camo Trousers", "type": "pants", "stats": {"agility": 2, "evasion": 1}, "from": "zombies", "map": 2, "look": {"style": "pants", "color": "#3f5a35", "trim": "#2a3d24"}},
+	"cargo_pants": {"name": "Smuggler's Cargo Pants", "type": "pants", "stats": {"luck": 2}, "from": "zombies", "map": 1, "look": {"style": "cargo", "color": "#9a7f4f", "trim": "#6f5a36"}},
+	"track_pants": {"name": "Courier's Track Pants", "type": "pants", "stats": {"agility": 2}, "from": "zombies", "map": 1, "look": {"style": "track", "color": "#6f9fc9", "trim": "#c8322b"}},
+	"padded_trousers": {"name": "Field Hand's Leg Guards", "type": "pants", "stats": {"defense": 2}, "from": "brutes", "map": 1, "look": {"style": "padded", "color": "#96794c", "trim": "#5a4630"}},
+	"hunter_leggings": {"name": "Scout's Camo Trousers", "type": "pants", "stats": {"agility": 2, "evasion": 1}, "from": "zombies", "map": 2, "look": {"style": "camo", "color": "#5a5a3a", "trim": "#3a3d28"}},
 
-	"work_gloves": {"name": "Cane Cutter's Gloves", "type": "gloves", "stats": {"strength": 2}, "from": "zombies", "map": 1, "look": {"style": "gloves", "color": "#c9a15a", "trim": "#8a6a36"}},
-	"shooting_gloves": {"name": "Marksman's Gloves", "type": "gloves", "stats": {"dexterity": 2}, "from": "zombies", "map": 1, "look": {"style": "gloves", "color": "#2a2c30", "trim": "#55595f"}},
-	"knuckle_wraps": {"name": "Boxer's Hand Wraps", "type": "gloves", "stats": {"critical": 2}, "from": "brutes", "map": 1, "look": {"style": "wraps", "color": "#e9e2d0", "trim": "#b7ae96"}},
-	"butcher_gloves": {"name": "Gravedigger's Gloves", "type": "gloves", "stats": {"strength": 2, "critical": 1}, "from": "zombies", "map": 2, "look": {"style": "gloves", "color": "#7a1f1f", "trim": "#451010"}},
+	"work_gloves": {"name": "Cane Cutter's Gloves", "type": "gloves", "stats": {"strength": 2}, "from": "zombies", "map": 1, "look": {"style": "gloves", "color": "#b9965a", "trim": "#8a6a36"}},
+	"shooting_gloves": {"name": "Marksman's Gloves", "type": "gloves", "stats": {"dexterity": 2}, "from": "zombies", "map": 1, "look": {"style": "fingerless", "color": "#2a2c30", "trim": "#55595f"}},
+	"knuckle_wraps": {"name": "Boxer's Hand Wraps", "type": "gloves", "stats": {"critical": 2}, "from": "brutes", "map": 1, "look": {"style": "wraps", "color": "#b32a26", "trim": "#7a1614"}},
+	"butcher_gloves": {"name": "Gravedigger's Gloves", "type": "gloves", "stats": {"strength": 2, "critical": 1}, "from": "zombies", "map": 2, "look": {"style": "gloves", "color": "#7a4a2c", "trim": "#4a2a16"}},
 
-	"leather_jacket": {"name": "Moto-Taxi Jacket", "type": "chest", "stats": {"vitality": 2}, "from": "zombies", "map": 1, "look": {"style": "jacket", "color": "#6b4226", "trim": "#3f2716"}},
-	"padded_vest": {"name": "Patched Flak Vest", "type": "chest", "stats": {"defense": 2}, "from": "zombies", "map": 1, "look": {"style": "vest", "color": "#5a6a3a", "trim": "#3a4526"}},
-	"bandolier": {"name": "Cartridge Bandolier", "type": "chest", "stats": {"dexterity": 2}, "from": "brutes", "map": 1, "look": {"style": "bandolier", "color": "#7a5a36", "trim": "#d4a437"}},
-	"riot_armor": {"name": "Army Plate Carrier", "type": "chest", "stats": {"defense": 2, "vitality": 1}, "from": "zombies", "map": 2, "look": {"style": "armor", "color": "#2f3f5c", "trim": "#8fb7d9"}},
+	"leather_jacket": {"name": "Moto-Taxi Jacket", "type": "chest", "stats": {"vitality": 2}, "from": "zombies", "map": 1, "look": {"style": "jacket", "color": "#6b4226", "trim": "#b98a5a"}},
+	"padded_vest": {"name": "Patched Flak Vest", "type": "chest", "stats": {"defense": 2}, "from": "zombies", "map": 1, "look": {"style": "vest", "color": "#5f6238", "trim": "#3f4226"}},
+	"bandolier": {"name": "Cartridge Bandolier", "type": "chest", "stats": {"dexterity": 2}, "from": "brutes", "map": 1, "look": {"style": "bandolier", "color": "#7a4a2c", "trim": "#c2452f"}},
+	"riot_armor": {"name": "Army Plate Carrier", "type": "chest", "stats": {"defense": 2, "vitality": 1}, "from": "zombies", "map": 2, "look": {"style": "armor", "color": "#a58a5c", "trim": "#6b5636"}},
 }
 
 # Drops. Chance per kill that the zombie leaves a piece of gear (before the
@@ -1154,29 +1165,61 @@ const CASING_LIFETIME := 0.55
 const MUZZLE_FLASH_TIME := 0.05
 
 # ----------------------------------------------------------------------------
-#  THE HERO'S HANDS - where his hands are, in game px from the middle of his
-#  sprite: x = ahead of him, y = to his right. The game draws the gun there.
-#    The painted hero has two pictures: "player" (both arms stretched out
-#    ahead, for one gun) and "player_twin" (fists apart, for a gun in each).
-#    The numbers were measured on those pictures (art_source/README.txt).
-#    A gun's picture starts at its rear end; a weapon's "hold" says how much
-#    of the gun lies BEHIND the hand that grips it (a pistol little, a rifle
-#    its whole stock, the launcher half its tube: it rests on his shoulder).
+#  THE HERO'S BODY - JanJan is a puppet: Art draws his pieces (body, head,
+#  arms, legs, boots - in whatever gear he wears) and scripts/game/hero_rig.gd
+#  puts them together every frame, so his arms bend to the gun he holds and
+#  his feet step the way he walks. All spots are game px from the middle
+#  between his shoulders: x = ahead of him, y = to his right.
+#    A gun's picture starts at its rear end. A weapon says in WEAPONS where
+#    that rear end sits when he holds the gun in both hands ("butt"), how far
+#    along the gun his right hand grips it ("hold"), where his left hand
+#    supports it ("fore"; none = both hands on the grip) and where the fresh
+#    magazine goes in ("mag_at").
 # ----------------------------------------------------------------------------
-const HERO_HANDS := Vector2(18.7, 5.7)                          # one gun in both hands: his right hand, on the grip
-                                                                # (his left hand is 12.8 px further out, on the same line)
-const HERO_TWIN_HANDS := [Vector2(16.4, -18.0), Vector2(10.4, 16.5)]   # two guns: his left fist, his right fist
-const HERO_HANDS_DRAWN := Vector2(12.0, 0.0)                    # the hero drawn from shapes (no painted picture)
-const HERO_TWIN_HANDS_DRAWN := [Vector2(12.0, -7.5), Vector2(12.0, 7.5)]
-const HERO_HOLD := 5.0                                          # "hold" of a weapon that does not say (and of every
-                                                                # weapon in the drawn hero's hands)
+const HERO_SCALE := 1.2                         # how large the whole puppet (and the gun in his hands) is drawn: the spots below are
+                                                # measured on the drawing, this makes him the size of the painted zombies around him
+const HERO_SHOULDER := Vector2(3.0, 11.8)       # his right shoulder joint (the left one is its mirror image)
+const HERO_ARM_UPPER := 14.5                    # shoulder to elbow
+const HERO_ARM_FORE := 15.7                     # elbow to the middle of his fist
+const HERO_HEAD := Vector2(2.5, 0.0)            # the middle of his head
+const HERO_HIP := Vector2(-2.0, 6.5)            # his right hip
+const HERO_FOOT := Vector2(1.0, 8.0)            # where his right foot stands
+const HERO_STEP := 13.0                         # how far a foot swings ahead and back while he runs
+const HERO_BOB := 0.7                           # px his shoulders dip forward with every step
+const HERO_BOOT_TURN := 0.6                     # how far his boots turn toward the way he runs, radians
+const HERO_SWAY := 0.1                          # how far his shoulders turn with every step, radians
+const HERO_BREATH := 0.014                      # how much he swells and settles while he stands (share of his size)
+const HERO_FLINCH := 2.4                        # px a hit knocks him back for a moment
+const HERO_KICK_BODY := 0.18                    # how much of a gun's kick goes into his shoulders
+const HERO_BUTT := Vector2(0.0, 4.0)            # "butt" of a weapon that does not say
+const HERO_HOLD := 12.0                         # ..."hold" of one that does not say
+const HERO_GRIP_SIDE := 1.2                     # his right hand sits this far to the right of the gun's middle line...
+const HERO_FORE_SIDE := -0.6                    # ...and his left hand this far (to the left)
+const HERO_TWIN_HANDS := [Vector2(22.0, -9.0), Vector2(22.0, 9.0)]   # two guns: his left fist, his right fist
+const HERO_SAW_BODY := 0.55                     # how much of the chainsaw's swing his shoulders turn with (his arms do the rest)
+# Reloading: the gun tips over and is pulled in; his left hand lets go, fetches a
+# magazine from the pouch on his hip and pushes it in.
+const HERO_POUCH := Vector2(-5.5, -13.0)        # where his left hand finds the fresh magazine
+const HERO_RELOAD_TILT := 0.36                  # how far the gun tips over (muzzle to his left, toward the hand that reloads it) while its magazine is swapped, radians
+const HERO_RELOAD_PULL := 4.0                   # ...and how far it is pulled in, px
+const HERO_SHELL_TILT := 0.22                   # the same while shells go in one by one
+const HERO_SHELL_PULL := 2.0
+const HERO_RELOAD_EASE := 0.15                  # the share of a reload the gun takes to tip over (and to come back)
+const HERO_MATE_RELOAD_TIME := 1.3              # another player's reload is shown as taking this long, seconds (only they know how long theirs really takes)
+# Down: he lies on the ground, arms out, his gun beside him.
+const HERO_FALL_TURN := 1.25                    # how far he turns as he falls, radians
+const HERO_FALL_ARMS := Vector2(5.0, 23.0)      # where his right hand ends up (his left: mirrored)
+const HERO_FALL_FEET := Vector2(-13.0, 13.0)    # where his right foot ends up
+const HERO_FALL_GUN := Vector2(15.0, 17.0)      # where his gun comes to lie...
+const HERO_FALL_GUN_TURN := 0.9                 # ...and how it is turned
+const HERO_FALL_TINT := Color(0.62, 0.52, 0.52) # the colour he fades to on the ground
 # A gun held beside the aim line shoots slightly inward, so its shots cross that
 # line where the player aims: at the mouse pointer (never nearer or further than
 # MIN / MAX), or, with a stick, this far out.
 const HERO_AIM_MEET := 320.0
 const HERO_AIM_MEET_MIN := 150.0
 const HERO_AIM_MEET_MAX := 700.0
-const HERO_GUN_REAR := 7.0      # where a gun's rear end sat when "muzzle_dist" was measured (the drawn hero)
+const HERO_GUN_REAR := 7.0      # where a gun's rear end sat when "muzzle_dist" was measured (the first drawn hero)
 const HERO_SHOT_SIDE_MAX := 6.0 # a shot never STARTS further than this beside the aim line, wherever the gun is drawn
                                 # (a gun in a fist 17 px out would miss the zombie right in front of him; the flash
                                 # and the gun are where his hand is, the bullet starts nearer the middle)
@@ -1187,13 +1230,12 @@ const HERO_SHOT_SIDE_MAX := 6.0 # a shot never STARTS further than this beside t
 #  moves instead of being one still picture. Only how it looks.
 # ----------------------------------------------------------------------------
 const ANIM_WALK_CYCLE := 64.0           # ground a zombie covers in one run through its walk frames, px (smaller = quicker steps)
-const ANIM_HERO_WALK_CYCLE := 120.0     # ...and the hero, who runs
+const ANIM_HERO_WALK_CYCLE := 150.0     # ...and the hero, who runs: a left and a right step (his feet are moved by the game, see THE HERO'S BODY)
 const ANIM_IDLE_TIME := 1.1             # seconds for one run through the idle frames (standing, breathing)
 const ANIM_HIT_TIME := 0.26             # ...through the hit frames (a flinch)
 const ANIM_ATTACK_PEAK := 0.62          # the share of a zombie's attack frames shown by the moment it lets go
                                         # (its warning plays the first part of the movement)
-const ANIM_FIRE_TIME := 0.3             # the hero: seconds for one run through his attack frames while he shoots
-const ANIM_DEATH_TIME := 0.7            # the hero: seconds for his death frames (a zombie's play while its body slides)
+const ANIM_DEATH_TIME := 0.7            # the hero: seconds he takes to fall when the run is lost
 
 # ----------------------------------------------------------------------------
 #  SETTINGS DEFAULTS

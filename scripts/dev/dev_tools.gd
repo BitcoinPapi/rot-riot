@@ -43,6 +43,11 @@ extends Node
 ##   --no-crates        no weapon crates appear (works with --bot too)
 ##   --gallery=PREFIX   show every generated sprite whose name starts with PREFIX, enlarged
 ##                      (--gallery-scale=N to change the size) - for checking art
+##   --hero-show=WHAT   the hero (a puppet put together from pieces) enlarged, in many poses:
+##                      guns = holding every gun, moves = walking, reloading, hit, down,
+##                      front = his picture for the menus;
+##                      --hero-look=N = in which gear (0 = none, 1..4 = four full sets),
+##                      --gallery-scale=N = how large
 ##   --dump-sfx=DIR     write every generated sound to DIR as .wav files, then quit
 ##   --dump-game=DIR    write the game's numbers as tables (DIR/<section>.json) for the
 ##                      idea board's dashboard, then quit (see scripts/dev/game_sheet.gd)
@@ -135,6 +140,8 @@ func _ready() -> void:
 			SaveData.select_map(map_index, int(_args.get("start", "1")))
 	if _args.has("gallery"):
 		_show_gallery.call_deferred()
+	if _args.has("hero-show"):
+		_show_hero.call_deferred()
 	if _args.has("autotest"):
 		_run_autotest.call_deferred()
 	if _args.has("inputtest"):
@@ -1074,18 +1081,15 @@ func _run_autotest() -> void:
 	SaveData.add_gear("hard_hat:1", 2)
 	_check(SaveData.gear_count("hard_hat:1") == 2 and SaveData.gear_new == 2, "found gear goes into the bag")
 	var defense_before := SaveData.passive_rank("defense")
-	var bare_top := Art.t("player")
-	var bare_front := Art.t("hero_front")
+	var bare_head := Art.t("player_head").get_image().get_data()
+	var bare_body := Art.t("player_body").get_image().get_data()
+	var bare_front := Art.t("hero_front").get_image().get_data()
 	sheet.call("_on_bag_pressed", "hard_hat:1")
 	_check(SaveData.gear_in_slot("helmet") == "hard_hat:1" and SaveData.gear_count("hard_hat:1") == 1
 			and SaveData.passive_rank("defense") == defense_before + 2, "clicking a piece in the inventory wears it and adds its stat ranks")
-	if ResourceLoader.exists("res://assets/sprites/player.png"):
-		# (A painted hero is one picture: it cannot put a helmet on. Without the PNGs the drawn hero is back.)
-		_check(Art.t("player") == bare_top and Art.t("hero_front") == bare_front and Art.t("player_flash") != null,
-				"the hero is a painted picture: he looks the same whatever he wears")
-	else:
-		_check(Art.t("player") != bare_top and Art.t("hero_front") != bare_front and Art.t("player_flash") != null,
-				"the hero is redrawn with what he wears, in the menu and in the game")
+	_check(Art.t("player_head").get_image().get_data() != bare_head and Art.t("hero_front").get_image().get_data() != bare_front
+			and Art.t("player_body").get_image().get_data() == bare_body and Art.t("player_head_flash") != null,
+			"the hero is redrawn with what he wears, in the menu and in the game (a hard hat changes his head, not his body)")
 	_check(PlayerStats.current().damage_taken_mult < 1.0, "gear reaches the numbers the game uses")
 	SaveData.add_gear("gas_mask:1")
 	SaveData.wear_gear("gas_mask:1")
@@ -1443,21 +1447,16 @@ func _run_autotest() -> void:
 	sprinter.hp = 1.0             # (the next hit takes it off the field again)
 
 	# --- movement in pictures: a character with picture strips walks, stands, flinches, attacks and
-	#     dies in frames (the Gobber and the hero have them; the checks call the code directly, so the
-	#     fight going on around them cannot get in the way) ---
+	#     dies in frames (the Gobber has them; the checks call the code directly, so the fight going
+	#     on around them cannot get in the way) ---
 	var gob_anim := Art.enemy_anim(Config.GOBBER, 0)
-	var hero_anim := Art.anim_of("player")             # one gun, held in both hands
-	var twin_anim := Art.anim_of("player_twin")        # a gun in each fist
 	var strips_ok := true
 	for movement: Array in [["walk", 12], ["idle", 8], ["attack", 12], ["hit", 6], ["death", 12]]:
-		for who: Dictionary in [gob_anim, twin_anim, hero_anim]:
-			if is_same(who, hero_anim) and String(movement[0]) == "attack":
-				continue          # (his two-handed pose has no attack frames: the gun in his hands kicks)
-			if (who.get(movement[0], []) as Array).size() != int(movement[1]) \
-					or (who.get(String(movement[0]) + "_hurt", []) as Array).size() != int(movement[1]):
-				strips_ok = false
+		if (gob_anim.get(movement[0], []) as Array).size() != int(movement[1]) \
+				or (gob_anim.get(String(movement[0]) + "_hurt", []) as Array).size() != int(movement[1]):
+			strips_ok = false
 	_check(strips_ok and is_same(Art.enemy_anim(Config.GOBBER, 1), gob_anim) and Art.enemy_anim(Config.SHAMBLER, 0).is_empty(),
-			"the Gobber and the hero (in both his poses) have their movements as picture strips, wounded ones too (a Shambler has none: it stays one picture)")
+			"the Gobber has its movements as picture strips, wounded ones too (a Shambler has none: it stays one picture)")
 	if strips_ok:
 		var mover := game.enemies.spawn(Config.GOBBER, game.player.pos + Vector2(430.0, 120.0), 500.0)
 		var step := 1.0 / 60.0
@@ -1496,55 +1495,80 @@ func _run_autotest() -> void:
 				"a dying Gobber's body plays its death frames while it slides")
 		body.life = 0.0001            # (settle it at once: this one did not really die)
 		mover.hp = 1.0
-		# The hero.
-		var actor := game.player
-		var tail := "_hurt" if actor.wounded else ""
-		var was_moving := actor.move_input
-		var was_dual := actor.dual
-		actor.dual = false
-		actor.set("_anim_hit", 0.0)
-		actor.set("_anim_fire", 0.0)
-		actor.move_input = Vector2.ZERO
-		var hero_stands := (hero_anim["idle" + tail] as Array).has(actor.call("_body_frame"))
-		actor.move_input = Vector2.RIGHT
-		var hero_walks := (hero_anim["walk" + tail] as Array).has(actor.call("_body_frame"))
-		actor.set("_anim_hit", Config.ANIM_HIT_TIME * 0.5)
-		var hero_flinches := (hero_anim["hit" + tail] as Array).has(actor.call("_body_frame"))
-		actor.set("_anim_hit", 0.0)
-		_check(hero_stands and hero_walks and hero_flinches and actor.body_sprite() == "player",
-				"the hero stands, walks and flinches in frames, both hands on his gun")
-		# A gun in each hand: his other picture (fists apart), which also has frames for shooting.
-		actor.dual = true
-		var twin_walks := (twin_anim["walk" + tail] as Array).has(actor.call("_body_frame"))
-		actor.set("_anim_fire", Config.ANIM_FIRE_TIME * 0.5)
-		var twin_shoots := (twin_anim["attack" + tail] as Array).has(actor.call("_body_frame"))
-		actor.set("_anim_fire", 0.0)
-		_check(twin_walks and twin_shoots and actor.body_sprite() == "player_twin",
-				"with a gun in each hand he is shown with his fists apart, and that picture moves too")
-		# The guns are where his hands are, and the shots leave from the gun.
-		var rifle_def: Dictionary = Config.WEAPONS["rifle"]
-		var one := Art.hero_guns(false, rifle_def)
-		var two := Art.hero_guns(true, Config.WEAPONS["pistol"])
-		_check(one.size() == 1 and is_equal_approx((one[0] as Vector2).x, Config.HERO_HANDS.x - float(rifle_def["hold"]))
-				and is_equal_approx((one[0] as Vector2).y, Config.HERO_HANDS.y)
-				and two.size() == 2 and (two[0] as Vector2).y < -10.0 and (two[1] as Vector2).y > 10.0,
-				"a rifle lies in both his hands with its stock behind them; two pistols sit one in each fist")
-		actor.dual = false
-		actor.move_input = was_moving
-		var held := actor.gun_spot()
-		var line: Array = actor.shot_line(Vector2.RIGHT)
-		var start: Vector2 = (line[0] as Vector2) - actor.pos
-		var way: Vector2 = line[1]
-		# (The bot aims with a stick: its shots cross the aim line HERO_AIM_MEET ahead.)
-		var crossing := start.x + way.x * (-start.y / way.y) if absf(way.y) > 0.00001 else -1.0
-		_check(is_equal_approx(start.y, held.y) and held.y > 2.0 and absf(crossing - Config.HERO_AIM_MEET) < 1.0,
-				"a shot starts at the gun in his hands, %.1f px beside the aim line, and crosses that line where he aims (%d px ahead)" % [held.y, int(round(crossing))])
-		actor.dual = true
-		var fist_shot: Vector2 = (actor.shot_line(Vector2.RIGHT)[0] as Vector2) - actor.pos
-		_check(absf(actor.gun_spot().y) > 10.0 and absf(fist_shot.y) <= Config.HERO_SHOT_SIDE_MAX + 0.01,
-				"with a gun in each fist the shot still starts near the middle (%.1f px beside the aim line, the fist is %.1f out): close zombies are not missed" % [absf(fist_shot.y), absf(actor.gun_spot().y)])
-		actor.dual = false
-		actor.dual = was_dual
+
+	# --- the hero is a puppet: his hands are ON his gun, whatever it is; his feet step when he
+	#     walks; reloading sends his left hand to his belt; down, he lets go ---
+	var rig := HeroRig.Pose.new()
+	var hands_ok := true
+	var worst_gap := 0.0
+	for gun_id: String in Config.WEAPON_ORDER:
+		var gun_def: Dictionary = Config.WEAPONS[gun_id]
+		rig.weapon_id = gun_id
+		rig.weapon = gun_def
+		for both: bool in [false, true]:
+			if both and not bool(gun_def.get("dual", false)):
+				continue
+			rig.dual = both
+			var held_now := _rig_look(HeroRig.parts(rig))
+			var grip := Vector2(float(gun_def["hold"]), 0.0 if both else Config.HERO_GRIP_SIDE)
+			var gap := ((held_now["guns"] as Array)[1 if both else 0] as Transform2D * grip).distance_to(held_now["right"])
+			if both:
+				gap = maxf(gap, ((held_now["guns"] as Array)[0] as Transform2D * grip).distance_to(held_now["left"]))
+			elif gun_def.has("fore"):
+				var fore_at := Vector2(float(gun_def["fore"]), float(gun_def.get("fore_side", Config.HERO_FORE_SIDE)))
+				gap = maxf(gap, ((held_now["guns"] as Array)[0] as Transform2D * fore_at).distance_to(held_now["left"]))
+			worst_gap = maxf(worst_gap, gap)
+			if gap > 1.5:
+				hands_ok = false
+				print("     (his hands do not reach the %s%s: %.1f px short)" % [gun_id, " x2" if both else "", gap])
+	_check(hands_ok, "the hero's hands are on his gun, whichever of the %d he holds - one or two (never more than %.1f px off)" % [Config.WEAPON_ORDER.size(), worst_gap])
+	rig.weapon_id = "rifle"
+	rig.weapon = Config.WEAPONS["rifle"]
+	rig.dual = false
+	var standing := _rig_look(HeroRig.parts(rig))
+	rig.move = Vector2.RIGHT
+	rig.step = 0.25
+	var stepping := _rig_look(HeroRig.parts(rig))
+	rig.step = 0.75
+	var other_step := _rig_look(HeroRig.parts(rig))
+	_check(is_equal_approx((standing["feet"] as Array)[1].x, Config.HERO_FOOT.x)
+			and (stepping["feet"] as Array)[1].x - (stepping["feet"] as Array)[0].x > Config.HERO_STEP
+			and (other_step["feet"] as Array)[0].x - (other_step["feet"] as Array)[1].x > Config.HERO_STEP
+			and (stepping["right"] as Vector2).distance_to(standing["right"]) < 0.5,
+			"his feet step one after the other when he walks, and his hands stay on the gun")
+	rig.move = Vector2.ZERO
+	rig.reload = 0.33
+	rig.tip = 1.0
+	var fetching := _rig_look(HeroRig.parts(rig))
+	rig.reload = -1.0
+	rig.tip = 0.0
+	rig.fall = 1.0
+	var lying := _rig_look(HeroRig.parts(rig))
+	rig.fall = 0.0
+	_check((fetching["left"] as Vector2).distance_to(Config.HERO_POUCH) < 2.0 and (fetching["right"] as Vector2).distance_to(standing["right"]) < 8.0
+			and (lying["right"] as Vector2).distance_to(((lying["guns"] as Array)[0] as Transform2D) * Vector2(float(Config.WEAPONS["rifle"]["hold"]), 0.0)) > 8.0,
+			"reloading, his left hand goes to the pouch on his belt while his right keeps the gun; down, he lets go of it")
+	# The shots leave from the gun in his hands.
+	var hero_actor := game.player
+	var was_dual := hero_actor.dual
+	var two_guns := HeroRig.gun_spots(true, Config.WEAPONS["pistol"])
+	_check(HeroRig.gun_spots(false, Config.WEAPONS["rifle"]) == [Config.WEAPONS["rifle"]["butt"]]
+			and two_guns.size() == 2 and (two_guns[0] as Vector2).y < -8.0 and (two_guns[1] as Vector2).y > 8.0,
+			"a rifle sits against his shoulder; two pistols sit one in each fist")
+	hero_actor.dual = false
+	var gun_held := hero_actor.gun_spot()
+	var shot_path: Array = hero_actor.shot_line(Vector2.RIGHT)
+	var shot_from: Vector2 = (shot_path[0] as Vector2) - hero_actor.pos
+	var shot_way: Vector2 = shot_path[1]
+	# (The bot aims with a stick: its shots cross the aim line HERO_AIM_MEET ahead.)
+	var shot_crossing := shot_from.x + shot_way.x * (-shot_from.y / shot_way.y) if absf(shot_way.y) > 0.00001 else -1.0
+	_check(absf(shot_from.y - clampf(gun_held.y, -Config.HERO_SHOT_SIDE_MAX, Config.HERO_SHOT_SIDE_MAX)) < 0.01 and gun_held.y > 0.5 and absf(shot_crossing - Config.HERO_AIM_MEET) < 1.0,
+			"a shot starts at the gun in his hands, %.1f px beside the aim line, and crosses that line where he aims (%d px ahead)" % [shot_from.y, int(round(shot_crossing))])
+	hero_actor.dual = true
+	var fist_shot: Vector2 = (hero_actor.shot_line(Vector2.RIGHT)[0] as Vector2) - hero_actor.pos
+	_check(absf(hero_actor.gun_spot().y) > 8.0 and absf(fist_shot.y) <= Config.HERO_SHOT_SIDE_MAX + 0.01,
+			"with a gun in each fist the shot still starts near the middle (%.1f px beside the aim line, the fist is %.1f out): close zombies are not missed" % [absf(fist_shot.y), absf(hero_actor.gun_spot().y)])
+	hero_actor.dual = was_dual
 
 	# --- the tables for the idea board's dashboard: every part of the game is in them, and every
 	#     number that can be changed there says where it lives in config.gd ---
@@ -2004,15 +2028,22 @@ func _run_autotest() -> void:
 			looks_ok = false
 	_check(looks_ok and Art.BOSS_VARIANTS == Config.MAPS.size(), "all %d kinds of zombie have their pictures, and every map's boss a look of his own" % Config.ENEMIES.size())
 
-	# --- the hero: his pictures are there (painted or drawn), also the wounded and the flash one,
-	#     and another player's figure is built without trouble ---
+	# --- the hero: every piece of the puppet is there (also wounded and all white), for him and
+	#     for another player's figure, and his picture for the menus ---
 	Art.build_mate({}, "mate_test")
-	var hero_ok := true
-	for hero_sprite: String in ["player", "player_hurt", "player_flash", "hero_front", "mate_test", "mate_test_hurt", "mate_test_flash"]:
-		if not Art.tex.has(hero_sprite) or Art.t(hero_sprite) == null or Art.size_of(hero_sprite).x < 20.0:
-			hero_ok = false
-	_check(hero_ok and Art.size_of("player") == Art.size_of("player_hurt") and Art.size_of("player") == Art.size_of("player_flash"),
-			"the hero has all his pictures (%s), and so does another player's figure" % ("painted" if ResourceLoader.exists("res://assets/sprites/player.png") else "drawn"))
+	var hero_ok := Art.tex.has("hero_front") and Art.tex.has("hero_shadow") and Art.size_of("hero_front").y > 300.0
+	var hero_pieces := 0
+	for who: String in ["player", "mate_test"]:
+		for piece: String in ["body", "body_hurt", "head", "head_hurt", "arm_l", "arm_r", "fore", "leg", "boot"]:
+			var names: Array = ["%s_%s" % [who, piece]]
+			if not piece.ends_with("_hurt"):
+				names.append("%s_%s_flash" % [who, piece])
+			for piece_name: String in names:
+				hero_pieces += 1
+				if not Art.tex.has(piece_name) or Art.t(piece_name) == null or not Art.origins.has(piece_name) \
+						or not Rect2(Vector2.ZERO, Art.size_of(piece_name)).has_point(Art.origin_of(piece_name)):
+					hero_ok = false
+	_check(hero_ok, "the hero has all his pieces (%d pictures: body, head, arms, legs, boots - wounded and all white too), and so does another player's figure" % hero_pieces)
 
 	# --- gear: a piece with a painted picture of its own shows it; the others show the symbol of their kind ---
 	var painted_gear: Array[String] = []
@@ -2168,7 +2199,8 @@ func _run_autotest() -> void:
 	_check(gob.alive and gob.state == EnemyManager.B_CHASE and gob.attack_t > 0.5 and shots.spits.is_empty(),
 			"shooting a Gobber while it swells makes it swallow its spit")
 	game.enemies.clear_all()
-	var lurker := game.enemies.spawn(Config.GOBBER, game.arena.clamp_inside(pl.pos + Vector2(-900.0, 0.0), 40.0))
+	# (720 px away is off the screen; on the smaller map 900 would be at the trees, among the rocks)
+	var lurker := game.enemies.spawn(Config.GOBBER, game.arena.resolve(game.arena.clamp_inside(pl.pos + Vector2(-720.0, 0.0), 40.0), 30.0))
 	lurker.attack_t = 0.0
 	var lurk_from := lurker.pos.distance_to(pl.pos)
 	await _frames(40)
@@ -2906,6 +2938,116 @@ func _run_inputtest() -> void:
 	else:
 		print("INPUTTEST FAILED: %d problem(s)" % _auto_failures.size())
 		_quit(1)
+
+
+## What HeroRig made of a pose, for the checks: where his fists and feet are and where
+## his gun(s) lie. {"left", "right": Vector2, "feet": [left, right], "guns": [Transform2D]}
+func _rig_look(ops: Array) -> Dictionary:
+	var fists: Array = []
+	var feet: Array = []
+	var guns: Array = []
+	for op: Array in ops:
+		var piece := String(op[0])
+		var at: Transform2D = op[1]
+		if piece.ends_with("_fore"):
+			fists.append(at * Vector2(Config.HERO_ARM_FORE, 0.0))
+		elif piece.ends_with("_boot"):
+			feet.append(at.origin)
+		elif piece.begins_with("gun_"):
+			guns.append(at)
+	return {"left": fists[0], "right": fists[1], "feet": feet, "guns": guns}
+
+
+# ----------------------------------------------------------------------------
+#  The hero enlarged, in many poses (he is a puppet: HeroRig puts his pieces
+#  together, so a list of his pieces alone says little).
+# ----------------------------------------------------------------------------
+## Four full sets of gear to look at him in (0 = nothing on).
+const HERO_SHOW_GEAR := [
+	{},
+	{"helmet": "hard_hat:1", "chest": "padded_vest:1", "gloves": "work_gloves:1", "belt": "tool_belt:1", "pants": "cargo_pants:1",
+		"boots": "steel_toecaps:1", "amulet": "dog_tags:1", "ring1": "iron_band:1"},
+	{"helmet": "gas_mask:1", "chest": "leather_jacket:1", "gloves": "knuckle_wraps:1", "belt": "champion_belt:1", "pants": "track_pants:1",
+		"boots": "running_shoes:1", "amulet": "old_medal:1", "ring2": "lucky_ring:1"},
+	{"helmet": "hunting_cap:1", "chest": "bandolier:1", "gloves": "shooting_gloves:1", "belt": "money_belt:1", "pants": "padded_trousers:1",
+		"boots": "soft_soles:1", "amulet": "tooth_necklace:1"},
+	{"helmet": "riot_helmet:1", "chest": "riot_armor:1", "gloves": "butcher_gloves:1", "belt": "ammo_belt:1", "pants": "hunter_leggings:1",
+		"boots": "combat_boots:1", "amulet": "gorger_fang:1", "ring1": "blood_ring:1", "ring2": "snake_ring:1"},
+]
+
+
+func _show_hero() -> void:
+	var worn: Dictionary = HERO_SHOW_GEAR[clampi(int(_args.get("hero-look", "0")), 0, HERO_SHOW_GEAR.size() - 1)]
+	Art.build_mate(worn, "show")
+	var layer := CanvasLayer.new()
+	layer.layer = 100
+	add_child(layer)
+	var board := DrawLayer.new()
+	board.painter = _paint_hero
+	layer.add_child(board)
+
+
+func _paint_hero(ci: CanvasItem) -> void:
+	var view := get_viewport().get_visible_rect().size
+	ci.draw_rect(Rect2(Vector2.ZERO, view), Color("4f4a3a"))
+	if String(_args["hero-show"]) == "front":
+		# His picture for the menus: in nothing, and in the four sets of gear (or one of them, large).
+		var one := _args.has("hero-look")
+		var size := Vector2(260.0, 400.0) * float(_args.get("gallery-scale", "1.75" if one else "0.98"))
+		for i in HERO_SHOW_GEAR.size():
+			if one and i != int(_args["hero-look"]):
+				continue
+			if not Art.tex.has("show_front%d" % i):
+				Art.build_front(HERO_SHOW_GEAR[i], "show_front%d" % i)
+			ci.draw_texture_rect(Art.t("show_front%d" % i), Rect2(Vector2((view.x - size.x) * 0.5 if one else i * size.x, 8.0), size), false)
+		return
+	var zoom := float(_args.get("gallery-scale", "3.4"))
+	var cells: Array = []          # [what it shows, weapon, two guns, {a field of the pose: its value}]
+	if String(_args["hero-show"]) == "moves":
+		cells = [
+			["standing", "rifle", false, {}],
+			["step, left foot", "rifle", false, {"move": Vector2.RIGHT, "step": 0.25}],
+			["step, right foot", "rifle", false, {"move": Vector2.RIGHT, "step": 0.75}],
+			["running to his right", "rifle", false, {"move": Vector2.DOWN, "step": 0.25}],
+			["running ahead and left", "smg", false, {"move": Vector2(0.7, -0.7), "step": 0.75}],
+			["backing off", "pistol", false, {"move": Vector2.LEFT, "step": 0.25}],
+			["kick of a shot", "shotgun", false, {"kick": 6.0}],
+			["reload: magazine out", "rifle", false, {"reload": 0.1, "tip": 0.7}],
+			["reload: hand at the belt", "rifle", false, {"reload": 0.33, "tip": 1.0}],
+			["reload: magazine in", "rifle", false, {"reload": 0.55, "tip": 1.0}],
+			["a shell goes in", "shotgun", false, {"reload": 0.95, "tip": 1.0, "shells": true}],
+			["pistol reload", "pistol", false, {"reload": 0.33, "tip": 1.0}],
+			["saw swung left", "chainsaw", false, {"saw": -0.7}],
+			["saw swung right", "chainsaw", false, {"saw": 0.7}],
+			["hit (a white flash)", "rifle", false, {"flash": true, "flinch": 1.0}],
+			["badly hurt", "machinegun", false, {"hurt": true}],
+			["going down", "rifle", false, {"hurt": true, "fall": 0.5}],
+			["down", "rifle", false, {"hurt": true, "fall": 1.0, "tint": Config.HERO_FALL_TINT}],
+		]
+	else:
+		for id: String in Config.WEAPON_ORDER:
+			cells.append([String(Config.WEAPONS[id]["name"]), id, false, {}])
+			if bool(Config.WEAPONS[id].get("dual", false)):
+				cells.append([String(Config.WEAPONS[id]["name"]) + " x2", id, true, {}])
+	var font := ThemeDB.fallback_font
+	var cell := Vector2(84.0, 58.0) * zoom
+	var x := 0.0
+	var y := 0.0
+	for shown: Array in cells:
+		if x + cell.x > view.x:
+			x = 0.0
+			y += cell.y + 18.0
+		var pose := HeroRig.Pose.new()
+		pose.look = "show"
+		pose.weapon_id = String(shown[1])
+		pose.weapon = Config.WEAPONS[pose.weapon_id]
+		pose.dual = bool(shown[2])
+		var changes: Dictionary = shown[3]
+		for field: String in changes:
+			pose.set(field, changes[field])
+		HeroRig.draw(ci, Transform2D(0.0, Vector2(zoom, zoom), 0.0, Vector2(x + cell.x * 0.4, y + cell.y * 0.5)), pose)
+		ci.draw_string(font, Vector2(x + 8.0, y + cell.y + 10.0), String(shown[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.85))
+		x += cell.x
 
 
 # ----------------------------------------------------------------------------

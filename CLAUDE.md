@@ -172,7 +172,9 @@ line), `--cooptest`, `--screen=coop --coop-view=host|full|reply` (the co-op scre
 `--dump-sfx=DIR` (writes every generated sound as .wav),
 `--dump-game=DIR` (writes the game's numbers as tables for the idea board's dashboard),
 `--gallery=PREFIX[,PREFIX] --gallery-scale=N` (shows generated sprites enlarged, e.g.
-`--gallery=icon_` or `--gallery=boss_0,player`; combine with `--shot` to review art).
+`--gallery=icon_` or `--gallery=boss_0,player`; combine with `--shot` to review art),
+`--hero-show=guns|moves|front` (the hero enlarged: holding every gun / walking, reloading,
+hit, down / his picture for the menus; `--hero-look=0..4` = in which gear).
 
 Definition of done for any change: `--autotest` and `--inputtest` pass,
 `tools/cooptest.sh 2` and `tools/cooptest.sh 3` pass (anything that touches
@@ -202,14 +204,17 @@ scripts/autoload/
   save_data.gd           coins, character level + skill points + learned tree nodes, weapon levels + weapon
                          trees, gear (bag, worn, seen), pets, map progress, bests, settings -> user://save.json
   art.gd                 placeholder sprites generated from SVG shapes at startup; the hero's
-                         pictures (front view + top-down) are rebuilt from the gear he wears
+                         pieces (seen from above) and his menu picture are rebuilt from the gear he wears
+scripts/art/hero_art.gd  the drawings of the hero: the pieces of the puppet seen from above, and him from the front
   sfx.gd                 sounds synthesised at startup (worker thread) + pooled playback
   net.gd                 online co-op: hosting, joining (game codes, reply codes, getting through home
                          routers), who is in the game (slots), delivering messages
 scripts/net/stun.gd      asks a public "address finder" how this computer looks from the internet
 scripts/game/
   game.gd                one run: owns the world, runs the simulation loop, hit stop, slow-mo, score
-  player.gd              movement, aim, firing (bullets / grenade / melee), drawing
+  player.gd              movement, aim, firing (bullets / grenade / melee); says what the hero is doing (pose)
+  hero_rig.gd            puts the hero together from his pieces every frame: arms bent to the gun, feet
+                         stepping, the reload hand, falling (also for the other players in co-op)
   player_stats.gd        THE stat pipeline: level + bought skill ranks + gear + pet + special powers + weapon upgrades/perks
                          -> the numbers the game uses
   pet.gd                 the companion in a run: heel, bite, fetch, guard (numbers arrive via PlayerStats)
@@ -649,58 +654,61 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   inventory to wear it, click a slot to take it off. **FORGE** in the
   inventory opens the forge menu: pick a pair, see "piece + piece = result"
   with the chance, press FORGE (anything that can fail asks twice).
-- *Cliff's look*: `Config.HERO_LOOK` (short dark hair, black shirt, brown
-  harness straps, dark cargo trousers with knee pads, boots, a pistol) plus
-  the `"look"` of every piece he wears (`"style"` + two colours in
-  `Config.GEAR_ITEMS`). `Art.refresh_hero()` rebuilds the front view
-  (`hero_front`, Character screen and main menu) and the top-down game sprite
-  (`player`, `player_hurt`, `player_flash`) whenever `SaveData.gear_changed`
-  fires - the owner wants the top-down Cliff to match his current gear. From
-  above only helmet, chest, gloves and belt pouches can be seen. A new piece
-  of gear needs a `"look"`; a new style needs drawing code in both
-  `_hero_top_svg` and `_hero_front_svg`. A PNG `assets/sprites/player.png`
-  or `hero_front.png` still replaces the generated picture.
-  **Since v0.14 JanJan IS such a picture** (the owner's, made with ChatGPT):
-  `player.png` / `player_hurt.png` in a run - from the picture WITHOUT guns
-  (`art_source/janjan_no_guns.webp`; he was drawn walking down the picture,
-  so it is turned with `--turn -90`; his fists are at his sides and the game
-  draws the gun he holds in front of him, as before) - and `hero_front.png`
-  in the menus, from the picture WITH his guns. The price, told to the
-  owner: **a painted picture cannot wear gear**, so what he puts on no
-  longer shows on him (the slots, stats and inventory work as before), and
-  in co-op every player is shown as the same JanJan (`Art.build_mate`; ring
-  and name tell them apart). Deleting the three PNGs brings the drawn,
-  gear-wearing hero back. To get gear on a painted hero one day he would
-  need separate pictures per piece (helmet, vest...) laid over the body.
-  **He holds his guns (after v0.15)**. The owner: "it looks like the guns are
-  floating in front of him instead of him carrying and firing the guns" - the
-  game drew the gun on his centre line while his fists were 17 px to each
-  side. Now the painted hero has TWO pictures: `player` (from
-  `janjan_aiming.webp`, the owner's second picture: both arms stretched out,
-  hands empty) for ONE gun, and `player_twin` (the first picture, fists
-  apart) for a gun in EACH hand; `Art.hero_pose(dual)` picks, and other
-  players are shown the same way. The guns are drawn where his hands are
-  (`Config` THE HERO'S HANDS: `HERO_HANDS`, `HERO_TWIN_HANDS`; a weapon's
-  `"hold"` = how much of the gun lies behind the gripping hand, so a rifle's
-  stock reaches his chest and the launcher rests on his shoulder;
-  `Art.hero_guns`). The muzzle flash is at the gun; the SHOT starts at most
-  `HERO_SHOT_SIDE_MAX` (6 px) beside the aim line and flies slightly inward,
-  crossing that line where the player aims (`Player.shot_line`) - starting
-  it at a fist 17 px out made close zombies unhittable (found by the weapon
-  benchmark). With the swinging chainsaw his whole picture turns with the
-  saw. The drawn hero (PNGs deleted) keeps the old spots. The one-gun
-  pose's walk / idle / hit / death frames are made by `tools/make_moves.py`
-  (it bends the one picture a little; the sheets the owner sent with that
-  picture were unusable - another pose, hazy cut-out, figures sliced by the
-  grid - tell him so if he sends such a pack again: the FIRST packs, plain
-  warps of the one picture, were fine).
-  **Gear on the painted hero is still not shown** (he wants it back): the
-  plan offered to him - draw the gear over the painted hero in the fight
-  (or painted top-down pieces from him), and show the drawn, gear-wearing
-  hero on the Character screen. Not built. HIS ANSWER (asked again once the
-  first gear pictures were in): wait until all 32 gear pictures are in,
-  then decide. Do not build it before; ask him again when the last
-  picture has arrived.
+- *JanJan's look* (v0.16; the owner: "redesign janjan as a customizable
+  figure like before but based on this new image ... so he appears to
+  naturally carry guns, in the menus, gear changes etc."). He is DRAWN again
+  (shapes written as SVG in `scripts/art/hero_art.gd`), after the owner's
+  paintings of him (`art_source/janjan*.webp`, kept as the model): dark
+  skin, short black hair, a torn sand-coloured shirt, a red scarf,
+  camouflage backpack and trousers, tan webbing, fingerless gloves, the flag
+  on his left shoulder (`Config.HERO_LOOK`). History: Cliff drawn from
+  shapes -> one painted picture (v0.14: could not wear gear, and the guns
+  were "floating in front of him") -> a second painted pose (v0.15) -> this.
+  - *In a fight he is a PUPPET*: body (with backpack, scarf, belt pouches),
+    head, two upper arms, a forearm with its fist, a leg, a boot - drawn by
+    `Art.hero_pieces(worn)` as "player_body", "player_head", "player_arm_l"
+    / "_arm_r", "player_fore", "player_leg", "player_boot" (+ "_hurt" for
+    body and head, "_flash" for all; other players: "mate1_..."), at 3x
+    (`Art.HERO_PX`), each with the spot of its joint (`Art.origin_of`).
+    `HeroRig.parts(pose)` (`scripts/game/hero_rig.gd`) puts them together
+    every frame from a `HeroRig.Pose` (what he is doing; `Player.pose()`):
+    his arms are bent at the elbow so that both fists land ON the gun (the
+    right on its grip, the left on its fore-end; a gun in each fist when
+    dual), his feet step along the way he walks, his shoulders turn with
+    every step and with the swinging chainsaw, a reload sends his left hand
+    to the pouch on his hip and back to the gun, a hit knocks him back and
+    flashes him white, and when he goes down he lets go: arms out, the gun
+    beside him (the same for a player who is down in co-op). Numbers:
+    Config, THE HERO'S BODY; where a gun sits and where his hands grip it:
+    `"butt"`, `"hold"`, `"fore"`, `"mag_at"` in `Config.WEAPONS`.
+    `HERO_SCALE` (1.2) makes the whole puppet, gun included, the size of
+    the painted zombies; the muzzle flash, casings and the start of a shot
+    follow the drawn gun (`HeroRig.gun_spots_drawn`,
+    `Player._muzzle_ahead`). A shot still starts at most
+    `HERO_SHOT_SIDE_MAX` (6 px) beside the aim line and flies slightly
+    inward, crossing that line where the player aims (`Player.shot_line`) -
+    starting it at a fist far out made close zombies unhittable.
+  - *In the menus* he is one picture from the front (`hero_front`, 260x400,
+    `HeroArt.front`): a pistol in his right hand, his rifle in his left,
+    both pointing at the ground - as the owner's painting shows him.
+  - *Gear shows on him again*, in both views: every piece's `"look"`
+    (`"style"` + two colours in `Config.GEAR_ITEMS`; the colours follow the
+    owner's painted pictures of the pieces). From above: helmet, chest (a
+    jacket's sleeves, a vest's shoulder pieces, armour's shoulder plates, a
+    bandolier), gloves, belt pouches, trousers, boots. From the front all
+    nine slots. A new piece needs a `"look"`; a new style needs drawing code
+    in `HeroArt` (from above AND from the front). `Art.refresh_hero()`
+    redraws him whenever `SaveData.gear_changed` fires (about 26 ms). In
+    co-op every player is shown in their own gear again (`Art.build_mate`).
+  - Looking at him: `--hero-show=guns|moves|front [--hero-look=0..4]`.
+  - What is weak, and the owner was told: seen from straight above his legs
+    are mostly hidden under his body, pack and arms, so walking shows mainly
+    as his shoulders swinging and a boot coming out now and then; and he is
+    drawn, not painted - plainer than the painted zombies around him. To be
+    painted AND dressed he would need every piece of the puppet painted
+    (and every piece of gear painted from above).
+  - `tools/make_moves.py` and the hero's lines in `art_source/README.txt`
+    belong to the painted hero; they are kept but no longer used.
 - *Pets* (Pets screen; PETS section of config.gd). The feature opens at
   character level 18 (`PET_UNLOCK_LEVEL`): the first pet, SCRAPS the stray
   dog, joins by itself (mid-run if that is where the level is reached). Five
@@ -875,9 +883,9 @@ The game auto-pauses when the window loses focus.
   it in a run (`--horde=fighter:3,brute:2,shambler:3`): size beside the
   others, facing the player, readable on the ground.
   **Animated characters (v0.15)**: the owner sends SHEETS of frames (so far for
-  the Gobber and for JanJan: walk 12 frames, idle 8, attack 12, hit 6, death
-  12, in 512 px cells - every frame is the character's one picture, slightly
-  moved). `tools/make_sprite.py SHEET NAME_walk --sheet 4x3 --match PICTURE
+  the Gobber - and for the painted JanJan, who is gone: walk 12 frames, idle
+  8, attack 12, hit 6, death 12, in 512 px cells - every frame is the
+  character's one picture, slightly moved). `tools/make_sprite.py SHEET NAME_walk --sheet 4x3 --match PICTURE
   ...` (the still sprite's own line after `--match`; `--sheet-turn` when the
   sheet shows the figure turned; `--wounds` for `NAME_walk_hurt`) cuts a
   sheet into a STRIP: `assets/sprites/<sprite>_<walk|idle|attack|hit|death>.png`,
@@ -890,10 +898,8 @@ The game auto-pauses when the window loses focus.
   first part of the attack frames, the moment it lets go is their peak
   (`EnemyManager._animate`, on the host and on joiners' copies alike; only
   looks, nothing is sent); its body plays the death frames while it slides
-  (`Fx.Corpse.frames`). The hero walks, stands, flinches, plays his attack
-  frames while he shoots and goes down in his death frames when the run is
-  lost (`Player._body_frame`, `die_look`); other players are shown in his
-  walk / idle / hit frames (`Mate`). Exact lines: `art_source/README.txt`.
+  (`Fx.Corpse.frames`). The hero has no strips: he is a puppet moved by the
+  game (see "JanJan's look"). Exact lines: `art_source/README.txt`.
   **One picture cannot move its legs** (the kinds without sheets): the game
   turns it, rocks it and squashes it, and a kind with `"stride"` in config
   (seconds per step) is shown mirrored on every other step, which reads as
@@ -903,7 +909,7 @@ The game auto-pauses when the window loses focus.
   nothing for one that is the same on both sides (the Brute). Real
   animation needs several pictures of the same figure in different poses,
   which AI image tools rarely keep alike.
-  Painted so far: the hero (see "Cliff's look"), Runner, Gang Fighter,
+  Painted so far (the hero is drawn, see "JanJan's look"): Runner, Gang Fighter,
   Brute, Gobber, Chucker, Gasbag, Lunger and the bosses of maps 1-3 (Kòk Batay, Machwè Fè, Papa Zo).
   **No zombie is drawn as shapes any more** (owner: "remove all old look
   zombies from the current game"): the Shambler, which has no picture of
@@ -1008,10 +1014,8 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
 - v0.15: the bosses' own moves (are the warnings long enough? is Papa Zo
   with nine more dead too much?), the swinging chainsaw's feel, the Haiti
   map with a real mouse and gamepad, FEWER EFFECTS on a slow computer, and
-  the Gobber's and the hero's animations IN MOTION - only single frames were
-  looked at; the speeds (ANIMATED CHARACTERS in config.gd) are first
-  guesses, and the hero plays his attack frames at every burst of fire,
-  which may look odd with fast guns. The new recorded rifle, shotgun and
+  the Gobber's animations IN MOTION - only single frames were looked at;
+  the speeds (ANIMATED CHARACTERS in config.gd) are first guesses. The new recorded rifle, shotgun and
   explosion are unheard (measured only).
 - The painted enemies (v0.14) in motion: only still pictures were checked.
   Unknown: whether a single picture that only turns and rocks looks alive
@@ -1028,8 +1032,12 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   before (ask the owner; `CHEST_COUNT`).
 - The Skills page and the Character screen with a real mouse / trackpad /
   gamepad (only simulated input was tested).
-- How Cliff looks to a human eye: he is simple shapes in the general style
-  the owner asked for, to be replaced by real art one day.
+- The new drawn JanJan (v0.16) to a human eye and IN MOTION: only still
+  pictures of single poses were looked at. Unknown: whether his arms on
+  the gun, his steps, the reload hand and the fall look natural when they
+  move, whether he reads well in a crowd, and whether the owner likes a
+  drawn hero beside painted zombies. All numbers in THE HERO'S BODY are
+  first guesses.
 - How the synthesised sounds sound; Claude can only check them numerically
   (length, loudness, brightness, how tonal they are), never listen. Owner
   feedback on v1: guns "sounded like lasers" (cause: fast high-to-low pitch
@@ -1244,9 +1252,17 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   as painted on the Character screen's tiles and slots, in the forge and on
   the lid of its gear case (`GEAR_CRATE_PICTURE_SIZE`); a piece without one
   shows its kind's symbol, tinted; arrows and empty slots keep the symbols.
-  In so far: 6 of 32 (the four helmets, dog tags, shark tooth necklace).
-  When all are in: put them on the dashboard's gear rows too, and send the
-  friends new files.
+  ALL 32 ARE IN (the second batch of 26 was named "07_Independence_Medal.png"
+  ...; the script took them by name). They are also on the dashboard's gear
+  rows (pictures with ids `g016-<item>`), and the colours of each piece's
+  `"look"` on JanJan were matched to them.
+- After the first six gear pictures: "i want to redesign janjan as a
+  customizable figure like before but based on this new image. Can we do
+  that so he appears to naturally carry guns, in the menus, gear changes
+  etc." (no picture came with the message: the JanJan paintings he had sent
+  were taken as the model) -> v0.16.0: the drawn puppet, see "JanJan's
+  look". Awaiting his eyes: he gave up a painting he made for it. In the
+  same sitting: "make the map 30% smaller" -> 2100x1400.
 - **v0.15.0, built in one sitting, item by item** ("build the changes and
   implement the ideas. Ask me one by one and i will tell you to go ahead";
   then "ask me the items here instead of my phone" - he wants questions as
