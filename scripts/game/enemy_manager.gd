@@ -168,6 +168,11 @@ func spawn(kind: int, at: Vector2, hp_mult: float = 1.0, speed_mult: float = 1.0
 	e.tex_flash = Art.enemy_flash_tex(kind, e.variant)
 	e.tex_hurt = Art.enemy_hurt_tex(kind, e.variant)
 	e.texture = e.tex_normal
+	e.anim = Art.enemy_anim(kind, e.variant)
+	e.anim_t = randf()
+	e.anim_pos = at
+	e.anim_hit = 0.0
+	e.anim_act = 0.0
 	e.base_scale = 1.0 / Art.PX
 	e.scale = Vector2(e.base_scale, e.base_scale)
 	e.modulate = Color.WHITE
@@ -242,6 +247,8 @@ func tick(dt: float) -> void:
 			else:
 				var fs := e.base_scale * (1.0 + squash * e.flash_t)
 				e.scale = Vector2(fs, fs)
+		if not e.anim.is_empty():
+			_animate(e, dt)
 
 		# On fire: steady damage, a few flames, and a charred body if it dies.
 		if e.burn_t > 0.0:
@@ -648,6 +655,8 @@ func damage(e: Enemy, amount: float, dir: Vector2, knockback: float, stagger: fl
 			Sfx.play("crit", -4.0)
 		e.flash_t = Config.HIT_FLASH_TIME
 		e.texture = e.tex_flash
+		if e.anim_hit <= 0.0:
+			e.anim_hit = Config.ANIM_HIT_TIME
 		game.fx.blood_spray(e.pos, dir, Config.BLOOD_PER_HIT, 1.0)
 		Sfx.play("zombie_hit", -6.0)
 		game.coop.send_hit(e, amount, dir, knockback, stagger, crit, source, kill_hitstop)
@@ -661,6 +670,8 @@ func damage(e: Enemy, amount: float, dir: Vector2, knockback: float, stagger: fl
 		Sfx.play("crit", -4.0)
 	e.flash_t = Config.HIT_FLASH_TIME
 	e.texture = e.tex_flash
+	if e.anim_hit <= 0.0:
+		e.anim_hit = Config.ANIM_HIT_TIME
 	if knockback > 0.0:
 		e.kb = (e.kb + dir * (knockback * e.kb_mult)).limit_length(Config.KNOCKBACK_MAX)
 	var st := stagger * e.stagger_mult
@@ -682,6 +693,51 @@ func _stride(e: Enemy, dt: float) -> void:
 	if e.stride_t >= e.stride:
 		e.stride_t = fmod(e.stride_t, e.stride)
 		e.flip_v = not e.flip_v
+
+
+## A kind with picture strips (Art.enemy_anim) moves instead of being one still picture:
+## it walks, stands, flinches when hit and shows its attack - the warning is the first
+## part of that movement, the moment it lets go its peak. Only how it looks: nothing in
+## the fight depends on it, and every computer works it out for itself.
+func _animate(e: Enemy, dt: float) -> void:
+	if dt <= 0.0:
+		return
+	var a := e.anim
+	var tail := "_hurt" if e.wounded else ""
+	var walked := e.pos.distance_to(e.anim_pos)
+	e.anim_pos = e.pos
+	var frames: Array = []
+	var at := 0.0
+	if e.state == B_WINDUP and e.anim_act <= 0.0 and a.has("attack"):
+		e.anim_len = _warning_time(e) / Config.ANIM_ATTACK_PEAK
+		e.anim_act = e.anim_len
+	if e.anim_act > 0.0:
+		e.anim_act -= dt
+		at = 1.0 - e.anim_act / e.anim_len
+		if e.state != B_WINDUP and at < Config.ANIM_ATTACK_PEAK - 0.15:
+			e.anim_act = 0.0                 # (it was stopped before it could let go)
+		else:
+			frames = a["attack" + tail]
+			at = minf(at, 0.999)
+	if frames.is_empty() and e.anim_hit > 0.0 and a.has("hit"):
+		e.anim_hit -= dt
+		frames = a["hit" + tail]
+		at = clampf(1.0 - e.anim_hit / Config.ANIM_HIT_TIME, 0.0, 0.999)
+	if frames.is_empty():
+		if walked > 12.0 * dt and e.stagger_t <= 0.0 and a.has("walk"):
+			e.anim_t += walked / Config.ANIM_WALK_CYCLE
+			frames = a["walk" + tail]
+		elif a.has("idle"):
+			e.anim_t += dt / Config.ANIM_IDLE_TIME
+			frames = a["idle" + tail]
+		elif a.has("walk"):
+			frames = a["walk" + tail]
+		at = e.anim_t
+	if frames.is_empty():
+		return
+	e.tex_normal = Art.frame_at(frames, at)
+	if e.flash_t <= 0.0:
+		e.texture = e.tex_normal
 
 
 ## The zombie is badly hurt: from now on it shows its wounds, limps and bleeds.
@@ -1200,6 +1256,8 @@ func apply_snapshot(buf: StreamPeerBuffer, count: int, serial: int) -> void:
 		if bits & 1 != 0 and e.flash_t <= 0.0:
 			e.flash_t = Config.HIT_FLASH_TIME
 			e.texture = e.tex_flash
+			if e.anim_hit <= 0.0:
+				e.anim_hit = Config.ANIM_HIT_TIME
 		if bits & 2 != 0 and not e.wounded:
 			_wound(e)
 		e.burn_t = 1.0 if bits & 4 != 0 else 0.0
@@ -1329,6 +1387,8 @@ func tick_remote(dt: float) -> void:
 		e.pos = epos
 		e.position = epos
 		e.rotation = e.face + sin(e.phase) * e.sway
+		if not e.anim.is_empty():
+			_animate(e, dt)
 		if e.wounded and randf() < drip:
 			game.decals.blood_dot(epos + Vector2(randf_range(-5.0, 5.0), randf_range(-5.0, 5.0)), randf_range(3.0, 6.5))
 		if e.burn_t > 0.0 and randf() < dt * 7.0:

@@ -1431,6 +1431,77 @@ func _run_autotest() -> void:
 			"a running Runner's picture changes sides with every step (%.2f s a step)" % sprinter.stride)
 	sprinter.hp = 1.0             # (the next hit takes it off the field again)
 
+	# --- movement in pictures: a character with picture strips walks, stands, flinches, attacks and
+	#     dies in frames (the Gobber and the hero have them; the checks call the code directly, so the
+	#     fight going on around them cannot get in the way) ---
+	var gob_anim := Art.enemy_anim(Config.GOBBER, 0)
+	var hero_anim := Art.anim_of("player")
+	var strips_ok := true
+	for movement: Array in [["walk", 12], ["idle", 8], ["attack", 12], ["hit", 6], ["death", 12]]:
+		for who: Dictionary in [gob_anim, hero_anim]:
+			if (who.get(movement[0], []) as Array).size() != int(movement[1]) \
+					or (who.get(String(movement[0]) + "_hurt", []) as Array).size() != int(movement[1]):
+				strips_ok = false
+	_check(strips_ok and is_same(Art.enemy_anim(Config.GOBBER, 1), gob_anim) and Art.enemy_anim(Config.SHAMBLER, 0).is_empty(),
+			"the Gobber and the hero have five movements as picture strips, wounded ones too (a Shambler has none: it stays one picture)")
+	if strips_ok:
+		var mover := game.enemies.spawn(Config.GOBBER, game.player.pos + Vector2(430.0, 120.0), 500.0)
+		var step := 1.0 / 60.0
+		mover.anim_pos = mover.pos - Vector2(2.0, 0.0)          # (it has just walked two pixels)
+		game.enemies.call("_animate", mover, step)
+		var walks := (gob_anim["walk"] as Array).has(mover.tex_normal)
+		game.enemies.call("_animate", mover, step)              # (now it has not moved)
+		var stands := (gob_anim["idle"] as Array).has(mover.tex_normal)
+		_check(walks and stands, "a Gobber shows its walk frames while it walks and its idle frames while it stands")
+		mover.anim_hit = Config.ANIM_HIT_TIME
+		game.enemies.call("_animate", mover, step)
+		var flinches := (gob_anim["hit"] as Array).has(mover.tex_normal)
+		mover.flash_t = Config.HIT_FLASH_TIME
+		mover.texture = mover.tex_flash
+		game.enemies.call("_animate", mover, step)
+		_check(flinches and mover.texture == mover.tex_flash, "a hit makes it flinch in frames (the white flash still shows first)")
+		mover.flash_t = 0.0
+		mover.anim_hit = 0.0
+		mover.state = EnemyManager.B_WINDUP
+		mover.state_t = float(Config.ENEMIES[Config.GOBBER]["shot_windup"])
+		game.enemies.call("_animate", mover, step)
+		var winds_up: bool = mover.tex_normal == (gob_anim["attack"] as Array)[0]
+		for i in int(float(Config.ENEMIES[Config.GOBBER]["shot_windup"]) / step) - 1:
+			game.enemies.call("_animate", mover, step)
+		var peak: int = int(Config.ANIM_ATTACK_PEAK * 12.0)
+		_check(winds_up and mover.tex_normal == (gob_anim["attack"] as Array)[peak],
+				"its warning plays the first part of its attack: by the moment it spits it shows frame %d of 12, the furthest stretch" % (peak + 1))
+		mover.state = EnemyManager.B_CHASE
+		mover.wounded = true
+		game.enemies.call("_animate", mover, step)
+		_check((gob_anim["attack_hurt"] as Array).has(mover.tex_normal), "...the movement runs on after the spit, and a badly hurt Gobber moves in its wounded frames")
+		game.fx.corpse(mover, Vector2.RIGHT)
+		var bodies: Array = game.fx.get("_corpses")
+		var body: Fx.Corpse = bodies[bodies.size() - 1]
+		_check(is_same(body.frames, gob_anim["death_hurt"]) and body.tex == (gob_anim["death_hurt"] as Array)[0],
+				"a dying Gobber's body plays its death frames while it slides")
+		body.life = 0.0001            # (settle it at once: this one did not really die)
+		mover.hp = 1.0
+		# The hero.
+		var actor := game.player
+		var tail := "_hurt" if actor.wounded else ""
+		var was_moving := actor.move_input
+		actor.set("_anim_hit", 0.0)
+		actor.set("_anim_fire", 0.0)
+		actor.move_input = Vector2.ZERO
+		var hero_stands := (hero_anim["idle" + tail] as Array).has(actor.call("_body_frame"))
+		actor.move_input = Vector2.RIGHT
+		var hero_walks := (hero_anim["walk" + tail] as Array).has(actor.call("_body_frame"))
+		actor.set("_anim_fire", Config.ANIM_FIRE_TIME * 0.5)
+		var hero_shoots := (hero_anim["attack" + tail] as Array).has(actor.call("_body_frame"))
+		actor.set("_anim_hit", Config.ANIM_HIT_TIME * 0.5)
+		var hero_flinches := (hero_anim["hit" + tail] as Array).has(actor.call("_body_frame"))
+		actor.set("_anim_hit", 0.0)
+		actor.set("_anim_fire", 0.0)
+		actor.move_input = was_moving
+		_check(hero_stands and hero_walks and hero_shoots and hero_flinches,
+				"the hero stands, walks, shoots and flinches in frames")
+
 	# --- the tables for the idea board's dashboard: every part of the game is in them, and every
 	#     number that can be changed there says where it lives in config.gd ---
 	var sheet_rows := {}

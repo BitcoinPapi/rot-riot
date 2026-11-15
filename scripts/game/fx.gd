@@ -38,6 +38,7 @@ class Corpse:
 	var charred := false         # burned to death: settles as a black husk
 	var tex: Texture2D
 	var size := Vector2.ZERO
+	var frames: Array = []       # its death movement, if the kind has one (shown while the body slides)
 
 var game: Game
 
@@ -281,7 +282,10 @@ func corpse(e: Enemy, dir: Vector2) -> void:
 	c.blood = e.blood
 	c.charred = e.burn_t > 0.0
 	c.tex = e.tex_normal
-	c.size = Vector2(e.tex_normal.get_size()) / Art.PX
+	c.frames = e.anim.get("death_hurt" if e.wounded else "death", [])
+	if not c.frames.is_empty():
+		c.tex = c.frames[0]
+	c.size = Vector2(c.tex.get_size()) / Art.PX
 	_corpses.append(c)
 
 
@@ -382,6 +386,8 @@ func tick(dt: float) -> void:
 		b.vel *= maxf(1.0 - 7.0 * dt, 0.0)
 		b.rot += b.spin * dt
 		b.spin *= maxf(1.0 - 5.0 * dt, 0.0)
+		if not b.frames.is_empty():
+			b.tex = b.frames[clampi(int((1.0 - b.life / b.max_life) * b.frames.size()), 0, b.frames.size() - 1)]
 		if b.charred:
 			if randf() < 0.3:
 				smoke(b.pos, 1, 12.0)

@@ -34,6 +34,10 @@ var _gun_kick := 0.0
 var _saw_t := 0.0               # their chainsaw ran this short while ago...
 var _saw_phase := 0.0           # ...and is this far along its back-and-forth
 var _walk := 0.0
+var _anims: Dictionary = Art.anim_of("player")      # every player is shown as the painted hero (Art.build_mate)
+var _anim_t := 0.0
+var _anim_hit := 0.0
+var _moving := false
 var _swing := 0.0
 var _swing_side := 1.0
 var _flash := 0.0
@@ -97,8 +101,13 @@ func tick(real_dt: float) -> void:
 	_time += real_dt
 	var before := pos
 	pos = pos.lerp(net_pos, 1.0 - exp(-22.0 * real_dt))
-	if pos.distance_to(before) > 0.4:
+	_moving = pos.distance_to(before) > 0.4
+	if _moving:
 		_walk += real_dt * 14.0
+		_anim_t += pos.distance_to(before) / Config.ANIM_HERO_WALK_CYCLE
+	else:
+		_anim_t += real_dt / Config.ANIM_IDLE_TIME
+	_anim_hit = maxf(_anim_hit - real_dt, 0.0)
 	position = pos
 	_gun_kick = lerpf(_gun_kick, 0.0, minf(real_dt * 22.0, 1.0))
 	_swing = maxf(_swing - real_dt / 0.16, 0.0)
@@ -143,9 +152,24 @@ func show_fire(index: int, from: Vector2, angle: float, both_hands: bool) -> voi
 	Sfx.play(String(w["sound"]), -7.0)
 
 
+## The frame of their movement to show now (null = the one still picture).
+func _body_frame() -> Texture2D:
+	if _anims.is_empty():
+		return null
+	var tail := "_hurt" if wounded else ""
+	if _anim_hit > 0.0 and _anims.has("hit"):
+		return Art.frame_at(_anims["hit" + tail], clampf(1.0 - _anim_hit / Config.ANIM_HIT_TIME, 0.0, 0.999))
+	if _moving and _anims.has("walk"):
+		return Art.frame_at(_anims["walk" + tail], _anim_t)
+	if _anims.has("idle"):
+		return Art.frame_at(_anims["idle" + tail], _anim_t)
+	return null
+
+
 ## They were hit (shown as a quick white flash).
 func show_hurt() -> void:
 	_flash = 0.12
+	_anim_hit = Config.ANIM_HIT_TIME
 
 
 func _draw() -> void:
@@ -178,10 +202,17 @@ func _draw() -> void:
 	draw_arc(Vector2.ZERO, radius + 7.0, 0.0, TAU, 28, Color(blue.r, blue.g, blue.b, 0.55), 2.0)
 	var alpha := 0.45 if blinking and fmod(_time, 0.12) < 0.06 else 1.0
 	var facing := aim.angle()
-	var bob := 1.0 + sin(_walk) * 0.035
-	draw_set_transform(Vector2.ZERO, facing, Vector2(1.0, bob))
-	var body := _sprite + ("_flash" if _flash > 0.0 else ("_hurt" if wounded else ""))
-	Art.draw(self, body, Vector2.ZERO, 1.0, Color(1, 1, 1, alpha))
+	var moving := _body_frame() if _flash <= 0.0 else null
+	if moving != null:
+		# A frame of the hero's movement (walking, standing, flinching).
+		var frame_size := Vector2(moving.get_size()) / Art.PX
+		draw_set_transform(Vector2.ZERO, facing, Vector2.ONE)
+		draw_texture_rect(moving, Rect2(-frame_size * 0.5, frame_size), false, Color(1, 1, 1, alpha))
+	else:
+		var bob := 1.0 + sin(_walk) * 0.035
+		draw_set_transform(Vector2.ZERO, facing, Vector2(1.0, bob))
+		var body := _sprite + ("_flash" if _flash > 0.0 else ("_hurt" if wounded else ""))
+		Art.draw(self, body, Vector2.ZERO, 1.0, Color(1, 1, 1, alpha))
 
 	# The weapon in their hands.
 	var w: Dictionary = Config.WEAPONS[weapon_id]

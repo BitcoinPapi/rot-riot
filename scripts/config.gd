@@ -1150,6 +1150,20 @@ const CASING_LIFETIME := 0.55
 const MUZZLE_FLASH_TIME := 0.05
 
 # ----------------------------------------------------------------------------
+#  ANIMATED CHARACTERS - a character that has picture strips (assets/sprites/
+#  <sprite>_walk.png, _idle, _attack, _hit, _death; cut by tools/make_sprite.py)
+#  moves instead of being one still picture. Only how it looks.
+# ----------------------------------------------------------------------------
+const ANIM_WALK_CYCLE := 64.0           # ground a zombie covers in one run through its walk frames, px (smaller = quicker steps)
+const ANIM_HERO_WALK_CYCLE := 120.0     # ...and the hero, who runs
+const ANIM_IDLE_TIME := 1.1             # seconds for one run through the idle frames (standing, breathing)
+const ANIM_HIT_TIME := 0.26             # ...through the hit frames (a flinch)
+const ANIM_ATTACK_PEAK := 0.62          # the share of a zombie's attack frames shown by the moment it lets go
+                                        # (its warning plays the first part of the movement)
+const ANIM_FIRE_TIME := 0.3             # the hero: seconds for one run through his attack frames while he shoots
+const ANIM_DEATH_TIME := 0.7            # the hero: seconds for his death frames (a zombie's play while its body slides)
+
+# ----------------------------------------------------------------------------
 #  SETTINGS DEFAULTS
 # ----------------------------------------------------------------------------
 const DEFAULT_MASTER_VOLUME := 0.8

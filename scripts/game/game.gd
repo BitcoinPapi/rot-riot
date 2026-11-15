@@ -870,7 +870,7 @@ func main_paused_by_mate(paused: bool) -> void:
 func _player_died() -> void:
 	state = State.DYING
 	player.alive = false
-	player.visible = false
+	player.visible = player.die_look()          # (he goes down in pictures, if he has them)
 	_time_scale = Config.DEATH_SLOWMO
 	_end_timer = Config.DEATH_SLOWMO_TIME
 	fx.blood_burst(player.pos, 40, 1.6)

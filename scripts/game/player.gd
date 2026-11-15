@@ -48,6 +48,13 @@ var _reload_left := 0.0
 var _reload_total := 1.0
 var _reload_stage := 0          # which reload sound has played so far
 var _walk_phase := 0.0
+# Movement in pictures (when the hero has strips, see Art.anim_of; {} = one still picture)
+var _anims: Dictionary = Art.anim_of("player")
+var _anim_t := 0.0              # how far through walking / standing (goes round and round)
+var _anim_hit := 0.0            # seconds left of the flinch
+var _anim_fire := 0.0           # seconds left of the shooting movement
+var _dying := false             # showing his death (the run is lost)
+var _death_t := 0.0
 var _time := 0.0
 var _gun_tex: Texture2D
 var _gun_size := Vector2.ZERO
@@ -90,7 +97,9 @@ func place(at: Vector2) -> void:
 func tick(delta: float) -> void:
 	_time += delta
 	if not alive:
-		if down:
+		if _dying:
+			_death_t += delta
+		if down or _dying:
 			queue_redraw()
 		return
 
@@ -106,6 +115,11 @@ func tick(delta: float) -> void:
 	position = pos
 	if move_input != Vector2.ZERO:
 		_walk_phase += delta * 14.0
+		_anim_t += speed * delta / Config.ANIM_HERO_WALK_CYCLE
+	else:
+		_anim_t += delta / Config.ANIM_IDLE_TIME
+	_anim_hit = maxf(_anim_hit - delta, 0.0)
+	_anim_fire = maxf(_anim_fire - delta, 0.0)
 
 	# Badly hurt: the sprite changes and you leave drops of your own blood.
 	wounded = hp < max_hp * Config.PLAYER_WOUNDED_AT
@@ -202,6 +216,8 @@ func _fire() -> void:
 
 	# Feel: recoil, camera jolt, shake, sound. All numbers come from Config.WEAPONS.
 	_gun_kick = float(w["recoil_gun"])
+	if _anim_fire <= 0.0:
+		_anim_fire = Config.ANIM_FIRE_TIME
 	push_vel -= dir * (float(w["recoil_push"]) * recoil_mult)
 	game.shake(float(w["shake"]))
 	game.cam.kick(-dir, float(w["kick"]) * recoil_mult)
@@ -412,6 +428,34 @@ func muzzle_position() -> Vector2:
 
 func hurt_flash() -> void:
 	_flash = 0.12
+	_anim_hit = Config.ANIM_HIT_TIME
+
+
+## The run is lost: show him going down, if he has pictures for it. False = he has none
+## (the game then simply takes him off the field, as it always did).
+func die_look() -> bool:
+	if not _anims.has("death"):
+		return false
+	_dying = true
+	_death_t = 0.0
+	queue_redraw()
+	return true
+
+
+## The frame of his movement to show now (null = his one still picture).
+func _body_frame() -> Texture2D:
+	if _anims.is_empty():
+		return null
+	var tail := "_hurt" if wounded else ""
+	if _anim_hit > 0.0 and _anims.has("hit"):
+		return Art.frame_at(_anims["hit" + tail], clampf(1.0 - _anim_hit / Config.ANIM_HIT_TIME, 0.0, 0.999))
+	if _anim_fire > 0.0 and _anims.has("attack"):
+		return Art.frame_at(_anims["attack" + tail], clampf(1.0 - _anim_fire / Config.ANIM_FIRE_TIME, 0.0, 0.999))
+	if move_input != Vector2.ZERO and _anims.has("walk"):
+		return Art.frame_at(_anims["walk" + tail], _anim_t)
+	if _anims.has("idle"):
+		return Art.frame_at(_anims["idle" + tail], _anim_t)
+	return null
 
 
 # ----------------------------------------------------------------------------
@@ -431,18 +475,31 @@ func _draw() -> void:
 		Art.draw(self, "player_hurt", Vector2.ZERO, 1.0, Color(0.6, 0.5, 0.5))
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		return
+	if _dying:
+		# Going down: his death frames once, then he lies where he fell.
+		var falling: Array = _anims["death_hurt"]
+		var fallen: Texture2D = falling[clampi(int(_death_t / Config.ANIM_DEATH_TIME * falling.size()), 0, falling.size() - 1)]
+		var lying := Vector2(fallen.get_size()) / Art.PX
+		var settle := clampf(_death_t / Config.ANIM_DEATH_TIME, 0.0, 1.0)
+		draw_texture_rect(fallen, Rect2(-lying * 0.5, lying), false, Color.WHITE.lerp(Color(0.6, 0.5, 0.5), settle))
+		return
 	if not alive:
 		return
 	var alpha := 1.0
 	if invuln > 0.0 and fmod(_time, 0.12) < 0.06:
 		alpha = 0.45
 
-	# Body, with a small squash while walking.
-	var bob := 1.0 + sin(_walk_phase) * 0.035
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, bob))
-	var body := "player_flash" if _flash > 0.0 else ("player_hurt" if wounded else "player")
+	# Body: a frame of his movement, or his one picture with a small squash while walking.
 	var tint := Color(1, 1, 1, alpha)
-	Art.draw(self, body, Vector2.ZERO, 1.0, tint)
+	var moving := _body_frame() if _flash <= 0.0 else null
+	if moving != null:
+		var frame_size := Vector2(moving.get_size()) / Art.PX
+		draw_texture_rect(moving, Rect2(-frame_size * 0.5, frame_size), false, tint)
+	else:
+		var bob := 1.0 + sin(_walk_phase) * 0.035
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, bob))
+		var body := "player_flash" if _flash > 0.0 else ("player_hurt" if wounded else "player")
+		Art.draw(self, body, Vector2.ZERO, 1.0, tint)
 
 	# Reload animation: the gun is pulled in and tipped over while the magazine
 	# is swapped, then snaps back out (the snap is the _gun_kick on the rack).

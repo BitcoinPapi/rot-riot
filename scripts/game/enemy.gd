@@ -66,6 +66,14 @@ var tex_flash: Texture2D
 var tex_hurt: Texture2D
 var base_scale := 0.5
 
+# Movement in pictures (only kinds that have strips, see Art.enemy_anim; {} = one still picture)
+var anim: Dictionary = {}
+var anim_t := 0.0               # how far through walking / standing (goes round and round)
+var anim_pos := Vector2.ZERO    # where it was last frame (has it walked?)
+var anim_hit := 0.0             # seconds left of the flinch
+var anim_act := 0.0             # seconds left of the attack movement...
+var anim_len := 1.0             # ...of this many
+
 # Zombies with an attack of their own (the boss, shooters, the Gasbag, the Lunger)
 var ai := 0                     # Config.AI_*
 var cfg: Dictionary = {}        # its entry in Config.ENEMIES (for the numbers of its attack)

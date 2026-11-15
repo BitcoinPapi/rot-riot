@@ -36,8 +36,18 @@ const ENEMY_VARIANTS := [SHAMBLER_VARIANTS, RUNNER_VARIANTS, BRUTE_VARIANTS, BOS
 	GOBBER_VARIANTS, CHUCKER_VARIANTS, GASBAG_VARIANTS, LUNGER_VARIANTS, FIGHTER_VARIANTS]
 
 
+## The movements a character can have as picture strips (see _load_anims).
+const ANIM_NAMES := ["walk", "idle", "attack", "hit", "death"]
+const NO_ANIMS := {}
+
+## sprite -> {"walk": [frames], "walk_hurt": [frames], "idle": ...}: only for sprites that
+## have strips. A frame is a Texture2D like any other picture.
+var anims: Dictionary = {}
+
+
 func _ready() -> void:
 	_build()
+	_build_anims()
 	_images.clear()
 	# The hero is redrawn whenever he puts something on or takes it off.
 	SaveData.gear_changed.connect(refresh_hero)
@@ -69,10 +79,72 @@ func enemy_flash_tex(kind: int, variant: int = 0) -> Texture2D:
 	return tex[own] if tex.has(own) else tex["%s_0_flash" % ENEMY_SPRITE[kind]]
 
 
+## The animations of a sprite ({} = it is one still picture).
+func anim_of(sprite: String) -> Dictionary:
+	return anims.get(sprite, NO_ANIMS)
+
+
+func enemy_anim(kind: int, variant: int) -> Dictionary:
+	return anims.get("%s_%d" % [ENEMY_SPRITE[kind], variant], NO_ANIMS)
+
+
+## The frame to show of one movement (a list of frames): `at` says how far through it,
+## 0..1. A movement that goes round and round (walking) may be given any number.
+func frame_at(frames: Array, at: float) -> Texture2D:
+	var count := frames.size()
+	return frames[clampi(int(fposmod(at, 1.0) * count), 0, count - 1)]
+
+
 ## Draw a sprite centred on `pos` in the canvas item `ci`.
 func draw(ci: CanvasItem, sprite: String, pos: Vector2, scale: float = 1.0, color: Color = Color.WHITE) -> void:
 	var s: Vector2 = sizes[sprite] * scale
 	ci.draw_texture_rect(tex[sprite], Rect2(pos - s * 0.5, s), false, color)
+
+
+# ----------------------------------------------------------------------------
+#  Animations
+#
+#  A strip is a PNG with the frames of one movement side by side, each frame a
+#  square as tall as the strip:  assets/sprites/<sprite>_walk.png  (and _idle,
+#  _attack, _hit, _death), plus <sprite>_walk_hurt.png ... for the wounded
+#  look. tools/make_sprite.py cuts them out of the sheets the owner sends.
+#  A character without strips stays one still picture.
+# ----------------------------------------------------------------------------
+func _build_anims() -> void:
+	for kind in ENEMY_SPRITE.size():
+		var first := "%s_0" % ENEMY_SPRITE[kind]
+		for variant in ENEMY_VARIANTS[kind]:
+			var sprite := "%s_%d" % [ENEMY_SPRITE[kind], variant]
+			_load_anims(sprite)
+			# (A look without a picture of its own moves like the first look, whose picture it uses.)
+			if not anims.has(sprite) and anims.has(first) and not ResourceLoader.exists("res://assets/sprites/%s.png" % sprite):
+				anims[sprite] = anims[first]
+	if _painted("player") != "":
+		_load_anims("player")
+
+
+func _load_anims(sprite: String) -> void:
+	var found := {}
+	for anim: String in ANIM_NAMES:
+		var path := "res://assets/sprites/%s_%s.png" % [sprite, anim]
+		if not ResourceLoader.exists(path):
+			continue
+		found[anim] = _frames(load(path))
+		var hurt_path := "res://assets/sprites/%s_%s_hurt.png" % [sprite, anim]
+		found[anim + "_hurt"] = _frames(load(hurt_path)) if ResourceLoader.exists(hurt_path) else found[anim]
+	if not found.is_empty():
+		anims[sprite] = found
+
+
+func _frames(strip: Texture2D) -> Array:
+	var side := strip.get_height()
+	var list: Array = []
+	for i in maxi(int(strip.get_width() / float(side)), 1):
+		var frame := AtlasTexture.new()
+		frame.atlas = strip
+		frame.region = Rect2(i * side, 0, side, side)
+		list.append(frame)
+	return list
 
 
 # ----------------------------------------------------------------------------

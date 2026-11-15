@@ -11,6 +11,9 @@ the game's size and saves it there.
                          [--erase "X,Y X,Y X,Y; X,Y ..."] [--mirror] [--hue DEG] [--dull F]
                          [--wounds] [--no-shadow]
     tools/make_sprite.py PICTURE NAME --portrait 380      (a standing picture for the menus)
+    tools/make_sprite.py SHEET NAME_walk --sheet 4x3 --match PICTURE --length 58 [--center X,Y]
+                         [--turn DEG] [--main-only] [--sheet-turn DEG] [--frames N] [--wounds]
+                                                          (an ANIMATION: see below)
 
     PICTURE     the big picture (png / webp / jpg); a plain white background is removed
     NAME        the sprite's name, e.g. runner_0 or runner_0_hurt
@@ -36,6 +39,25 @@ the game's size and saves it there.
     --wounds    paint blood and gashes on it (for NAME_hurt when there is no painted
                 wounded picture)
     --no-shadow leave out the soft dark shadow that lifts the figure off the ground
+
+ANIMATIONS. A sheet is one picture holding the frames of a movement in a grid (the
+owner's come as 512 px cells, 4 to a row: walk 12 frames, idle 8, attack 12, hit 6,
+death 12), every frame being the character's ONE picture, slightly moved. The game
+wants them as a strip: assets/sprites/<sprite>_<walk|idle|attack|hit|death>.png, the
+frames side by side, each a square as tall as the strip, the middle of the chest in
+the middle of every frame - and the same again as ..._hurt.png for the wounded look.
+
+    --sheet       how the frames lie in the sheet: COLUMNSxROWS, read row by row
+    --frames      how many of the cells are frames (default: all of them)
+    --match       the big PICTURE the sheet was made from, the one the still sprite was
+                  cut from. --length, --center, --turn and --main-only are then given
+                  EXACTLY as on that sprite's line: the script finds the figure of the
+                  first frame in that picture, so every frame comes out at the size and
+                  on the spot of the still sprite.
+    --sheet-turn  turn every cell clockwise by this many degrees first, when the sheet
+                  shows the figure turned against PICTURE (the hero's sheets show him
+                  facing left, his picture has him walking down: --sheet-turn -90)
+    --wounds      the same blood on every frame (it must not flicker)
 
 Needs Python with Pillow and numpy. After adding or changing a sprite run
 `godot --headless --import` once, then look at it in the game.
@@ -113,6 +135,21 @@ def turn_hue(im: Image.Image, degrees: float, dull: float = 1.0) -> Image.Image:
 
 def wound(im: Image.Image) -> Image.Image:
     """Blood stains and a few gashes, only where the figure is. The same every time."""
+    return paint_on(im, wound_paint(im))
+
+
+def paint_on(im: Image.Image, paint: Image.Image) -> Image.Image:
+    """Lay a layer of paint over a figure, only where the figure is."""
+    alpha = np.array(im)[..., 3]
+    p = np.array(paint)
+    p[..., 3] = (p[..., 3].astype(np.float32) * (alpha.astype(np.float32) / 255.0)).astype(np.uint8)
+    out = im.copy()
+    out.alpha_composite(Image.fromarray(p, "RGBA"))
+    return out
+
+
+def wound_paint(im: Image.Image) -> Image.Image:
+    """The blood and gashes for a figure, as a layer of their own (see wound)."""
     rng = random.Random(7)
     w, h = im.size
     alpha = np.array(im)[..., 3]
@@ -134,12 +171,7 @@ def wound(im: Image.Image) -> Image.Image:
         ends = [x - math.cos(ang) * long / 2, y - math.sin(ang) * long / 2, x + math.cos(ang) * long / 2, y + math.sin(ang) * long / 2]
         draw.line(ends, fill=(150, 24, 20, 235), width=max(2, w // 48))
         draw.line(ends, fill=(46, 6, 8, 245), width=max(1, w // 110))
-    paint = paint.filter(ImageFilter.GaussianBlur(0.5))
-    p = np.array(paint)
-    p[..., 3] = (p[..., 3].astype(np.float32) * (alpha.astype(np.float32) / 255.0)).astype(np.uint8)
-    out = im.copy()
-    out.alpha_composite(Image.fromarray(p, "RGBA"))
-    return out
+    return paint.filter(ImageFilter.GaussianBlur(0.5))
 
 
 def shadow(im: Image.Image) -> Image.Image:
@@ -149,6 +181,84 @@ def shadow(im: Image.Image) -> Image.Image:
     dark.putalpha(alpha.point(lambda v: int(v * 0.42)))
     dark.alpha_composite(im)
     return dark
+
+
+def figure_box(im: Image.Image, spot: tuple) -> tuple:
+    """The edges of the figure itself (loose bits left out)."""
+    return main_only(im, spot).getchannel("A").point(lambda v: 255 if v > 25 else 0).getbbox()
+
+
+def turned(im: Image.Image, degrees: float, spot: tuple) -> tuple:
+    """Turn a picture clockwise; says where `spot` ended up."""
+    if not degrees:
+        return im, spot
+    old = (im.width / 2.0, im.height / 2.0)
+    out = im.rotate(-degrees, resample=Image.BICUBIC, expand=True)
+    t = math.radians(degrees)
+    dx, dy = spot[0] - old[0], spot[1] - old[1]
+    return out, (out.width / 2.0 + dx * math.cos(t) - dy * math.sin(t), out.height / 2.0 + dx * math.sin(t) + dy * math.cos(t))
+
+
+def strip(args) -> int:
+    """An animation: cut the frames out of a sheet and lay them side by side (see ANIMATIONS)."""
+    cols, rows = [int(v) for v in args.sheet.lower().split("x")]
+    sheet = Image.open(args.picture).convert("RGBA")
+    cw, ch = sheet.width // cols, sheet.height // rows
+    count = args.frames if args.frames > 0 else cols * rows
+    cells = [sheet.crop((c * cw, r * ch, c * cw + cw, r * ch + ch)) for r in range(rows) for c in range(cols)][:count]
+    if args.sheet_turn:
+        cells = [cell.rotate(-args.sheet_turn, resample=Image.BICUBIC) for cell in cells]
+
+    # Where the still sprite's picture sits inside a cell: found from the first frame.
+    picture = cut_out(Image.open(args.match))
+    spot = tuple(float(v) for v in args.center.split(",")) if args.center else (picture.width / 2.0, picture.height / 2.0)
+    pb = figure_box(picture, spot)
+    first = cells[0].getchannel("A").point(lambda v: 255 if v > 25 else 0).getbbox()
+    cb = figure_box(cells[0], ((first[0] + first[2]) / 2.0, (first[1] + first[3]) / 2.0))
+    k = ((cb[2] - cb[0]) / float(pb[2] - pb[0]) + (cb[3] - cb[1]) / float(pb[3] - pb[1])) / 2.0      # picture pixels -> cell pixels
+    ox = (cb[0] + cb[2]) / 2.0 - k * (pb[0] + pb[2]) / 2.0
+    oy = (cb[1] + cb[3]) / 2.0 - k * (pb[1] + pb[3]) / 2.0
+    cell_spot = (spot[0] * k + ox, spot[1] * k + oy)
+
+    # The size of the still sprite: its figure (as on its own line) is --length long.
+    still, _ = turned(picture, args.turn, spot)
+    still_spot = turned(picture, args.turn, spot)[1]
+    if args.main_only:
+        still = main_only(still, still_spot)
+    alpha = np.array(still)[..., 3]
+    xs = np.where(alpha > 25)[1]
+    scale = args.length * PX / float(xs.max() + 1 - xs.min()) / k          # cell pixels -> stored pixels
+
+    frames, reach, at = [], 0.0, cell_spot
+    for cell in cells:
+        frame, at = turned(cell, args.turn, cell_spot)
+        a = np.array(frame)[..., 3]
+        ys, xs = np.where(a > 25)
+        reach = max(reach, at[0] - xs.min(), xs.max() + 1 - at[0], at[1] - ys.min(), ys.max() + 1 - at[1])
+        frames.append(frame)
+    half = int(math.ceil(reach * scale / 2.0 + 2.0)) * 2
+    size = (max(1, round(frames[0].width * scale)), max(1, round(frames[0].height * scale)))
+    corner = (round(half - at[0] * scale), round(half - at[1] * scale))
+    out = Image.new("RGBA", (half * 2 * len(frames), half * 2), (0, 0, 0, 0))
+    paint = None
+    for i, frame in enumerate(frames):
+        sprite = Image.new("RGBA", (half * 2, half * 2), (0, 0, 0, 0))
+        sprite.alpha_composite(shrink(frame, size), corner)
+        if args.mirror:
+            sprite = sprite.transpose(Image.FLIP_TOP_BOTTOM)
+        if args.wounds:
+            if paint is None:
+                paint = wound_paint(sprite)          # (made once: the blood stays where it is from frame to frame)
+            sprite = paint_on(sprite, paint)
+        if not args.no_shadow:
+            sprite = shadow(sprite)
+        out.paste(sprite, (i * half * 2, 0))
+    os.makedirs(args.out, exist_ok=True)
+    path = os.path.join(args.out, args.name + ".png")
+    out.save(path)
+    print("%s: %d frames of %dx%d stored = %dx%d in the game (the picture sits in a cell at x%.3f, moved by %.0f,%.0f)" % (
+        os.path.normpath(path), len(frames), half * 2, half * 2, half * 2 // PX, half * 2 // PX, k, ox, oy))
+    return 0
 
 
 def main() -> int:
@@ -166,8 +276,17 @@ def main() -> int:
     ap.add_argument("--dull", type=float, default=1.0)
     ap.add_argument("--wounds", action="store_true")
     ap.add_argument("--no-shadow", action="store_true")
+    ap.add_argument("--sheet", default="")
+    ap.add_argument("--frames", type=int, default=0)
+    ap.add_argument("--match", default="")
+    ap.add_argument("--sheet-turn", type=float, default=0.0)
     ap.add_argument("--out", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "sprites"))
     args = ap.parse_args()
+    if args.sheet:
+        if not args.match or args.length <= 0.0:
+            print("an animation needs --match PICTURE and --length (as on the still sprite's line)")
+            return 1
+        return strip(args)
 
     im = cut_out(Image.open(args.picture))
     if args.erase:

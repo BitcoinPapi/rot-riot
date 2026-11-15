@@ -40,6 +40,30 @@ until their pictures arrive. Nothing in the game is drawn as shapes any more;
 when a picture of the Shambler arrives, make shambler_0 from it and delete
 shambler_1..3 (and their _hurt files), or make four looks of it the same way.
 
-For example:
+ANIMATIONS (v0.15). The owner sent sheets of frames for the Gobber and for the hero:
+for each, walk (12 frames), idle (8), attack (12), hit (6), death (12), in cells of
+512 px, four to a row (the hit sheets three). Every frame is the character's one
+picture, slightly moved. Kept here as <who>_<movement>_<N>f.webp (saved at quality 95
+from the PNGs he sent, which were used for cutting).
+
+  sheet                    strip in assets/sprites     the line of the still sprite, plus
+  gobber_walk_12f.webp     gobber_0_walk    --sheet 4x3   --match art_source/gobber.webp --length 64 --center 560,650 --main-only
+  gobber_idle_8f.webp      gobber_0_idle    --sheet 4x2   (the same)
+  gobber_attack_12f.webp   gobber_0_attack  --sheet 4x3
+  gobber_hit_6f.webp       gobber_0_hit     --sheet 3x2
+  gobber_death_12f.webp    gobber_0_death   --sheet 4x3
+  janjan_walk_12f.webp     player_walk      --sheet 4x3   --match art_source/janjan_no_guns.webp --length 62 --center 600,500 --turn -90 --sheet-turn -90
+  janjan_idle_8f.webp      player_idle      --sheet 4x2   (the same; his sheets show him facing LEFT, his
+  janjan_attack_12f.webp   player_attack    --sheet 4x3    picture has him walking down: hence --sheet-turn)
+  janjan_hit_6f.webp       player_hit       --sheet 3x2
+  janjan_death_12f.webp    player_death     --sheet 4x3
+
+Each strip also exists as NAME_hurt (the same line plus --wounds). For example:
+  tools/make_sprite.py art_source/gobber_walk_12f.webp gobber_0_walk      --sheet 4x3 --match art_source/gobber.webp --length 64 --center 560,650 --main-only
+  tools/make_sprite.py art_source/gobber_walk_12f.webp gobber_0_walk_hurt --sheet 4x3 --match art_source/gobber.webp --length 64 --center 560,650 --main-only --wounds
+A new character's sheets: the same, with the line of its still sprite. Sheets must show
+the picture the still sprite was cut from (the script finds it inside the first frame).
+
+For example (a still sprite):
   tools/make_sprite.py art_source/brute.webp brute_0      --length 92 --center 620,635
   tools/make_sprite.py art_source/brute.webp brute_0_hurt --length 92 --center 620,635 --wounds

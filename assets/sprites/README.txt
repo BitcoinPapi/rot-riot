@@ -16,6 +16,15 @@ art_source/).
 A kind with several looks and one painted picture uses it for all of them
 (brute_1 takes brute_0.png).
 
+MOVEMENT. A character can also have strips of frames: NAME_walk.png, NAME_idle.png,
+NAME_attack.png, NAME_hit.png, NAME_death.png - the frames side by side, each a
+square as tall as the strip, the middle of the chest in the middle of each frame -
+and the same again as NAME_walk_hurt.png ... for the wounded look. The game then
+shows the character moving instead of as one still picture (the still picture is
+still needed: menus, the hit flash and the dashboard use it). tools/make_sprite.py
+cuts the strips out of the sheets the owner sends (read "ANIMATIONS" at its top).
+In use: gobber_0 and player (JanJan).
+
 In use now (all from pictures the owner made with ChatGPT; see art_source/):
   player, hero_front (JanJan in a run and in the menus)
   shambler_0 .. shambler_3 (made from the Gang Fighter's picture, without his machete)

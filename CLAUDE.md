@@ -801,9 +801,30 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   come back below 30% health. Then `godot --headless --import` and LOOK at
   it in a run (`--horde=fighter:3,brute:2,shambler:3`): size beside the
   others, facing the player, readable on the ground.
-  **One picture cannot move its legs**: the game turns it, rocks it and
-  squashes it, and a kind with `"stride"` in config (seconds per step) is
-  shown mirrored on every other step, which reads as running. Only the
+  **Animated characters (v0.15)**: the owner sends SHEETS of frames (so far for
+  the Gobber and for JanJan: walk 12 frames, idle 8, attack 12, hit 6, death
+  12, in 512 px cells - every frame is the character's one picture, slightly
+  moved). `tools/make_sprite.py SHEET NAME_walk --sheet 4x3 --match PICTURE
+  ...` (the still sprite's own line after `--match`; `--sheet-turn` when the
+  sheet shows the figure turned; `--wounds` for `NAME_walk_hurt`) cuts a
+  sheet into a STRIP: `assets/sprites/<sprite>_<walk|idle|attack|hit|death>.png`,
+  square frames side by side, the chest in the middle of each. `Art` loads
+  strips at startup (`Art.anims`, `anim_of`, `enemy_anim`, `frame_at`); a
+  character without strips stays one still picture, and the still picture is
+  still used for menus, the white hit flash and the dashboard. In the game
+  (numbers: ANIMATED CHARACTERS in config.gd): a zombie with strips walks,
+  stands, flinches when hit and shows its attack - its warning plays the
+  first part of the attack frames, the moment it lets go is their peak
+  (`EnemyManager._animate`, on the host and on joiners' copies alike; only
+  looks, nothing is sent); its body plays the death frames while it slides
+  (`Fx.Corpse.frames`). The hero walks, stands, flinches, plays his attack
+  frames while he shoots and goes down in his death frames when the run is
+  lost (`Player._body_frame`, `die_look`); other players are shown in his
+  walk / idle / hit frames (`Mate`). Exact lines: `art_source/README.txt`.
+  **One picture cannot move its legs** (the kinds without sheets): the game
+  turns it, rocks it and squashes it, and a kind with `"stride"` in config
+  (seconds per step) is shown mirrored on every other step, which reads as
+  running. Only the
   Runner has it: mirroring is wrong for a figure that holds something in
   one hand (the Fighter's machete would jump from hand to hand) and does
   nothing for one that is the same on both sides (the Brute). Real
