@@ -296,7 +296,7 @@ follows the size by itself. The player starts in the middle. Camera zoom
 **Player:** instant movement (no acceleration), 100 HP, 0.55 s of safety after
 a hit plus a shove that pushes the crowd back. Zombies body-block the player.
 
-**Weapons** (`Config.WEAPONS`, nine of them). Crate weapons last about 20 s
+**Weapons** (`Config.WEAPONS`, eight of them). Crate weapons last about 20 s
 then revert to the pistol. Crates drop on a timer (max 2 on the field) and
 bosses drop one. A crate shows the weapon's side-view picture large across it
 and its name underneath in the rarity colour (owner: the old small logo was
@@ -310,8 +310,13 @@ show the damage.
 - *Common:* pistol (starter, unlimited), SMG (very fast, weak, faster
   movement), shotgun (9 pellets, piercing, big recoil).
 - *Uncommon:* machine gun (fast, wide spread, rattle), rifle (slow, 85 damage,
-  goes through 6 zombies), sledgehammer (melee arc, huge knockback, hit stop
-  per swing that connects).
+  goes through 6 zombies).
+- **No sledgehammer.** There was one (a melee swing in an arc); the owner had
+  it removed after v0.12 ("Remove the sledge hammer from the game"): no
+  weapon, crate, picture, perks or swing sound. Do not bring it back. Its
+  heavy thud was also the boss's wall-slam sound and lives on as
+  `boss_slam`. The code can still swing a melee weapon (`"swing": true` in a
+  weapon's config) but no weapon does; the chainsaw is the only melee weapon.
 - *Rare:* launcher (grenade, 135 px blast, biggest shake + hit stop),
   flamethrower (`kind: "flame"`: slowing, growing puffs that pass through
   everything and set zombies burning; burning zombies take damage over time,
@@ -344,7 +349,7 @@ show the damage.
   `--bench=150 --no-crates --weapon=ID [--dual]` (kills in 15 s; the numbers below were taken before rage was removed, with the bot not using it).
   Last measured (with reloading): pistol 32, dual pistols 37, SMG 67,
   shotgun 93, rifle 106, machine gun 124, dual machine gun 199, launcher
-  ~500, flamethrower ~620; sledgehammer ~350 and chainsaw ~380 do not
+  ~500, flamethrower ~620; the chainsaw (~380) does not
   reload. Melee and flame numbers are flattered by the test (the bot cannot
   die); real play punishes short range.
 
@@ -498,7 +503,7 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   ranks (`WEAPON_RANK_COST_STEP`) - and three **perk** cards per weapon
   (`Config.WEAPON_PERKS`, open at weapon level 5 / 12 / 20, cost 2 / 4 / 6)
   that change the weapon's own numbers (bigger magazine, piercing, more
-  pellets, wider swing, bigger blast...). Perks are applied by
+  pellets, wider bite, bigger blast...). Perks are applied by
   `PlayerStats.weapon_def(id)`, which the player uses instead of
   `Config.WEAPONS[id]`. Which upgrades a weapon has is decided by `"needs"`
   in `Config.WEAPON_TRACKS` (`Config.weapon_tracks(id)`): the pistol has no
@@ -515,8 +520,15 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   **Rings and amulets drop only from bosses** (a boss always drops one), some
   pieces only from brutes, and one piece per kind only from map 2 onwards.
   Later maps also sometimes drop a piece one tier up (`gear_up`). A drop is a
-  pillar of light in the tier's colour with a HUD arrow; picking it up puts it
-  straight in the bag (kept even if you die). **Treasure chests** on the map
+  **gear case**, made to look like a weapon crate (owner: the old look - a
+  ring and a pillar of light - was "a little boring", "should look more like
+  the weapon crate"): an olive steel case (`gear_crate`) with a strap in the
+  tier's colour (`gear_crate_band`), the piece's picture large on the lid and
+  its name underneath in the tier's colour (`Config.gear_name`), one wandering
+  glint per tier; no rings, no beams. A HUD arrow points to it off-screen;
+  picking it up puts it straight in the bag (kept even if you die). Treasure
+  chests follow the same idea: no halo, a glinting chest with TREASURE
+  written under it. **Treasure chests** on the map
   are the other source (see "The map"): up to 4 pieces per run for exploring.
   **Five tiers** (colours): COMMON, STURDY, FINE, SUPERIOR, LEGENDARY, with
   stat multipliers 1 / 2 / 3 / 5 / 8. **Forging**: two identical pieces of the
@@ -695,8 +707,8 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   sounds; `Sfx.RECORDING_GAIN` evens out the rest. **Recordings in use**
   (from Kenney's CC0 "Interface Sounds" and "Impact Sounds", which the owner
   downloaded; listed in `assets/CREDITS.txt` - keep that file up to date):
-  menu click / move / buy / deny, bullet-into-zombie hits, sledgehammer hits,
-  crate hits and breaks, bullets on rock. Everything else is still
+  menu click / move / buy / deny, bullet-into-zombie hits, the boss's wall
+  slam, crate hits and breaks, bullets on rock. Everything else is still
   generated. Deleting a recording's files brings the generated sound back.
   **Changing only sounds or pictures does not change `GAME_VERSION`**: that
   number decides who may play together, and such copies still can.
@@ -902,6 +914,13 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   with invented leaders); see "The game's identity" at the top. Still to
   follow the new theme if he wants: scenery (roadmap 6 becomes Haitian
   places), zombie looks, gear and pet names, music.
+- After v0.12: "Remove the sledge hammer from the game. The gear crates are a
+  little boring looking. They should look more like the weapon crate.
+  improve the design." -> v0.13.0: sledgehammer gone (eight weapons), gear
+  drops are cases with picture and name like weapon crates, chests lost
+  their halo and got a name (awaiting his eyes). THIRD LESSON, same family:
+  he likes things on the ground to be objects with a picture and a name,
+  not glows.
 - The owner's Mac: browser downloads do not work there, so updates go through
   Terminal (curl) or the double-click updater. Always give the full update
   command and say plainly that Return must be pressed.

@@ -41,8 +41,7 @@ var RECIPES := {
 	"chainsaw": [_make_chainsaw, -10.0, 0.12],
 	"chainsaw_hit": [_make_chainsaw_hit, -5.0, 0.09],
 	"explosion": [_make_explosion, 1.0, 0.07],
-	"sledge_swing": [_make_sledge_swing, -5.0, 0.05],
-	"sledge_hit": [_make_sledge_hit, 0.0, 0.05],
+	"boss_slam": [_make_boss_slam, 0.0, 0.05],
 	"ricochet": [_make_ricochet, -8.0, 0.08],
 	"zombie_hit": [_make_zombie_hit, -6.0, 0.045],
 	"zombie_die": [_make_zombie_die, -4.0, 0.05],
@@ -99,7 +98,7 @@ var RECIPES := {
 ## generated sound's.)
 const RECORDING_GAIN := {
 	"shotgun": 3.0,          # a real shot is one sharp crack and a tail; the generated one was a full second of roar
-	"sledge_hit": 5.0,       # the big hit must stay the big hit
+	"boss_slam": 5.0,        # the boss hitting a wall must stay a big hit
 	"crate_break": 2.0,
 	"ricochet": -5.0,
 	"ui_click": 4.0,
@@ -505,7 +504,6 @@ class Synth:
 #    machine gun a low chugging thud with a clanking bolt
 #    shotgun     the deepest boom with a long tail, then the pump
 #    launcher    a hollow "thoomp" in a tube, then the explosion
-#    sledgehammer = whoosh + heavy thud.
 # ----------------------------------------------------------------------------
 func _make_pistol(s: Synth) -> void:
 	# A dry bark in the middle of the range with a short slap of echo, then
@@ -637,13 +635,8 @@ func _make_explosion(s: Synth) -> void:
 	s.reverb(0.35, 0.9, 1800.0)
 
 
-func _make_sledge_swing(s: Synth) -> void:
-	s.length(0.22)
-	s.noise(0.0, 0.2, 1.0, 0.07, 500.0, 2800.0, 0.07, 280.0)
-	s.noise(0.02, 0.18, 0.4, 0.06, 1500.0, 5000.0, 0.08, 1200.0)
-
-
-func _make_sledge_hit(s: Synth) -> void:
+## The boss running into a wall: a heavy thud.
+func _make_boss_slam(s: Synth) -> void:
 	s.length(0.34)
 	s.drive = 2.1
 	s.tone(0.0, 0.3, 0.8, 155.0, 44.0, 0.09)

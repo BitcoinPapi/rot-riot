@@ -286,8 +286,9 @@ func refill_ammo() -> void:
 
 
 ## Melee: hits every zombie inside the arc in front of the player. The
-## sledgehammer swings (slow, huge); the chainsaw is held out and bites
-## many times a second.
+## chainsaw is held out and bites many times a second. (A weapon with
+## "swing": true would swing in an arc instead; none does since the
+## sledgehammer was taken out of the game.)
 func _melee(w: Dictionary, dir: Vector2, dmg: float, knock: float) -> void:
 	var swings: bool = w["swing"]
 	if swings:

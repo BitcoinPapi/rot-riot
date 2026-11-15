@@ -16,7 +16,7 @@ SOUNDS  (assets/sfx/)
 
   From "Impact Sounds" by Kenney (www.kenney.nl), CC0
     zombie_hit_1..5.ogg     impactSoft_medium_000..004
-    sledge_hit_1..5.ogg     impactPunch_heavy_000..004
+    boss_slam_1..5.ogg      impactPunch_heavy_000..004 (the boss hitting a wall)
     crate_hit_1..5.ogg      impactWood_medium_000..004
     crate_break_1..5.ogg    impactPlank_medium_000..004
     ricochet_1..5.ogg       impactMining_000..004, cut to the first third of

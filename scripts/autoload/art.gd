@@ -156,7 +156,6 @@ func _build() -> void:
 	_svg("gun_shotgun", 42, 14, SVG_GUN_SHOTGUN, false)
 	_svg("gun_machinegun", 46, 18, SVG_GUN_MACHINEGUN, false)
 	_svg("gun_launcher", 44, 20, SVG_GUN_LAUNCHER, false)
-	_svg("gun_sledge", 54, 28, SVG_GUN_SLEDGE, false)
 	_svg("gun_smg", 36, 16, SVG_GUN_SMG, false)
 	_svg("gun_rifle", 58, 14, SVG_GUN_RIFLE, false)
 	_svg("gun_flamethrower", 48, 22, SVG_GUN_FLAMETHROWER, false)
@@ -173,7 +172,6 @@ func _build() -> void:
 	_svg("icon_shotgun", 220, 80, ICON_DEFS + ICON_SHOTGUN, false)
 	_svg("icon_machinegun", 220, 80, ICON_DEFS + ICON_MACHINEGUN, false)
 	_svg("icon_rifle", 220, 80, ICON_DEFS + ICON_RIFLE, false)
-	_svg("icon_sledge", 220, 80, ICON_DEFS + ICON_SLEDGE, false)
 	_svg("icon_launcher", 220, 80, ICON_DEFS + ICON_LAUNCHER, false)
 	_svg("icon_flamethrower", 220, 80, ICON_DEFS + ICON_FLAMETHROWER, false)
 	_svg("icon_chainsaw", 220, 80, ICON_DEFS + ICON_CHAINSAW, false)
@@ -183,6 +181,8 @@ func _build() -> void:
 	_svg("crate", 38, 38, SVG_CRATE)
 	_flash("crate")
 	_svg("medkit", 28, 28, SVG_MEDKIT)
+	_svg("gear_crate", 38, 38, SVG_GEAR_CRATE)
+	_svg("gear_crate_band", 38, 38, SVG_GEAR_CRATE_BAND)
 	_svg("chest", 60, 60, SVG_CHEST)
 	_svg("chest_open", 60, 60, SVG_CHEST_OPEN)
 
@@ -945,20 +945,6 @@ const SVG_GUN_LAUNCHER := """
 <rect x="17" y="-7" width="2" height="2.8" fill="#30353c"/>
 """
 
-const SVG_GUN_SLEDGE := """
-<rect x="0" y="-3" width="42" height="6" rx="2.4" fill="#0c0e11"/>
-<rect x="1.2" y="-1.8" width="40" height="3.6" rx="1.6" fill="#8c5c2f"/>
-<rect x="1.2" y="-1.8" width="40" height="1.2" rx="0.6" fill="#c48d54"/>
-<rect x="1.2" y="-2.2" width="13" height="4.4" rx="1.8" fill="#30353c"/>
-<path d="M4,-2 L6,2 M7.5,-2 L9.5,2 M11,-2 L13,2" stroke="#0c0e11" stroke-width="0.8"/>
-<rect x="35.6" y="-13" width="16" height="26" rx="3.2" fill="#0c0e11"/>
-<rect x="37.2" y="-11.4" width="12.8" height="22.8" rx="2.2" fill="#8d96a1"/>
-<rect x="37.2" y="-11.4" width="12.8" height="6" rx="2.2" fill="#d5dbe2"/>
-<rect x="37.2" y="-11.4" width="3" height="22.8" rx="1.4" fill="#b4bdc7"/>
-<path d="M43,3 L50,2 L50,10 L45,10.5 Z" fill="#7a1010"/>
-<path d="M42,-3 L46,0 M45,-7 L48,-5" stroke="#3a4048" stroke-width="0.8"/>
-"""
-
 # ----------------------------------------------------------------------------
 #  Detailed weapon pictures. Shared metal / wood / paint gradients first, then
 #  one drawing per weapon (all facing right, origin at the middle of the left edge).
@@ -1090,23 +1076,6 @@ const ICON_RIFLE := """
 <path d="M204,-12 L207,-18 L210,-12 Z" fill="#191c20"/>
 <path d="M112,-10 L206,-10" stroke="#e3e9ef" stroke-width="1.3" stroke-opacity="0.8" stroke-linecap="round"/>
 <path d="M62,-24 L126,-24" stroke="#8d96a1" stroke-width="1.2" stroke-opacity="0.7" stroke-linecap="round"/>
-"""
-
-const ICON_SLEDGE := """
-<g stroke="#0c0e11" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
-<rect x="8" y="-5.5" width="164" height="11" rx="5" fill="url(#wd)"/>
-<rect x="12" y="-7" width="50" height="14" rx="5" fill="#30353c"/>
-<rect x="158" y="-33" width="44" height="66" rx="7" fill="url(#mt)"/>
-<rect x="154" y="-36" width="52" height="11" rx="4" fill="url(#dk)"/>
-<rect x="154" y="25" width="52" height="11" rx="4" fill="url(#dk)"/>
-</g>
-<path d="M18,-7 L26,7 M27,-7 L35,7 M36,-7 L44,7 M45,-7 L53,7" stroke="#191c20" stroke-width="2"/>
-<path d="M70,-2 L150,-2 M76,2 L140,2" stroke="#5c3a1c" stroke-width="1.2" stroke-opacity="0.8"/>
-<path d="M164,-22 L164,22" stroke="#e3e9ef" stroke-width="2.4" stroke-opacity="0.7" stroke-linecap="round"/>
-<path d="M176,-14 L186,-6 M190,-18 L196,-12 M178,8 L184,16" stroke="#3a4048" stroke-width="1.6" stroke-linecap="round"/>
-<path d="M186,6 L202,2 L202,26 L190,25 Q182,18 186,6 Z" fill="#7a1010" fill-opacity="0.9"/>
-<circle cx="182" cy="24" r="2.2" fill="#7a1010"/><circle cx="196" cy="-2" r="1.6" fill="#7a1010"/>
-<rect x="168" y="-4" width="8" height="8" rx="1.5" fill="#8c5c2f" stroke="#0c0e11" stroke-width="1.2"/>
 """
 
 const ICON_LAUNCHER := """
@@ -1308,6 +1277,30 @@ const SVG_CRATE := """
 <path d="M-13.6,-4.6 L13.6,-4.6 M-13.6,4.6 L13.6,4.6" stroke="#7d5427" stroke-width="1.6"/>
 <path d="M-12.6,-12.6 L12.6,12.6 M12.6,-12.6 L-12.6,12.6" stroke="#8c6030" stroke-width="2.6"/>
 <rect x="-13.6" y="-13.6" width="27.2" height="27.2" rx="2.2" fill="none" stroke="#d8a868" stroke-width="1.4"/>
+"""
+
+# A piece of gear on the ground: an olive metal case with riveted corner
+# plates, seen from above (a weapon crate is wood; this one is steel).
+const SVG_GEAR_CRATE := """
+<rect x="-18" y="-18" width="36" height="36" rx="5" fill="#000000" fill-opacity="0.25"/>
+<rect x="-15.5" y="-15.5" width="31" height="31" rx="4" fill="#10140c"/>
+<rect x="-13.6" y="-13.6" width="27.2" height="27.2" rx="2.8" fill="#4b5839"/>
+<rect x="-13.6" y="-13.6" width="27.2" height="8.6" rx="2.8" fill="#5a6943"/>
+<path d="M-13.6,5 L13.6,5" stroke="#3a452c" stroke-width="1.4"/>
+<path d="M-13.6,-13.6 h7.4 v7.4 h-7.4 Z M6.2,-13.6 h7.4 v7.4 h-7.4 Z M-13.6,6.2 h7.4 v7.4 h-7.4 Z M6.2,6.2 h7.4 v7.4 h-7.4 Z" fill="#2b3222"/>
+<circle cx="-9.9" cy="-9.9" r="1.15" fill="#a3ae8a"/><circle cx="9.9" cy="-9.9" r="1.15" fill="#a3ae8a"/>
+<circle cx="-9.9" cy="9.9" r="1.15" fill="#77815f"/><circle cx="9.9" cy="9.9" r="1.15" fill="#77815f"/>
+<rect x="-13.6" y="-13.6" width="27.2" height="27.2" rx="2.8" fill="none" stroke="#8a986b" stroke-width="1.2"/>
+"""
+
+# The strap and latches across that case: white, so it can be drawn in the
+# colour of the piece's tier.
+const SVG_GEAR_CRATE_BAND := """
+<rect x="-15.5" y="-3.4" width="31" height="6.8" fill="#ffffff"/>
+<rect x="-15.5" y="-3.4" width="31" height="1.6" fill="#ffffff" fill-opacity="0.55"/>
+<rect x="-17" y="-5.2" width="4.6" height="10.4" rx="1.2" fill="#ffffff"/>
+<rect x="12.4" y="-5.2" width="4.6" height="10.4" rx="1.2" fill="#ffffff"/>
+<path d="M-15.5,3.4 L15.5,3.4" stroke="#000000" stroke-opacity="0.35" stroke-width="1"/>
 """
 
 # A treasure chest seen from above: dark wood, brass bands and a lock.

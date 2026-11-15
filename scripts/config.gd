@@ -11,7 +11,7 @@ extends Node
 ## ============================================================================
 
 const GAME_TITLE := "HAITIAN GANG WARS"
-const GAME_VERSION := "0.12.0"
+const GAME_VERSION := "0.13.0"
 const HERO_NAME := "JANJAN"                   # the soldier you play, as everybody calls him...
 const HERO_FULL_NAME := "JEAN-BAPTISTE"       # ...and his real name
 const GAME_TAGLINE := "TAKE THE COUNTRY BACK"   # under the title on the main menu
@@ -79,7 +79,7 @@ const CHEST_MIN_DIST_FROM_START := 600.0      # never right beside the starting 
 const CHEST_EDGE_MARGIN := 220.0              # ...or right at the edge of the map
 const CHEST_PLACE_TRIES := 12                 # more = chests spread more evenly over the map
 const CHEST_OPEN_RADIUS := 30.0
-const CHEST_SIZE := 60.0                      # how big it is drawn
+const CHEST_SIZE := 72.0                      # how big it is drawn
 const CHEST_COINS_MIN := 12                   # coins that fly out (each worth the map's coin value)
 const CHEST_COINS_MAX := 24
 const CHEST_TIER_WEIGHTS := [0.70, 0.25, 0.05]   # chance of a COMMON / STURDY / FINE piece (later maps can add a tier, see "gear_up")
@@ -137,9 +137,9 @@ const AIM_ASSIST_RANGE := 620.0
 # ----------------------------------------------------------------------------
 const STARTER_WEAPON := "pistol"
 # Order on the Armory screen.
-const WEAPON_ORDER := ["pistol", "smg", "shotgun", "machinegun", "rifle", "sledge", "launcher", "flamethrower", "chainsaw"]
+const WEAPON_ORDER := ["pistol", "smg", "shotgun", "machinegun", "rifle", "launcher", "flamethrower", "chainsaw"]
 # What crates can contain. A "pistol" crate hands you a second pistol (dual pistols).
-const CRATE_WEAPONS := ["pistol", "smg", "shotgun", "machinegun", "rifle", "sledge", "launcher", "flamethrower", "chainsaw"]
+const CRATE_WEAPONS := ["pistol", "smg", "shotgun", "machinegun", "rifle", "launcher", "flamethrower", "chainsaw"]
 
 # Crate tiers. "weight" is how often a weapon of that tier is picked compared
 # with the others; each weapon's own SPAWN RATE upgrade multiplies its weight.
@@ -222,21 +222,6 @@ const WEAPONS := {
 		"hitstop_kill": 0.06, "flash_size": 56.0, "casing": "brass",
 		"tracer_len": 90.0, "tracer_width": 4.0, "tracer_color": Color(1.0, 0.97, 0.8),
 		"muzzle_dist": 46.0, "sound": "rifle", "color": Color(0.75, 0.6, 0.4),
-	},
-	"sledge": {
-		"name": "SLEDGEHAMMER", "kind": "melee", "rarity": "uncommon", "dual": false, "duration": 20.0,
-		"mag": 0, "reload_kind": "", "reload_time": 0.0, "reload_pitch": 1.0, "mag_debris": "",
-		"damage": 62.0, "interval": 0.34, "pellets": 1, "spread_deg": 0.0,
-		"bullet_speed": 0.0, "speed_var": 0.0, "range": 108.0, "pierce": 0,
-		"arc_deg": 160.0,             # width of the swing
-		"swing": true,                # drawn swinging in an arc (false = held out in front)
-		"hit_sound": "sledge_hit", "hit_blood": 0,
-		"knockback": 660.0, "stagger": 0.5, "move_mult": 1.18,
-		"shake": 0.06, "kick": 0.0, "recoil_gun": 0.0, "recoil_push": -70.0,   # negative = lunge forward
-		"shake_hit": 0.42, "hitstop_hit": 0.055,
-		"hitstop_kill": 0.0, "flash_size": 0.0, "casing": "",
-		"tracer_len": 0.0, "tracer_width": 0.0, "tracer_color": Color(1, 1, 1),
-		"muzzle_dist": 30.0, "sound": "sledge_swing", "color": Color(0.60, 0.75, 0.95),
 	},
 	"launcher": {
 		"name": "LAUNCHER", "kind": "grenade", "rarity": "rare", "dual": false, "duration": 18.0,
@@ -837,11 +822,6 @@ const WEAPON_PERKS := {
 		{"name": "BIG MAGAZINE", "desc": "The magazine holds 50% more rounds.", "mods": {"mag": ["mul", 1.5]}},
 		{"name": "TUNGSTEN CORE", "desc": "Bullets go through 3 more zombies.", "mods": {"pierce": ["add", 3]}},
 	],
-	"sledge": [
-		{"name": "WIDE SWING", "desc": "The swing covers a 30% wider arc.", "mods": {"arc_deg": ["mul", 1.3]}},
-		{"name": "LONG HANDLE", "desc": "Reaches 25% further.", "mods": {"range": ["mul", 1.25]}},
-		{"name": "EARTHSHAKER", "desc": "Hits throw and stun zombies 50% more.", "mods": {"knockback": ["mul", 1.5], "stagger": ["mul", 1.5]}},
-	],
 	"launcher": [
 		{"name": "BIG PAYLOAD", "desc": "The blast is 25% wider.", "mods": {"blast_radius": ["mul", 1.25]}},
 		{"name": "CONCUSSION", "desc": "The blast throws and stuns zombies 50% more.", "mods": {"blast_knockback": ["mul", 1.5], "blast_stagger": ["mul", 1.5]}},
@@ -916,7 +896,7 @@ const GEAR_ITEMS := {
 	"dog_tags": {"name": "Dog Tags", "type": "amulet", "stats": {"vitality": 3}, "from": "bosses", "map": 1, "look": {"style": "tags", "color": "#c9ced3", "trim": "#8a8f94"}},
 	"tooth_necklace": {"name": "Tooth Necklace", "type": "amulet", "stats": {"critical": 3}, "from": "bosses", "map": 1, "look": {"style": "tooth", "color": "#efe6cf", "trim": "#8a7f66"}},
 	"old_medal": {"name": "Old Medal", "type": "amulet", "stats": {"defense": 3}, "from": "bosses", "map": 1, "look": {"style": "medal", "color": "#d4a437", "trim": "#8a2f2f"}},
-	"gorger_fang": {"name": "Gorger's Fang", "type": "amulet", "stats": {"strength": 2, "vitality": 2}, "from": "bosses", "map": 2, "look": {"style": "tooth", "color": "#c8322b", "trim": "#5a1210"}},
+	"gorger_fang": {"name": "Boss's Fang", "type": "amulet", "stats": {"strength": 2, "vitality": 2}, "from": "bosses", "map": 2, "look": {"style": "tooth", "color": "#c8322b", "trim": "#5a1210"}},
 
 	"iron_band": {"name": "Iron Band", "type": "ring", "stats": {"strength": 3}, "from": "bosses", "map": 1, "look": {"style": "ring", "color": "#9aa0a6", "trim": "#5c6166"}},
 	"lucky_ring": {"name": "Lucky Ring", "type": "ring", "stats": {"luck": 3}, "from": "bosses", "map": 1, "look": {"style": "ring", "color": "#5fd068", "trim": "#2f7a36"}},
@@ -958,6 +938,8 @@ const GEAR_LUCK_FACTOR := 0.5           # how much of the LUCK coin bonus also a
 const GEAR_MAX_ON_FIELD := 4
 const GEAR_LIFETIME := 45.0             # seconds a dropped piece waits to be picked up
 const GEAR_PICKUP_RADIUS := 30.0
+const GEAR_CRATE_SIZE := 54.0           # how big the case of a dropped piece is drawn (a weapon crate is CRATE_SIZE)
+const GEAR_CRATE_ICON_SIZE := 42.0      # ...and the picture of the piece on its lid
 const GEAR_PICKUP_SHAKE := 0.2
 # What the slots are called on the Character screen.
 const GEAR_SLOT_NAMES := {"helmet": "HELMET", "amulet": "AMULET", "chest": "CHEST", "gloves": "GLOVES", "ring1": "LEFT RING",

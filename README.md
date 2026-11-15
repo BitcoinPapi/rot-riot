@@ -122,7 +122,7 @@ works on 4.5 and later.
   Zombies that attack from a distance only do so when you can see them.
 - You play **JanJan**. He starts with a pistol. **Crates** drop near you
   with a better weapon that lasts about 20 seconds: SMG, shotgun, machine
-  gun, rifle, sledgehammer, launcher, flamethrower or chainsaw. The crate
+  gun, rifle, launcher, flamethrower or chainsaw. The crate
   shows a big picture of the weapon, and its name underneath in the colour
   of its rarity (white = common, green = uncommon, blue = rare). An arrow at
   the edge of the screen points to crates out of view.
@@ -149,10 +149,10 @@ works on 4.5 and later.
   shooting speed, stability, reload speed, how often its crate appears, how
   long it lasts) with a "+1" button, and three **perks** that open at weapon
   levels 5, 12 and 20 and change how the weapon works (bigger magazine,
-  bullets that go through more zombies, a wider swing, a bigger blast...).
-- **Gear.** Now and then a zombie drops something to wear - you will see a
-  pillar of light in the colour of its quality, and an arrow at the edge of
-  the screen points to it. Walk over it and it is yours for good, even if you
+  bullets that go through more zombies, a wider bite, a bigger blast...).
+- **Gear.** Now and then a zombie drops something to wear - a small steel
+  case with a picture of the piece on it and its name underneath in the
+  colour of its quality, and an arrow at the edge of the screen points to it. Walk over it and it is yours for good, even if you
   die. Rings and amulets only drop from bosses.
 - The **Character** screen shows JanJan in the middle with his nine slots on
   either side (helmet, chest, gloves, pants, boots; amulet, two rings, belt),
@@ -183,7 +183,7 @@ Close Godot, then double-click **Update Rot Riot.command** inside the project
 folder. A Terminal window opens, downloads the latest version and replaces the
 folder. Your coins, level and upgrades are stored elsewhere and are kept.
 Then open the project in Godot again. The version number is shown in the
-bottom right corner of the main menu (now v0.12.0).
+bottom right corner of the main menu (now v0.13.0).
 
 After an update that changes the upgrade screens, points you had already
 spent are handed back so you can place them again in the new trees.

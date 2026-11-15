@@ -66,12 +66,14 @@ var _medkit_tex: Texture2D
 var _chest_tex: Texture2D
 var _chest_open_tex: Texture2D
 var _glow: Texture2D
-var _ring_tex: Texture2D
+var _gear_crate_tex: Texture2D
+var _gear_band_tex: Texture2D
 var _font: Font
 
 
 func _ready() -> void:
-	_ring_tex = Art.t("ring")
+	_gear_crate_tex = Art.t("gear_crate")
+	_gear_band_tex = Art.t("gear_crate_band")
 	_font = ThemeDB.fallback_font
 	_coin_tex = Art.t("coin")
 	_crate_tex = Art.t("crate")
@@ -656,16 +658,18 @@ func _draw() -> void:
 			var pop := chest_size * (1.0 + 0.25 * fade)
 			draw_texture_rect(_chest_open_tex, Rect2(chest.pos - pop * 0.5, pop), false, Color(0.72, 0.7, 0.68).lerp(Color.WHITE, fade))
 			continue
-		var pulse := 0.5 + 0.5 * sin(_time * 3.0)
-		var halo := Vector2(130.0, 130.0) * (1.0 + 0.12 * pulse)
-		draw_texture_rect(_glow, Rect2(chest.pos - halo * 0.5, halo), false, Color(1.0, 0.82, 0.3, 0.3 + 0.15 * pulse))
-		draw_texture_rect(_chest_tex, Rect2(chest.pos - chest_size * 0.5, chest_size), false)
+		var breathe := chest_size * (1.0 + 0.03 * sin(_time * 3.0))
+		draw_texture_rect(_chest_tex, Rect2(chest.pos - breathe * 0.5, breathe), false)
 		# Two glints wander over the brass.
 		for k in 2:
 			var t := _time * 1.3 + float(k) * 1.7
-			var glint := chest.pos + Vector2(cos(t * 1.3) * 18.0, sin(t) * 10.0 - 4.0)
-			var gs := 9.0 * maxf(sin(t * 2.4), 0.0)
+			var glint := chest.pos + Vector2(cos(t * 1.3) * 22.0, sin(t) * 12.0 - 4.0)
+			var gs := 10.0 * maxf(sin(t * 2.4), 0.0)
 			draw_texture_rect(_glow, Rect2(glint - Vector2(gs, gs) * 0.5, Vector2(gs, gs)), false, Color(1, 1, 0.85, 0.95))
+		# Its name underneath, like a crate's.
+		var chest_label_at := chest.pos + Vector2(-90.0, chest_size.y * 0.5 + 6.0)
+		draw_string_outline(_font, chest_label_at, "TREASURE", HORIZONTAL_ALIGNMENT_CENTER, 180.0, 14, 6, Color(0, 0, 0, 0.9))
+		draw_string(_font, chest_label_at, "TREASURE", HORIZONTAL_ALIGNMENT_CENTER, 180.0, 14, Color(1.0, 0.82, 0.3))
 
 	# Coins: a little pulse, and they blink before they vanish.
 	var blink_on := fmod(_time, 0.2) < 0.12
@@ -683,26 +687,36 @@ func _draw() -> void:
 		draw_texture_rect(_glow, Rect2(m.pos - Vector2(60, 60) * 0.5, Vector2(60, 60)), false, Color(1.0, 0.3, 0.3, 0.35))
 		draw_texture_rect(_medkit_tex, Rect2(m.pos - Vector2(s, s) * 0.5, Vector2(s, s)), false)
 
-	# Gear: a pillar of light in the colour of its tier, so it is never missed.
+	# Gear: a metal case with a big picture of the piece on its lid and the
+	# piece's name underneath in the colour of its tier - the same idea as a
+	# weapon crate (no rings, no beams of light: the owner does not like them).
 	for l: Loot in loot:
 		if l.life < 6.0 and not blink_on:
 			continue
 		var tier := Config.gear_tier_of(l.key)
 		var color: Color = Config.gear_tier_def(tier)["color"]
-		var grow := minf(l.age * 4.0, 1.0)
-		var beam := Vector2(30.0 + 6.0 * tier, (150.0 + 30.0 * tier) * grow)
-		draw_texture_rect(_glow, Rect2(l.pos - Vector2(beam.x * 0.5, beam.y), beam), false, Color(color.r, color.g, color.b, 0.75))
-		draw_texture_rect(_glow, Rect2(l.pos - Vector2(beam.x * 0.2, beam.y * 0.9), Vector2(beam.x * 0.4, beam.y * 0.9)), false,
-				Color(1, 1, 1, 0.7))
-		var halo := 96.0 + 12.0 * sin(_time * 5.0)
-		draw_texture_rect(_glow, Rect2(l.pos - Vector2(halo, halo) * 0.5, Vector2(halo, halo)), false, Color(color.r, color.g, color.b, 0.5))
-		var ring := 44.0 + 4.0 * sin(_time * 6.0)
-		draw_texture_rect(_ring_tex, Rect2(l.pos - Vector2(ring, ring) * 0.5, Vector2(ring, ring)), false, Color(color.r, color.g, color.b, 0.8))
+		# Drops in with a bounce, then bobs gently.
+		var drop := 1.0 + maxf(0.3 - l.age, 0.0) * 2.5
+		var s: float = Config.GEAR_CRATE_SIZE * drop * (1.0 + 0.04 * sin(_time * 4.0 + l.pos.x * 0.05))
+		var box := Rect2(l.pos - Vector2(s, s) * 0.5, Vector2(s, s))
+		draw_texture_rect(_gear_crate_tex, box, false)
+		draw_texture_rect(_gear_band_tex, box, false, color)
+		# The piece itself, large, on the lid.
 		var icon: Texture2D = Art.t("gear_" + String(Config.GEAR_ITEMS[Config.gear_item_of(l.key)]["type"]))
-		var s := 26.0 * grow * (1.0 + 0.06 * sin(_time * 5.0))
-		var bob := Vector2(0.0, -3.0 - 2.0 * sin(_time * 3.0))
-		draw_texture_rect(icon, Rect2(l.pos + bob - Vector2(s, s) * 0.5 + Vector2(1.0, 2.0), Vector2(s, s)), false, Color(0, 0, 0, 0.6))
-		draw_texture_rect(icon, Rect2(l.pos + bob - Vector2(s, s) * 0.5, Vector2(s, s)), false, color.lightened(0.35))
+		var isize := Vector2(Config.GEAR_CRATE_ICON_SIZE, Config.GEAR_CRATE_ICON_SIZE) * drop
+		var icon_at := l.pos + Vector2(0.0, -2.0 - 2.0 * sin(_time * 3.0 + l.pos.y * 0.05))
+		draw_texture_rect(icon, Rect2(icon_at - isize * 0.5 + Vector2(2.0, 3.0), isize), false, Color(0, 0, 0, 0.6))
+		draw_texture_rect(icon, Rect2(icon_at - isize * 0.5, isize), false, color.lightened(0.55))
+		# A better tier twinkles more: one glint per tier wanders over the case.
+		for k in tier:
+			var t := _time * 1.5 + float(k) * 1.9 + l.pos.x * 0.013
+			var glint := l.pos + Vector2(cos(t * 1.3 + float(k)) * s * 0.44, sin(t) * s * 0.38)
+			var gs := 9.0 * maxf(sin(t * 2.4), 0.0)
+			draw_texture_rect(_glow, Rect2(glint - Vector2(gs, gs) * 0.5, Vector2(gs, gs)), false, Color(1.0, 1.0, 0.92, 0.95))
+		var gear_label := Config.gear_name(l.key)
+		var gear_label_at := l.pos + Vector2(-110.0, s * 0.5 + 17.0)
+		draw_string_outline(_font, gear_label_at, gear_label, HORIZONTAL_ALIGNMENT_CENTER, 220.0, 14, 6, Color(0, 0, 0, 0.9))
+		draw_string(_font, gear_label_at, gear_label, HORIZONTAL_ALIGNMENT_CENTER, 220.0, 14, color.lightened(0.15))
 
 	# Weapon crates: a wooden box with a big picture of the weapon inside and
 	# its name underneath, in the colour of its rarity.

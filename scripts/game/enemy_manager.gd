@@ -507,7 +507,7 @@ func _tick_boss(e: Enemy, dt: float) -> void:
 			if hit_wall:
 				game.shake(float(cfg["wall_slam_shake"]))
 				game.fx.ring(e.pos, e.radius, 200.0, 0.35, Color(1, 1, 1, 0.5))
-				Sfx.play("sledge_hit")
+				Sfx.play("boss_slam")
 			if e.state_t <= 0.0 or hit_wall:
 				e.state = B_RECOVER
 				e.state_t = cfg["charge_recover"]

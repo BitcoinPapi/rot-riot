@@ -926,13 +926,13 @@ func _run_autotest() -> void:
 	_check(is_equal_approx(float(PlayerStats.weapon_mods("pistol")["damage"]), 1.0), "other weapons are not affected")
 	_check(Config.weapon_tracks("pistol") == ["power", "speed", "stability", "reload"], "the pistol has no crate-only upgrades")
 	_check(Config.weapon_tracks("shotgun").size() == 6, "crate guns have all six upgrades")
-	_check(Config.weapon_tracks("sledge") == ["power", "speed", "spawn", "duration"], "melee weapons have no stability or reload upgrade")
+	_check(Config.weapon_tracks("chainsaw") == ["power", "speed", "spawn", "duration"], "melee weapons have no stability or reload upgrade")
 	_check(Config.weapon_tracks("launcher") == ["power", "stability", "reload", "spawn", "duration"],
 			"the launcher's rate of fire is its reload upgrade")
-	(SaveData.weapons["sledge"] as Dictionary)["points"] = 3
-	_check(not SaveData.raise_weapon_track("sledge", "stability") and SaveData.weapon_points("sledge") == 3,
+	(SaveData.weapons["chainsaw"] as Dictionary)["points"] = 3
+	_check(not SaveData.raise_weapon_track("chainsaw", "stability") and SaveData.weapon_points("chainsaw") == 3,
 			"a weapon cannot buy an upgrade it does not have")
-	(SaveData.weapons["sledge"] as Dictionary)["points"] = 0
+	(SaveData.weapons["chainsaw"] as Dictionary)["points"] = 0
 	var perks_ok := true
 	for id: String in Config.WEAPON_ORDER:
 		var perk_list: Array = Config.WEAPON_PERKS[id]
@@ -1249,7 +1249,7 @@ func _run_autotest() -> void:
 	await _until(func() -> bool: return not pl.reloading or pl.ammo < 2)
 	_check(not pl.reloading or pl.ammo < 2, "firing cuts a shell-by-shell reload short")
 	GameInput.set_virtual_input(Vector2.ZERO, Vector2.RIGHT, false)
-	pl.give_weapon("sledge")
+	pl.give_weapon("chainsaw")
 	_check(pl.mag_size == 0 and not pl.reloading, "melee weapons never reload")
 	pl.give_weapon("pistol")
 	pl.give_weapon("pistol")
@@ -1347,6 +1347,17 @@ func _run_autotest() -> void:
 	GameInput.press_pause()
 	await _frames(3)
 	_check(app.state == Main.State.PLAYING and not get_tree().paused, "Esc again resumes")
+
+	# --- the sledgehammer was taken out of the game: no weapon, no crate, no picture, no sound of it ---
+	var hammer_gone := not Config.WEAPONS.has("sledge") and not Config.CRATE_WEAPONS.has("sledge") and not Config.WEAPON_PERKS.has("sledge")
+	for weapon_id: String in Config.WEAPON_ORDER:
+		if String(Config.WEAPONS[weapon_id]["name"]).contains("SLEDGE") or bool(Config.WEAPONS[weapon_id].get("swing", false)):
+			hammer_gone = false
+	for sound_name: String in Sfx.RECIPES.keys():
+		if sound_name.contains("sledge"):
+			hammer_gone = false
+	_check(hammer_gone and Config.WEAPON_ORDER.size() == 8 and Sfx.RECIPES.has("boss_slam"),
+			"there is no sledgehammer any more (%d weapons); the boss keeps his wall-slam thud" % Config.WEAPON_ORDER.size())
 
 	# --- there is no rage in the game any more: Space, the right mouse button and LB do nothing ---
 	_check(not InputMap.has_action("rage") and not game.has_method("try_activate_rage"), "rage is gone from the game")
@@ -1473,7 +1484,7 @@ func _run_autotest() -> void:
 	_check(int(gun_perked["mag"]) == int(ceil(float(int(gun_plain["mag"])) * (1.0 + float(perk_values["mags"]))))
 			and int(gun_perked["pierce"]) == int(gun_plain["pierce"]) + 2
 			and int(PlayerStats.weapon_def("launcher", twice)["mag"]) == int(Config.WEAPONS["launcher"]["mag"])
-			and int(PlayerStats.weapon_def("sledge", twice)["mag"]) == 0
+			and int(PlayerStats.weapon_def("chainsaw", twice)["mag"]) == 0
 			and is_equal_approx(float(mods_perked["reload"]), float(mods_plain["reload"]) * (1.0 + float(perk_values["reload"])))
 			and is_equal_approx(float(mods_perked["duration"]), float(mods_plain["duration"]) * (1.0 + float(perk_values["long"]))),
 			"perks: BIG MAGAZINES, PIERCING SHOTS, SLICK RELOAD and FIRM GRIP change the weapons (the launcher keeps its one round)")
@@ -2016,21 +2027,21 @@ func _run_autotest() -> void:
 			"save file restores map progress")
 
 	# --- weapon upgrades saved by older versions are handed back as weapon points ---
-	SaveData.weapons["sledge"] = {"level": 4, "xp": 0, "points": 1, "ranks": {"power": 12, "stability": 3}}
+	SaveData.weapons["chainsaw"] = {"level": 4, "xp": 0, "points": 1, "ranks": {"power": 12, "stability": 3}}
 	SaveData.save_game()
 	SaveData.load_game()
-	_check(SaveData.weapon_points("sledge") == 1 + 10 + 2 * 2 + 3 and SaveData.weapon_rank("sledge", "power") == 0
+	_check(SaveData.weapon_points("chainsaw") == 1 + 10 + 2 * 2 + 3 and SaveData.weapon_rank("chainsaw", "power") == 0
 			and SaveData.weapon_points_returned >= 17, "the oldest plain weapon ranks are handed back as weapon points")
-	SaveData.weapons["sledge"] = {"level": 4, "xp": 0, "points": 0, "tree": {"power.5": 1}, "spent": 7}
+	SaveData.weapons["chainsaw"] = {"level": 4, "xp": 0, "points": 0, "tree": {"power.5": 1}, "spent": 7}
 	SaveData.save_game()
 	SaveData.load_game()
-	_check(SaveData.weapon_points("sledge") == 7 and SaveData.weapon_spent("sledge") == 0, "points spent in the old weapon trees are handed back")
+	_check(SaveData.weapon_points("chainsaw") == 7 and SaveData.weapon_spent("chainsaw") == 0, "points spent in the old weapon trees are handed back")
 	# ...and ranks in an upgrade a weapon does not have (any more) are refunded.
-	SaveData.weapons["sledge"] = {"level": 4, "xp": 0, "points": 0, "upgrades": {"stability": 3, "power": 2}, "perks": [0, 1, 0], "spent": 9}
+	SaveData.weapons["chainsaw"] = {"level": 4, "xp": 0, "points": 0, "upgrades": {"stability": 3, "power": 2}, "perks": [0, 1, 0], "spent": 9}
 	SaveData.save_game()
 	SaveData.load_game()
-	_check(SaveData.weapon_rank("sledge", "power") == 2 and SaveData.weapon_rank("sledge", "stability") == 0 and SaveData.weapon_has_perk("sledge", 1)
-			and SaveData.weapon_points("sledge") == 3 and SaveData.weapon_spent("sledge") == 2 + int(Config.WEAPON_PERK_COST[1]),
+	_check(SaveData.weapon_rank("chainsaw", "power") == 2 and SaveData.weapon_rank("chainsaw", "stability") == 0 and SaveData.weapon_has_perk("chainsaw", 1)
+			and SaveData.weapon_points("chainsaw") == 3 and SaveData.weapon_spent("chainsaw") == 2 + int(Config.WEAPON_PERK_COST[1]),
 			"an upgrade a weapon no longer has is dropped and its points refunded")
 
 	# --- saves from before the plain skills page: whatever was spent on the older skill screens comes back ---
