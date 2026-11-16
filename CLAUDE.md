@@ -158,8 +158,8 @@ Other dev flags (all after `--`, see `scripts/dev/dev_tools.gd`): `--play`,
 these run perks), `--perks=N` (owe N perk choices half a second in, to look at the choice), `--pets=N` (own the first N pets;
 needs `--level=18` or more),
 `--fewer` (the FEWER EFFECTS switch on), `--stats` (the F3 frame-rate line shown),
-`--at=X,Y` (start the run at that spot of the map; the middle, 1050,700, is the pond), `--no-fog` (whole map
-uncovered), `--no-pond` (maps without their pond), `--show-chests` (a closed chest beside the player and an opened one),
+`--at=X,Y` (start the run at that spot of the map; the middle, 1102,735, is the pond; `--at=fire` =
+beside a burning tire), `--no-fog` (whole map uncovered), `--no-pond` (maps without their pond), `--show-chests` (a closed chest beside the player and an opened one),
 `--horde=KIND:N,KIND:N` (put zombies around the player: shambler, runner, brute, boss, gobber,
 chucker, gasbag, lunger, fighter - e.g. `--horde=gobber:3,gasbag:2`; a boss comes in the look of
 the map, so `--map=2 --horde=boss:1` shows the second map's boss),
@@ -340,14 +340,16 @@ pointer. Left / right walk the zones, down leaves the map for START. The
 rules did not change. The input test checks that every pin lies on land
 and inside the picture.
 
-**The map** (THE MAP section of config.gd): one clearing of **2100x1400**
+**The map** (THE MAP section of config.gd): one clearing of **2205x1470**
 ringed by trees (the screen shows about 1070x600 of it, so the map is about
-two screens wide and a little over two high), with about 7 random
+two screens wide and two and a half high), with about 8 random
 rocks/stumps. It was 6000x4000 at first; after playing it the owner asked to
 "decrease the map size by 50%" - done as half the width and half the height
 (3000x2000, v0.10 - v0.15) - and later to "make the map 30% smaller" - done
-the same way, each side x 0.7 (`ARENA_SIZE`, v0.16; if he meant 30% less
-AREA it would be about 2510x1670). Everything below follows the size by
+the same way, each side x 0.7 (2100x1400, v0.16 - v0.17; if he meant 30%
+less AREA it would have been about 2510x1670) - and then "leave the pond
+the same size and increase the map by 5%" - each side x 1.05 (`ARENA_SIZE`,
+v0.18; the pond's size is its own number). Everything below follows the size by
 itself, except two numbers that were moved with it: chests keep 480 px from
 the start instead of 600, and a zombie counts as "left behind" 300 px
 sooner (`ENEMY_LEASH_EXTRA`; on this map nothing could get as far away as
@@ -389,7 +391,22 @@ the old distance). Camera zoom 1.2, may look 110 px past the edge.
     (`Arena.ponds = false`, so that "the middle of the map" stays open
     ground for them) and then checks the pond by itself; the co-op tests
     and bot runs have it.
-- *Details on the ground* (v0.17; the owner: "and more details"): about 560
+- *Scenery* (v0.18; the owner: "add bushes, rubbles, burning tires on the map
+  as decor and background"; Config: SCENERY). About 29 bushes (a share of
+  them near the trees at the edge), 13 heaps of rubble and 6 burning tires
+  (some of them two tires). **Looks only: nothing of it blocks anybody and
+  the fire hurts nobody** (Claude's reading of "decor and background";
+  making tires or rubble block like rocks would be a small change). Where
+  they are: `Arena.decor` / `Arena.fires`, scattered by `_generate_decor`
+  from a number made of the rocks and the pond - so in co-op every player
+  sees the same scenery without it being sent - on dry ground, off the
+  rocks, apart from each other, no fire near the start. Bushes, rubble and
+  the tires themselves (with a burnt patch) are painted with the ground
+  (`Decals.decor`), so blood and bodies lie ON them; the fire is made of the
+  usual effects every frame for the tires in view (`Game._tick_fires`:
+  `Fx.flame`, `Fx.plume` for the smoke, `Fx.light` for the flicker; half as
+  much with FEWER EFFECTS). Drawings: `scripts/art/scenery_art.gd`.
+- *Details on the ground* (v0.17; the owner: "and more details"): about 610
   flat things painted with the ground - grass, ferns, flowers, fallen
   leaves, stones, twigs, mushrooms, old bones, puddles (`Config.
   DETAIL_KINDS`, `DETAILS_PER_MILLION`; drawings in
@@ -904,8 +921,8 @@ The game auto-pauses when the window loses focus.
   SubViewports that are never cleared, then stamps blood, bodies and casings
   onto them (a viewport is set to UPDATE_ONCE for the frames that have
   stamps). Tens of thousands of decals cost the same as none. A big map is too
-  much for one picture, so it is cut into chunks (3x2 of about 800x850 px on
-  the 2100x1400 map; most of them are made in the first frames of a run); a
+  much for one picture, so it is cut into chunks (3x2 of about 835x885 px on
+  the 2205x1470 map; most of them are made in the first frames of a run); a
   chunk is only made when the screen comes within `DECAL_CHUNK_AHEAD` of it
   (one per frame at most) or something is stamped on it. Whatever can lie
   across the line between two chunks (the big soft ground patches, the edge
@@ -1095,6 +1112,10 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   before (ask the owner; `CHEST_COUNT`).
 - The Skills page and the Character screen with a real mouse / trackpad /
   gamepad (only simulated input was tested).
+- The scenery (v0.18): only still pictures. Unknown: whether walking
+  THROUGH a bush, a heap of rubble or a burning tire looks wrong enough to
+  want them to block, how the fires look in motion, whether the map is now
+  too busy to read a horde on.
 - The pond and the ground details (v0.17): only still pictures and the
   tests. Unknown: how fighting round a pond feels (it turns the map into a
   ring: is it too easy to keep the water between you and the horde? do
@@ -1341,6 +1362,11 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   chests, the whole map explored - gear comes fast on the small map with
   the pond; and he got to wave 29, so the early game may be getting easy for
   a level-18 character with perks.
+- After v0.17.1: "leave the pond the same size and increase the map by 5%.
+  add bushes, rubbles, burning tires on the map as decor and background" ->
+  v0.18.0: 2205x1470 and the scenery (see "The map"). He did not answer
+  whether the pond should stay unwalkable; "leave the pond the same size"
+  reads as content with it - it stays as it is.
 - After v0.16: "lets add a big pond in the middle of the map. and more
   details" -> v0.17.0: the pond (see "The map") and about 560 details
   painted on the ground. Claude's choices to ask about: the pond cannot be
@@ -1385,7 +1411,8 @@ Build one stage at a time; the owner plays each before the next starts.
    rare boss drops, a pet that flies and fetches from far away.
 4. **Big map. DONE; then halved at the owner's request (3000x2000), then
    made 30% smaller again (2100x1400), then given a pond in the middle and
-   details on the ground (v0.17).** A map
+   details on the ground (v0.17), then 5% bigger with bushes, rubble and
+   burning tires (2205x1470, v0.18).** A map
    several screens wide, fog of
    war, a minimap, four treasure chests per run that give gear; zombies rise
    around the player wherever they are. See "The map" above. Ideas if the

@@ -321,6 +321,14 @@ func _build() -> void:
 	_svg("detail_mushrooms", 18, 16, SceneryArt.mushrooms())
 	_svg("detail_bones", 28, 20, SceneryArt.bones())
 	_svg("detail_puddle", 44, 30, SceneryArt.puddle())
+	# Scenery: bushes, heaps of rubble, the tires that burn.
+	_svg("decor_bush_0", 80, 68, SceneryArt.bush(101, 36.0, 30.0, ""))
+	_svg("decor_bush_1", 64, 58, SceneryArt.bush(102, 28.0, 25.0, "#c8322b"))
+	_svg("decor_bush_2", 96, 66, SceneryArt.bush(103, 44.0, 29.0, ""))
+	_svg("decor_rubble_0", 96, 72, SceneryArt.rubble(201))
+	_svg("decor_rubble_1", 96, 72, SceneryArt.rubble(202))
+	_svg("decor_tire", 40, 40, SceneryArt.tire())
+	_svg("decor_tires", 60, 52, SceneryArt.tires())
 
 	# --- effects (white, tinted when drawn) ---
 	_svg("splat_0", 72, 72, SVG_SPLAT_0)

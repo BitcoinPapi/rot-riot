@@ -11,7 +11,7 @@ extends Node
 ## ============================================================================
 
 const GAME_TITLE := "HAITIAN GANG WARS"
-const GAME_VERSION := "0.17.1"
+const GAME_VERSION := "0.18.0"
 const HERO_NAME := "JANJAN"                   # the soldier you play, as everybody calls him...
 const HERO_FULL_NAME := "JEAN-BAPTISTE"       # ...and his real name
 const GAME_TAGLINE := "TAKE THE COUNTRY BACK"   # under the title on the main menu
@@ -34,10 +34,11 @@ const HERO_LOOK := {"ink": "#15130f",
 #  THE MAP - one clearing in the woods, about two screens wide and a little
 #  over two high (a screen shows about 1070 x 600 of it). A map may set its
 #  own "size".
-#  (It was 6000 x 4000 until v0.10, then 3000 x 2000 until v0.15: the owner
-#  asked for half of the first and then for 30% less - each side x 0.7.)
+#  (It was 6000 x 4000 until v0.10, then 3000 x 2000 until v0.15, then
+#  2100 x 1400 until v0.17: the owner asked for half of the first, then for
+#  30% less - each side x 0.7 - and then, with the pond in it, for 5% more.)
 # ----------------------------------------------------------------------------
-const ARENA_SIZE := Vector2(2100.0, 1400.0)   # the playable area
+const ARENA_SIZE := Vector2(2205.0, 1470.0)   # the playable area
 const ARENA_OUTER_MARGIN := 150.0             # painted ground beyond the playable edge
 const CAMERA_EDGE_MARGIN := 110.0             # how far past the edge the camera may look
 const OBSTACLES_PER_MILLION := 2.5            # rocks / stumps per 1000 x 1000 px of map
@@ -82,6 +83,30 @@ const DETAIL_KINDS := [                       # [picture, how often (a weight), 
 	["detail_flowers_red", 1.6, 0.8, 1.2], ["detail_flowers_yellow", 1.2, 0.8, 1.2], ["detail_twig", 2.0, 0.8, 1.3],
 	["detail_mushrooms", 0.9, 0.8, 1.2], ["detail_bones", 0.5, 0.9, 1.2], ["detail_puddle", 0.5, 0.9, 1.5]]
 const DETAIL_TINT := Color(0.74, 0.74, 0.7, 0.92)   # they are darkened like the ground, so zombies and blood still stand out
+# SCENERY (the owner: "add bushes, rubbles, burning tires on the map as decor and
+# background"): bushes and heaps of rubble painted with the ground, and tires that burn.
+# It is all looks: nothing of it blocks anybody, and the fire hurts nobody.
+const BUSHES_PER_MILLION := 9.0               # how many per 1000 x 1000 px of map
+const RUBBLE_PER_MILLION := 4.0
+const TIRES_PER_MILLION := 2.0                # burning tires
+const DECOR_SPACING := 120.0                  # free ground between two pieces of scenery
+const DECOR_EDGE := 70.0                      # ...between one and the edge of the map
+const DECOR_POND_CLEAR := 46.0                # ...and between one and the pond's shore
+const BUSH_EDGE_SHARE := 0.4                  # this share of the bushes grows near the trees at the edge of the map...
+const BUSH_EDGE_BAND := 240.0                 # ...no further from it than this
+const TIRE_START_CLEAR := 260.0               # no fire this close to where the player starts
+const TIRE_SPACING := 380.0                   # ...or to another fire
+const TIRE_PILE_SHARE := 0.35                 # this share of the fires are two tires instead of one
+const DECOR_TINT := Color(0.84, 0.84, 0.82)   # darkened like the ground
+const TIRE_FIRE_RATE := 30.0                  # licks of flame a second from one burning tire
+const TIRE_FIRE_SIZE := 30.0                  # how big a lick of flame is
+const TIRE_FIRE_RADIUS := 11.0                # ...rising from this far round its middle
+const TIRE_SMOKE_RATE := 6.0                  # puffs of smoke a second
+const TIRE_SMOKE_SIZE := 26.0
+const TIRE_SMOKE_RISE := Vector2(16.0, -52.0) # the way the smoke drifts, px a second
+const TIRE_GLOW := Color(1.0, 0.55, 0.15, 0.32)  # the light a fire throws round itself
+const TIRE_GLOW_SIZE := 170.0
+const TIRE_GLOW_EVERY := 0.09                 # ...it flickers: a new glow this often, seconds
 # The ground is a photo of forest floor, repeated, with soft patches of leaf
 # litter and moss over it (pictures in assets/ground/, see assets/CREDITS.txt).
 # A map may name its own with "floor" and "litter". Without the pictures the

@@ -39,6 +39,7 @@ class Chunk:
 var ground_tint := Color(0, 0, 0, 0)   # the map's colour wash over the ground (set before the first frame)
 var ground_floor: String = Config.GROUND_FLOOR      # the picture the ground is made of (assets/ground/<name>.jpg)
 var ground_litter: Array = Config.GROUND_LITTER     # ...and the pictures of the soft patches on it
+var decor: Array = []         # the map's scenery to paint with the ground (Arena.decor; set before the first frame)
 var chunks_made := 0
 var stamps_made := 0          # everything ever put on the ground this run (a count for the tests)
 
@@ -337,6 +338,22 @@ func _paint_ground(ci: CanvasItem, c: Chunk) -> void:
 				ci.draw_set_transform(p, turn, Vector2.ONE)
 				ci.draw_texture_rect(Art.t(picture), Rect2(-size * 0.5, size), false, Config.DETAIL_TINT)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+	# Scenery: bushes, heaps of rubble, tires (a burnt patch under those). Whatever
+	# reaches into this chunk is painted here - by a neighbour too, in the same place.
+	var reach := c.rect.grow(70.0)
+	for prop: Array in decor:
+		var at: Vector2 = prop[2]
+		if not reach.has_point(at):
+			continue
+		var picture := String(prop[1])
+		var size: Vector2 = Art.size_of(picture) * float(prop[4])
+		if String(prop[0]) == "tire":
+			ci.draw_texture_rect(_glow, Rect2(at - Vector2(64.0, 64.0), Vector2(128.0, 128.0)), false, Color(0.04, 0.03, 0.02, 0.75))
+			ci.draw_texture_rect(_glow, Rect2(at - Vector2(36.0, 36.0), Vector2(72.0, 72.0)), false, Color(0.02, 0.015, 0.01, 0.8))
+		ci.draw_set_transform(at, float(prop[3]), Vector2.ONE)
+		ci.draw_texture_rect(Art.t(picture), Rect2(-size * 0.5, size), false, Config.DECOR_TINT)
+		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 	# Grass tufts and pebbles (the painted ground only: a photo has its own).
 	rng.seed = _seed + c.cx * 15485863 + c.cy * 32452843 + 1

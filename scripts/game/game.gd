@@ -24,6 +24,7 @@ var is_client := false          # true on the joiner's computer: the world is th
 var arena: Arena
 var decals: Decals
 var pond: Pond                  # the pond's picture (null on a map without one)
+var _fire_glow := 0.0           # seconds until the burning tires' light flickers again
 var enemies: EnemyManager
 var pickups: Pickups
 var player: Player
@@ -102,6 +103,7 @@ func _ready() -> void:
 	decals.ground_floor = String(map.get("floor", Config.GROUND_FLOOR))
 	decals.ground_litter = map.get("litter", Config.GROUND_LITTER)
 	decals.setup(arena.rect)
+	decals.decor = arena.decor # bushes, rubble and tires are painted with the ground
 	add_child(decals)          # ground + blood
 	if arena.pond:
 		pond = Pond.new()      # the water lies over the ground: what falls into it is gone
@@ -326,6 +328,7 @@ func _simulate(dt: float) -> void:
 	projectiles.tick(dt)
 	enemy_shots.tick(dt)
 	pickups.tick(dt)
+	_tick_fires(dt)
 	fx.tick(dt)
 
 
@@ -864,6 +867,28 @@ func mate_left(who: String, world_gone: bool) -> void:
 	hud.announce("%s HAS LEFT" % who, "" if together() else "you are on your own now", Color(1.0, 0.6, 0.4), 3.0)
 	if not is_client and player.down and coop.mates.is_empty():
 		_player_died()
+
+
+## The burning tires (scenery): flames, smoke and a flickering light for those in view.
+## Looks only - the fire hurts nobody.
+func _tick_fires(dt: float) -> void:
+	if arena.fires.is_empty() or dt <= 0.0:
+		return
+	var seen := cam.view_rect().grow(140.0)
+	var share := Config.FEWER_FX_SCALE if bool(SaveData.get_setting("fewer_effects")) else 1.0
+	_fire_glow -= dt
+	var flicker := _fire_glow <= 0.0
+	if flicker:
+		_fire_glow = Config.TIRE_GLOW_EVERY
+	for at: Vector2 in arena.fires:
+		if not seen.has_point(at):
+			continue
+		if randf() < Config.TIRE_FIRE_RATE * share * dt:
+			fx.flame(at, Config.TIRE_FIRE_RADIUS, Config.TIRE_FIRE_SIZE)
+		if randf() < Config.TIRE_SMOKE_RATE * share * dt:
+			fx.plume(at, Config.TIRE_SMOKE_SIZE, Config.TIRE_SMOKE_RISE)
+		if flicker:
+			fx.light(at, Config.TIRE_GLOW_SIZE * randf_range(0.85, 1.1), Config.TIRE_GLOW_EVERY * 1.7, Config.TIRE_GLOW)
 
 
 ## The other player paused or resumed: do the same here.

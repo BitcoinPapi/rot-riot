@@ -166,3 +166,92 @@ static func puddle() -> String:
 	return "<path d=\"M-17,1 Q-18,-8 -7,-9.6 Q3,-12 12,-7.4 Q19,-3 16.4,4.6 Q13,11 2,10.4 Q-12,11.4 -17,1 Z\" fill=\"#231c14\" fill-opacity=\"0.6\"/>" \
 			+ "<path d=\"M-13,0.6 Q-13.6,-6 -5,-7 Q3,-8.6 10,-5 Q14.6,-2 12.6,3.4 Q10,7.6 1.6,7.4 Q-9.6,8 -13,0.6 Z\" fill=\"#3a4a44\" fill-opacity=\"0.8\"/>" \
 			+ "<path d=\"M-7,-3.4 Q-2,-5.4 4,-4.4\" stroke=\"#a9c0b6\" stroke-width=\"1.1\" fill=\"none\" stroke-linecap=\"round\" stroke-opacity=\"0.7\"/>"
+
+
+# ----------------------------------------------------------------------------
+#  Scenery: bushes, heaps of rubble, tires (the ones that burn)
+# ----------------------------------------------------------------------------
+## A bush seen from above: clumps of leaves, darker underneath, lighter on top.
+## `flower` = the colour of its blossoms ("" = none).
+static func bush(number: int, half_w: float, half_h: float, flower: String) -> String:
+	var rng := _rng(number)
+	var out := "<ellipse cx=\"3\" cy=\"4\" rx=\"%s\" ry=\"%s\" fill=\"#000000\" fill-opacity=\"0.3\"/>" % [_f(half_w * 0.96), _f(half_h * 0.96)]
+	var clumps: Array = []
+	for i in 17:
+		var turn := rng.randf() * TAU
+		var out_by := sqrt(rng.randf())
+		clumps.append(Vector3(cos(turn) * out_by * (half_w - 12.0), sin(turn) * out_by * (half_h - 12.0), rng.randf_range(8.0, 12.0)))
+	for c: Vector3 in clumps:
+		out += "<circle cx=\"%s\" cy=\"%s\" r=\"%s\" fill=\"#14230e\"/>" % [_f(c.x), _f(c.y), _f(c.z + 1.5)]
+	for c: Vector3 in clumps:
+		out += "<circle cx=\"%s\" cy=\"%s\" r=\"%s\" fill=\"#2f4f1d\"/>" % [_f(c.x), _f(c.y), _f(c.z)]
+	for c: Vector3 in clumps:
+		out += "<circle cx=\"%s\" cy=\"%s\" r=\"%s\" fill=\"#44702a\" fill-opacity=\"0.9\"/>" % [_f(c.x - c.z * 0.24), _f(c.y - c.z * 0.26), _f(c.z * 0.64)]
+	for c: Vector3 in clumps:
+		out += "<circle cx=\"%s\" cy=\"%s\" r=\"%s\" fill=\"#63933a\" fill-opacity=\"0.8\"/>" % [_f(c.x - c.z * 0.4), _f(c.y - c.z * 0.42), _f(c.z * 0.3)]
+		out += "<path d=\"M%s,%s q%s,%s %s,0\" fill=\"none\" stroke=\"#14230e\" stroke-width=\"0.8\" stroke-opacity=\"0.6\" stroke-linecap=\"round\"/>" % [
+				_f(c.x - 1.0), _f(c.y + c.z * 0.4), _f(c.z * 0.35), _f(c.z * 0.3), _f(c.z * 0.7)]
+	if flower != "":
+		for i in 6:
+			var c: Vector3 = clumps[i * 2]
+			out += "<circle cx=\"%s\" cy=\"%s\" r=\"2.3\" fill=\"%s\" stroke=\"#3a0f0c\" stroke-width=\"0.5\"/><circle cx=\"%s\" cy=\"%s\" r=\"0.8\" fill=\"#f3d27a\"/>" % [
+					_f(c.x + 2.0), _f(c.y - 1.0), flower, _f(c.x + 2.0), _f(c.y - 1.0)]
+	return out
+
+
+## A heap of rubble: broken concrete, a few bricks, a plank, a bent iron bar, dust round it.
+static func rubble(number: int) -> String:
+	var rng := _rng(number)
+	var out := "<ellipse cx=\"0\" cy=\"0\" rx=\"44\" ry=\"32\" fill=\"#6b6455\" fill-opacity=\"0.3\"/><ellipse cx=\"0\" cy=\"1\" rx=\"32\" ry=\"22\" fill=\"#3a352c\" fill-opacity=\"0.35\"/>"
+	out += "<g transform=\"rotate(%s)\"><rect x=\"-27\" y=\"-3\" width=\"48\" height=\"6\" rx=\"1\" fill=\"#6b4a2a\" stroke=\"%s\" stroke-width=\"1\"/><path d=\"M-22,0 L16,0\" stroke=\"#8a6238\" stroke-width=\"1\"/></g>" % [
+			_f(rng.randf_range(-40.0, 40.0)), INK]
+	for i in 10:
+		var cx := rng.randf_range(-28.0, 28.0)
+		var cy := rng.randf_range(-18.0, 18.0)
+		var r := rng.randf_range(5.0, 10.5)
+		var corners := rng.randi_range(4, 6)
+		var first := rng.randf() * TAU
+		var d := ""
+		var top := ""
+		for k in corners:
+			var turn := first + TAU * float(k) / float(corners) + rng.randf_range(-0.3, 0.3)
+			var reach := r * rng.randf_range(0.7, 1.0)
+			d += "%s%s,%s " % ["M" if k == 0 else "L", _f(cx + cos(turn) * reach), _f(cy + sin(turn) * reach)]
+			top += "%s%s,%s " % ["M" if k == 0 else "L", _f(cx - 1.0 + cos(turn) * reach * 0.55), _f(cy - 1.2 + sin(turn) * reach * 0.55)]
+		var grey := rng.randf_range(0.4, 0.58)
+		out += "<path d=\"%sZ\" fill=\"#000000\" fill-opacity=\"0.3\" transform=\"translate(1.4 2)\"/>" % d
+		out += "<path d=\"%sZ\" fill=\"#%s\" stroke=\"%s\" stroke-width=\"0.9\" stroke-linejoin=\"round\"/>" % [d, Color(grey, grey, grey * 0.96).to_html(false), INK]
+		out += "<path d=\"%sZ\" fill=\"#%s\" fill-opacity=\"0.8\"/>" % [top, Color(grey + 0.14, grey + 0.14, grey + 0.12).to_html(false)]
+	for i in 5:
+		out += "<g transform=\"translate(%s %s) rotate(%s)\"><rect x=\"-4.4\" y=\"-2.4\" width=\"8.8\" height=\"4.8\" rx=\"0.6\" fill=\"#9a4a34\" stroke=\"%s\" stroke-width=\"0.8\"/><path d=\"M-3,-0.8 L3,-0.8\" stroke=\"#c06a4c\" stroke-width=\"0.8\"/></g>" % [
+				_f(rng.randf_range(-30.0, 30.0)), _f(rng.randf_range(-20.0, 20.0)), _f(rng.randf() * 180.0), INK]
+	out += "<path d=\"M-20,12 Q-4,2 8,10 Q16,15 24,6\" fill=\"none\" stroke=\"%s\" stroke-width=\"2.6\" stroke-linecap=\"round\"/><path d=\"M-20,12 Q-4,2 8,10 Q16,15 24,6\" fill=\"none\" stroke=\"#5a4a3c\" stroke-width=\"1.2\" stroke-linecap=\"round\"/>" % INK
+	return out
+
+
+## One tire lying on the ground, charred, a few cinders glowing on it.
+static func _one_tire(x: float, y: float, cinders: int, number: int) -> String:
+	var rng := _rng(number)
+	var out := "<ellipse cx=\"%s\" cy=\"%s\" rx=\"16.5\" ry=\"16.5\" fill=\"#000000\" fill-opacity=\"0.32\"/>" % [_f(x + 1.6), _f(y + 2.2)]
+	out += "<circle cx=\"%s\" cy=\"%s\" r=\"15\" fill=\"#1c1c1b\" stroke=\"#0b0b0a\" stroke-width=\"1.4\"/>" % [_f(x), _f(y)]
+	for k in 18:
+		var turn := TAU * float(k) / 18.0
+		out += "<path d=\"M%s,%s L%s,%s\" stroke=\"#3b3b38\" stroke-width=\"1.4\" stroke-linecap=\"round\"/>" % [
+				_f(x + cos(turn) * 11.4), _f(y + sin(turn) * 11.4), _f(x + cos(turn + 0.16) * 14.2), _f(y + sin(turn + 0.16) * 14.2)]
+	out += "<circle cx=\"%s\" cy=\"%s\" r=\"8.4\" fill=\"#2a241e\" stroke=\"#0b0b0a\" stroke-width=\"1.1\"/>" % [_f(x), _f(y)]
+	out += "<path d=\"M%s,%s A12.6,12.6 0 0 1 %s,%s\" fill=\"none\" stroke=\"#5a5a55\" stroke-width=\"1.1\" stroke-linecap=\"round\" stroke-opacity=\"0.8\"/>" % [
+			_f(x - 11.0), _f(y - 6.0), _f(x - 2.0), _f(y - 12.4)]
+	for k in cinders:
+		var turn := rng.randf() * TAU
+		var reach := rng.randf_range(9.5, 13.5)
+		out += "<circle cx=\"%s\" cy=\"%s\" r=\"%s\" fill=\"#ff8a2a\" fill-opacity=\"0.9\"/>" % [_f(x + cos(turn) * reach), _f(y + sin(turn) * reach), _f(rng.randf_range(0.7, 1.4))]
+	return out
+
+
+static func tire() -> String:
+	return _one_tire(0.0, 0.0, 7, 5)
+
+
+## Two tires, one half on the other.
+static func tires() -> String:
+	return _one_tire(-9.0, 5.0, 5, 6) + _one_tire(9.0, -5.0, 7, 7)

@@ -185,6 +185,20 @@ func crit_spark(pos: Vector2, dir: Vector2) -> void:
 				randf_range(3.0, 5.0), 0.0, 6.0, Color(1.0, 0.92, 0.35))
 
 
+## A lick of flame from a fire that keeps burning (a tire): bigger and longer than an ember.
+func flame(pos: Vector2, radius: float, size: float) -> void:
+	var at := pos + Vector2.from_angle(randf() * TAU) * (randf() * radius)
+	_emit(P_FIRE, at, Vector2(randf_range(-14.0, 14.0), randf_range(-64.0, -26.0)), randf_range(0.3, 0.55),
+			size * randf_range(0.7, 1.15), -size * 0.9, 1.0, Color(1.0, randf_range(0.42, 0.78), 0.14, 0.85))
+
+
+## One puff of the smoke that keeps rising from a fire: it drifts the way `rise` says and thins out.
+func plume(pos: Vector2, size: float, rise: Vector2) -> void:
+	var grey := randf_range(0.1, 0.22)
+	_emit(P_SMOKE, pos + Vector2(randf_range(-5.0, 5.0), randf_range(-5.0, 5.0)), rise * randf_range(0.8, 1.2) + Vector2(randf_range(-8.0, 8.0), 0.0),
+			randf_range(1.5, 2.3), size * randf_range(0.8, 1.2), size * 1.5, 0.25, Color(grey, grey, grey, 0.42))
+
+
 func smoke(pos: Vector2, count: int, size: float) -> void:
 	for k in _few(count):
 		var d := Vector2.from_angle(randf() * TAU)

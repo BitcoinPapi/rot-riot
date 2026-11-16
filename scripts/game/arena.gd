@@ -2,7 +2,8 @@ class_name Arena
 extends Node2D
 ## The battlefield: one big clearing in the woods, larger than the screen.
 ## Knows the playable rectangle, the obstacles (rocks and stumps), the pond in
-## the middle, and draws the ring of trees around the edge.
+## the middle and where the scenery is (bushes, rubble, burning tires), and
+## draws the ring of trees around the edge.
 ##
 ## There are dozens of obstacles, so they are sorted into coarse squares
 ## ("buckets"): a bullet or a walker only checks the few rocks near it.
@@ -30,6 +31,10 @@ var _pond_b := 0.0
 var start := Vector2.ZERO      # where the player starts: the middle of the map, or the pond's southern shore
 var shore_turn := 0.0          # which way round the pond the last walker asked about went (1 / -1; 0 = it was not at the shore)
 
+# Scenery (Config: SCENERY): bushes, heaps of rubble, burning tires. Looks only.
+var decor: Array = []          # [[kind ("bush" / "rubble" / "tire"), picture, where, turned, size], ...]
+var fires := PackedVector2Array()   # where the burning tires are
+
 var canopy: DrawLayer          # tree tops, drawn above everything in the world
 var tree_tint := Color(1, 1, 1)   # the map's colour for the tree tops
 var _trees: Array = []         # [pos, scale, rotation, tint]
@@ -52,6 +57,7 @@ func _init(size: Vector2 = Config.ARENA_SIZE, layout_seed: int = 0, given_rocks:
 		if with_pond and ponds:
 			_set_pond([start.x, start.y, Config.POND_SIZE.x * 0.5, Config.POND_SIZE.y * 0.5, randf() * TAU, randf() * TAU])
 		_generate_obstacles(layout_seed)
+	_generate_decor()
 	_build_buckets()
 	_generate_trees()
 	canopy = DrawLayer.new()
@@ -110,6 +116,70 @@ func _set_obstacles(list: Array) -> void:
 		obs_radius.append(clampf(float(rock[2]), 10.0, 200.0))
 		_obs_sprite.append("stump" if int(rock[3]) == 1 else "rock")
 		_obs_rot.append(float(rock[4]))
+
+
+# ----------------------------------------------------------------------------
+#  Scenery: bushes, rubble, burning tires. It follows from where the rocks and
+#  the pond are, so in co-op everybody sees the same without it being sent
+#  (it is looks only; nothing in the game depends on it).
+# ----------------------------------------------------------------------------
+func _generate_decor() -> void:
+	var rng := RandomNumberGenerator.new()
+	var number := 7919
+	for i in obs_pos.size():
+		number = (number * 31 + int(obs_pos[i].x) * 7 + int(obs_pos[i].y) * 13 + int(obs_radius[i])) % 2147483647
+	for value: Variant in pond_data():
+		number = (number * 31 + int(float(value) * 100.0)) % 2147483647
+	rng.seed = number
+	var millions := rect.get_area() / 1000000.0
+	_scatter(rng, "tire", int(round(Config.TIRES_PER_MILLION * millions)), 24.0)
+	_scatter(rng, "rubble", int(round(Config.RUBBLE_PER_MILLION * millions)), 44.0)
+	_scatter(rng, "bush", int(round(Config.BUSHES_PER_MILLION * millions)), 34.0)
+
+
+func _scatter(rng: RandomNumberGenerator, kind: String, wanted: int, radius: float) -> void:
+	var inner := rect.grow(-Config.DECOR_EDGE)
+	var placed := 0
+	var tries := 0
+	while placed < wanted and tries < wanted * 50:
+		tries += 1
+		var p := Vector2(rng.randf_range(inner.position.x, inner.end.x), rng.randf_range(inner.position.y, inner.end.y))
+		if kind == "bush" and rng.randf() < Config.BUSH_EDGE_SHARE:
+			# Near the trees: a spot along one of the four edges.
+			var along := rng.randf()
+			var depth := rng.randf_range(Config.DECOR_EDGE * 0.5, Config.BUSH_EDGE_BAND)
+			match rng.randi() % 4:
+				0: p = Vector2(lerpf(inner.position.x, inner.end.x, along), rect.position.y + depth)
+				1: p = Vector2(lerpf(inner.position.x, inner.end.x, along), rect.end.y - depth)
+				2: p = Vector2(rect.position.x + depth, lerpf(inner.position.y, inner.end.y, along))
+				_: p = Vector2(rect.end.x - depth, lerpf(inner.position.y, inner.end.y, along))
+		var turn := rng.randf() * TAU
+		var size := rng.randf_range(0.85, 1.25) if kind != "tire" else 1.0
+		var look := rng.randi() % 3
+		var pile := rng.randf() < Config.TIRE_PILE_SHARE
+		if in_water(p, radius + Config.DECOR_POND_CLEAR):
+			continue
+		if kind == "tire" and p.distance_to(start) < Config.TIRE_START_CLEAR:
+			continue
+		var ok := true
+		for i in obs_pos.size():
+			if p.distance_to(obs_pos[i]) < obs_radius[i] + radius + 16.0:
+				ok = false
+				break
+		for other: Array in decor:
+			var gap := Config.TIRE_SPACING if kind == "tire" and String(other[0]) == "tire" else Config.DECOR_SPACING
+			if ok and p.distance_to(other[2]) < gap:
+				ok = false
+		if not ok:
+			continue
+		var picture := "decor_bush_%d" % look
+		if kind == "rubble":
+			picture = "decor_rubble_%d" % (look % 2)
+		elif kind == "tire":
+			picture = "decor_tires" if pile else "decor_tire"
+			fires.append(p)
+		decor.append([kind, picture, p, turn, size])
+		placed += 1
 
 
 # ----------------------------------------------------------------------------

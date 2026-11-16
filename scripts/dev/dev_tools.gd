@@ -21,6 +21,7 @@ extends Node
 ##   --cycle            the bot is handed each weapon in turn every 6 seconds
 ##   --wave=N           jump straight to wave N
 ##   --at=X,Y           start the run at this spot of the map (the middle is 1050,700)
+##                      (--at=fire = beside a burning tire)
 ##   --perk=ID:N,ID:N   start the run with these run perks (Config.RUN_PERKS), N times each
 ##   --perks=N          owe N perk choices half a second into the run (to look at the choice)
 ##   --no-fog           the whole map is uncovered from the start
@@ -182,7 +183,10 @@ func _process(_delta: float) -> void:
 			game.director.intermission = 0.1
 		if _args.has("at") and _frame == 2:
 			var spot := String(_args["at"]).split(",")
-			game.player.place(game.arena.resolve(Vector2(float(spot[0]), float(spot[1])), game.player.radius))
+			var there := Vector2(float(spot[0]), float(spot[1])) if spot.size() >= 2 else game.arena.start
+			if String(_args["at"]) == "fire" and not game.arena.fires.is_empty():
+				there = game.arena.fires[0] + Vector2(-70.0, 60.0)      # (beside the first burning tire)
+			game.player.place(game.arena.resolve(there, game.player.radius))
 			game.cam.snap_to(game.player.pos)
 		if _args.has("no-fog") and _frame == 2:
 			game.fog.reveal_all()
@@ -2528,6 +2532,29 @@ func _run_autotest() -> void:
 			"a zombie on the far shore walks round the pond instead of pressing against it (%d px in 2.5 s, of %d at full pace; it ends %d px from where it began%s)" % [
 			int(pond_walked), int(pond_pace), int(pond_walker.pos.distance_to(pond_walk_from)), ", and got into the water" if pond_wet else ""])
 	game.enemies.clear_all()
+	# Scenery: bushes, heaps of rubble, burning tires. Looks only: never in the water or on a
+	# rock, and nothing of it blocks anybody.
+	var decor_counts := {"bush": 0, "rubble": 0, "tire": 0}
+	var decor_ok := true
+	for prop: Array in pond_map.decor:
+		var prop_at: Vector2 = prop[2]
+		decor_counts[String(prop[0])] = int(decor_counts[String(prop[0])]) + 1
+		if pond_map.in_water(prop_at, 20.0) or not Art.tex.has(String(prop[1])) or pond_map.resolve(prop_at, 14.0).distance_to(prop_at) > 0.01:
+			decor_ok = false
+	for fire_at: Vector2 in pond_map.fires:
+		if fire_at.distance_to(pond_map.start) < Config.TIRE_START_CLEAR - 1.0:
+			decor_ok = false
+	_check(decor_ok and int(decor_counts["bush"]) >= 12 and int(decor_counts["rubble"]) >= 5 and int(decor_counts["tire"]) >= 3
+			and pond_map.fires.size() == int(decor_counts["tire"]) and game.decals.decor.size() == pond_map.decor.size(),
+			"the map has its scenery - %d bushes, %d heaps of rubble, %d burning tires - on dry open ground, and none of it blocks the way" % [
+			int(decor_counts["bush"]), int(decor_counts["rubble"]), int(decor_counts["tire"])])
+	if not pond_map.fires.is_empty():
+		pond_hero.place(pond_map.resolve(pond_map.fires[0] + Vector2(-60.0, 50.0), pond_hero.radius))
+		game.cam.snap_to(pond_hero.pos)
+		await _until(func() -> bool: return game.fx.flying() >= 8, 180)
+	_check(pond_map.fires.is_empty() or game.fx.flying() >= 8, "a burning tire in view burns: flames and smoke rise from it (%d in the air)" % game.fx.flying())
+	pond_hero.place(pond_map.start)
+	game.cam.snap_to(pond_hero.pos)
 	# Co-op: the host's pond is sent as numbers, and a joiner's map is the same.
 	var sent_pond := pond_map.pond_data()
 	var joined_map := Arena.new(pond_map.rect.size, 0, pond_map.rocks(), false, sent_pond)
@@ -2538,6 +2565,11 @@ func _run_autotest() -> void:
 	var dry_map := Arena.new(pond_map.rect.size, 0, pond_map.rocks(), false, [])
 	_check(same_pond and sent_pond.size() == 6 and not dry_map.pond and dry_map.start == dry_map.rect.get_center(),
 			"a joiner builds the pond from the host's numbers - the same shore, the same starting spot (and none, if the host has none)")
+	var same_decor := joined_map.decor.size() == pond_map.decor.size() and joined_map.fires.size() == pond_map.fires.size()
+	for i in mini(joined_map.decor.size(), pond_map.decor.size()):
+		if ((joined_map.decor[i] as Array)[2] as Vector2).distance_to((pond_map.decor[i] as Array)[2]) > 0.01 or (joined_map.decor[i] as Array)[1] != (pond_map.decor[i] as Array)[1]:
+			same_decor = false
+	_check(same_decor, "...and has the same scenery in the same places, without it being sent (it follows from the rocks and the pond)")
 	joined_map.canopy.free()
 	joined_map.free()
 	dry_map.canopy.free()
