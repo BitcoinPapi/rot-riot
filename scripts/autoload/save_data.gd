@@ -803,25 +803,65 @@ func can_forge(item: String, tier: int) -> bool:
 func forge_gear(item: String, tier: int, roll: float = -1.0, break_roll: float = -1.0) -> String:
 	if not can_forge(item, tier):
 		return ""
+	var result := _forge_once(item, tier, roll, break_roll)
+	progress_changed.emit()
+	save_game()
+	return result
+
+
+## One forging (see forge_gear), without saving or telling the screens.
+func _forge_once(item: String, tier: int, roll: float, break_roll: float) -> String:
 	var def := Config.gear_tier_def(tier)
 	var source := Config.gear_key(item, tier - 1)
 	if roll < 0.0:
 		roll = randf()
 	if break_roll < 0.0:
 		break_roll = randf()
-	var result := "success"
 	if roll < float(def["chance"]):
 		_take_gear(source, 2)
 		add_gear(Config.gear_key(item, tier), 1, false)
-	elif break_roll < float(def["break"]):
+		return "success"
+	if break_roll < float(def["break"]):
 		_take_gear(source, 2)
-		result = "broke"
-	else:
-		_take_gear(source, 1)
-		result = "fail"
+		return "broke"
+	_take_gear(source, 1)
+	return "fail"
+
+
+## How many pairs FORGE ALL would forge for pieces of quality `tier` (1 = COMMON...):
+## every two identical pieces of that quality in the bag. 0 for a quality it is not
+## offered for (Config.GEAR_FORGE_ALL_TIERS).
+func forge_all_pairs(tier: int) -> int:
+	if not Config.GEAR_FORGE_ALL_TIERS.has(tier) or tier >= Config.GEAR_TIERS.size():
+		return 0
+	var pairs := 0
+	for key: String in gear_bag.keys():
+		if Config.gear_tier_of(key) == tier:
+			pairs += int(gear_count(key) / 2.0)
+	return pairs
+
+
+## FORGE ALL: forge every pair of identical pieces of quality `tier` in the bag, each
+## with the usual chance. Returns {"made": pieces forged, "failed": forgings that did
+## not work (each cost one piece)}. `roll` (0..1) replaces the dice, for tests.
+func forge_all(tier: int, roll: float = -1.0) -> Dictionary:
+	var done := {"made": 0, "failed": 0}
+	if forge_all_pairs(tier) <= 0:
+		return done
+	for key: String in gear_bag.keys().duplicate():
+		if Config.gear_tier_of(key) != tier:
+			continue
+		var item := Config.gear_item_of(key)
+		for i in int(gear_count(key) / 2.0):
+			if not can_forge(item, tier + 1):
+				break
+			if _forge_once(item, tier + 1, roll, -1.0) == "success":
+				done["made"] = int(done["made"]) + 1
+			else:
+				done["failed"] = int(done["failed"]) + 1
 	progress_changed.emit()
 	save_game()
-	return result
+	return done
 
 
 ## How many forges are possible right now (for the menu badge).

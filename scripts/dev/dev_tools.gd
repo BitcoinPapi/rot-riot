@@ -647,6 +647,9 @@ func _open_screen(app: Main, screen: String) -> void:
 			app.pause_game()
 		"gameover":
 			if app.game != null:
+				# (With --gear=N the run "found" N pieces: the results must stay short.)
+				for i in int(_args.get("gear", "0")):
+					app.game.gear_run.append(Config.gear_key(Config.GEAR_ORDER[i % Config.GEAR_ORDER.size()], 1 + int(i % 9 == 0)))
 				app.game.player.invuln = 0.0
 				app.game.damage_player(99999.0, app.game.player.pos + Vector2.RIGHT)
 		"victory":
@@ -1145,6 +1148,42 @@ func _run_autotest() -> void:
 	_check(SaveData.gear_count("work_gloves:2") == 2, "a forging that can fail asks before it is done")
 	sheet.call("_on_forge_pressed")
 	_check(SaveData.gear_count("work_gloves:2") < 2, "...and happens on the second press")
+	# FORGE ALL: every pair of COMMON pieces at once (it never fails), every pair of STURDY ones
+	# (each at the usual 90%) - and nothing better than that.
+	SaveData.add_gear("money_belt:1", 5, false)
+	SaveData.add_gear("ammo_belt:1", 4, false)
+	var belts_before := SaveData.gear_count("money_belt:2") + SaveData.gear_count("ammo_belt:2")
+	var all_common := SaveData.forge_all_pairs(1)
+	var all_done := SaveData.forge_all(1)
+	_check(all_common >= 4 and int(all_done["made"]) == all_common and int(all_done["failed"]) == 0 and SaveData.forge_all_pairs(1) == 0
+			and SaveData.gear_count("money_belt:1") == 1 and SaveData.gear_count("ammo_belt:1") == 0
+			and SaveData.gear_count("money_belt:2") + SaveData.gear_count("ammo_belt:2") == belts_before + 4,
+			"FORGE ALL turns every pair of COMMON pieces into a STURDY one at once (%d pairs; the odd piece is left)" % all_common)
+	var all_sturdy := SaveData.forge_all_pairs(2)
+	var sturdy_before := SaveData.gear_count("money_belt:2")
+	var all_lost := SaveData.forge_all(2, 0.95)
+	_check(all_sturdy >= 2 and int(all_lost["made"]) == 0 and int(all_lost["failed"]) == all_sturdy
+			and SaveData.gear_count("money_belt:2") == sturdy_before - int(sturdy_before / 2.0),
+			"FORGE ALL for STURDY pairs rolls each forging at its usual chance: a failed one costs a piece (%d failed)" % int(all_lost["failed"]))
+	SaveData.add_gear("money_belt:2", 4, false)
+	var fine_before := SaveData.gear_count("money_belt:3")
+	var all_fine := SaveData.forge_all(2, 0.5)
+	_check(int(all_fine["made"]) >= 2 and SaveData.gear_count("money_belt:3") >= fine_before + 2, "...and one that works makes a FINE piece")
+	var fine_pairs := SaveData.gear_count("money_belt:3")
+	_check(fine_pairs >= 2 and SaveData.forge_all_pairs(3) == 0 and int(SaveData.forge_all(3)["made"]) == 0 and SaveData.gear_count("money_belt:3") == fine_pairs
+			and SaveData.forge_all_pairs(4) == 0,
+			"there is no FORGE ALL for FINE, SUPERIOR or LEGENDARY pieces (those stay one at a time)")
+	# ...and its buttons in the forge menu.
+	SaveData.add_gear("tool_belt:1", 4, false)
+	SaveData.add_gear("champion_belt:2", 2, false)
+	sheet.call("_refresh")
+	sheet.call("_on_forge_all_pressed", 1)
+	_check(SaveData.gear_count("tool_belt:1") == 0, "the FORGE ALL COMMON button forges at once")
+	var champions := SaveData.gear_count("champion_belt:2")
+	sheet.call("_on_forge_all_pressed", 2)
+	_check(SaveData.gear_count("champion_belt:2") == champions and int(sheet.get("_armed_all")) == 2, "the FORGE ALL STURDY button asks before it is done (it can fail)")
+	sheet.call("_on_forge_all_pressed", 2)
+	_check(SaveData.gear_count("champion_belt:2") < champions and int(sheet.get("_armed_all")) == 0, "...and happens on the second press")
 	sheet.call("_close_forge")
 	await _frames(3)
 	# The catalogue itself.
@@ -2505,8 +2544,33 @@ func _run_autotest() -> void:
 	dry_map.free()
 	Arena.ponds = false
 	_auto_bot = pond_bot_was
-	app.pause_game()
-	await _frames(3)
+
+	# --- the results after a long run with a lot of gear: one short line, and the buttons stay on
+	#     the screen (the owner could not get past this screen: every piece was named) ---
+	for i in 60:
+		game.gear_run.append(Config.gear_key(Config.GEAR_ORDER[i % Config.GEAR_ORDER.size()], 1 + int(i % 9 == 0)))
+	game.new_checkpoint = Config.CHECKPOINT_EVERY + 1
+	_keep_alive = false
+	game.player.invuln = 0.0
+	game.damage_player(99999.0, game.player.pos + Vector2.RIGHT)
+	await _until(func() -> bool: return app.state == Main.State.GAME_OVER, 900)
+	await _frames(6)
+	var results: GameOverScreen = (app.get("_screens") as Dictionary)["gameover"]
+	var results_view := Rect2(Vector2.ZERO, results.size)
+	var buttons_shown := 0
+	var buttons_off := 0
+	for results_button: Button in results.get("_buttons"):
+		if results_button.is_visible_in_tree():
+			buttons_shown += 1
+			if not results_view.encloses(Rect2(results_button.global_position - results.global_position, results_button.size)):
+				buttons_off += 1
+	var loot_label: Label = results.get("_loot")
+	var summary := GameOverScreen.gear_summary(game.gear_run)
+	_check(app.state == Main.State.GAME_OVER and buttons_shown >= 5 and buttons_off == 0 and loot_label.text.contains(summary)
+			and summary.begins_with("GEAR FOUND:  %d pieces" % game.gear_run.size()) and summary.length() < 80
+			and loot_label.get_line_count() <= Config.RESULTS_GEAR_LINES + 1 and loot_label.max_lines_visible == Config.RESULTS_GEAR_LINES,
+			"after a run with %d pieces of gear the results show one short line (\"%s\") and all %d buttons are on the screen" % [
+			game.gear_run.size(), summary, buttons_shown])
 	app.quit_to_menu()
 	await _frames(5)
 	SaveData.select_map(1, 1)          # (as the run before this one left it; the save checks below expect that)

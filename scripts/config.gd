@@ -11,7 +11,7 @@ extends Node
 ## ============================================================================
 
 const GAME_TITLE := "HAITIAN GANG WARS"
-const GAME_VERSION := "0.17.0"
+const GAME_VERSION := "0.17.1"
 const HERO_NAME := "JANJAN"                   # the soldier you play, as everybody calls him...
 const HERO_FULL_NAME := "JEAN-BAPTISTE"       # ...and his real name
 const GAME_TAGLINE := "TAKE THE COUNTRY BACK"   # under the title on the main menu
@@ -978,6 +978,12 @@ const GEAR_TIERS := [
 	{"name": "SUPERIOR", "color": Color("b565f5"), "mult": 5.0, "chance": 0.4, "break": 0.35},
 	{"name": "LEGENDARY", "color": Color("ff9a2e"), "mult": 8.0, "chance": 0.1, "break": 0.5},
 ]
+
+# FORGE ALL: the forge has a button that forges every pair of one quality at once - for
+# pairs of these qualities only (1 = COMMON, 2 = STURDY). The owner: not for tier 3, 4, 5 -
+# those forgings fail too often and can destroy pieces, so they stay one at a time.
+const GEAR_FORGE_ALL_TIERS := [1, 2]
+const RESULTS_GEAR_LINES := 2            # the results screen never gives the gear it lists more lines than this
 
 # Every piece of gear.
 #   type   which slot it goes in

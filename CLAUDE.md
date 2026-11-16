@@ -426,7 +426,14 @@ the old distance). Camera zoom 1.2, may look 110 px past the edge.
   `CHEST_TIER_WEIGHTS` (70% COMMON / 25% STURDY / 5% FINE), plus the map's
   `gear_up` chance of one tier more, plus 1% per wave of the run (max 50%)
   of one tier more - rolled when opened, so chests are worth more deep into
-  a run. The results screen shows chests opened and map explored.
+  a run. The results screen shows chests opened and map explored, and the
+  gear found as ONE short line ("GEAR FOUND: 31 pieces - 2 STURDY, 29
+  COMMON", `GameOverScreen.gear_summary`). It used to name every piece:
+  after a long run (the owner's: wave 29, 31 pieces) the list pushed the
+  buttons off the screen and he could not get past it. **Anything on a
+  screen that grows with what happened in a run must have a limit** - the
+  playthrough test checks that every button of the results is on the screen
+  after a run with 60 pieces.
 - *Weapon crates* land 260-620 px from the player.
 
 **Player:** instant movement (no acceleration), 100 HP, 0.55 s of safety after
@@ -701,6 +708,15 @@ config.gd; stored by `save_data.gd`; turned into game numbers only in
   inventory to wear it, click a slot to take it off. **FORGE** in the
   inventory opens the forge menu: pick a pair, see "piece + piece = result"
   with the chance, press FORGE (anything that can fail asks twice).
+  **FORGE ALL** (v0.17.1; the owner: "a mass forge button for same tier
+  forges (does not apply to tier 3-4-5)"): two buttons at the top of the
+  forge, one per quality in `Config.GEAR_FORGE_ALL_TIERS` - FORGE ALL COMMON
+  (every pair of identical COMMON pieces becomes a STURDY one; never fails)
+  and FORGE ALL STURDY (every pair, each at the usual 90%; it asks twice,
+  a failed forging costs one piece). FINE and better stay one pair at a
+  time. `SaveData.forge_all(tier)` / `forge_all_pairs(tier)`. Claude read
+  "tier 3-4-5" as the quality of the pieces being forged; if he meant "not
+  for forgings that MAKE tier 3", take 2 out of `GEAR_FORGE_ALL_TIERS`.
 - *JanJan's look* (v0.16; the owner: "redesign janjan as a customizable
   figure like before but based on this new image ... so he appears to
   naturally carry guns, in the menus, gear changes etc."). He is DRAWN again
@@ -1315,6 +1331,16 @@ effects were ~330 draw calls (minimap and fog included). Not yet measured on the
   were taken as the model) -> v0.16.0: the drawn puppet, see "JanJan's
   look". Awaiting his eyes: he gave up a painting he made for it. In the
   same sitting: "make the map 30% smaller" -> 2100x1400.
+- Playing v0.17 (wave 29 of zone 1, level 18, 2066 kills, 9:29 - by far his
+  longest run): "after i died the screen showed me all i got and i couldnt
+  get past this screen. i couldnt see the button. Please fix it. we dont
+  need to see each individual item we got." + "There should also be a mass
+  forge button for same tier forges (does not apply to tier 3-4-5)" ->
+  v0.17.1: the results name no pieces any more, and the forge has FORGE ALL
+  buttons (see "Gear"). NOTE his run: 31 pieces of gear in one run, all four
+  chests, the whole map explored - gear comes fast on the small map with
+  the pond; and he got to wave 29, so the early game may be getting easy for
+  a level-18 character with perks.
 - After v0.16: "lets add a big pond in the middle of the map. and more
   details" -> v0.17.0: the pond (see "The map") and about 560 details
   painted on the ground. Claude's choices to ask about: the pond cannot be

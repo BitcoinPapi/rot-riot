@@ -35,6 +35,9 @@ var _forge_row: HBoxContainer
 var _forge_chance: Label
 var _forge_risk: Label
 var _forge_button: Button
+var _forge_all_row: HBoxContainer
+var _forge_all := {}           # quality (1 = COMMON...) -> its FORGE ALL button
+var _armed_all := 0            # a FORGE ALL that can fail is waiting for a second press (its quality, 0 = none)
 var _banner: Label
 var _strip_icon: Control
 var _strip_name: Label
@@ -150,24 +153,39 @@ func _init() -> void:
 
 	_forge_box = VBoxContainer.new()
 	_forge_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_forge_box.add_theme_constant_override("separation", 8)
+	_forge_box.add_theme_constant_override("separation", 6)
 	_forge_box.visible = false
 	holder.add_child(_forge_box)
 	var forge_head := HBoxContainer.new()
 	forge_head.add_theme_constant_override("separation", 14)
 	_forge_box.add_child(forge_head)
-	var forge_title := UiKit.label("FORGE", 24, UiKit.GOLD)
-	forge_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	forge_head.add_child(forge_title)
+	# (The title with one line under it, beside the button: the forge needs its height for the pairs.)
+	var forge_words := VBoxContainer.new()
+	forge_words.add_theme_constant_override("separation", -4)
+	forge_words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	forge_head.add_child(forge_words)
+	forge_words.add_child(UiKit.label("FORGE", 24, UiKit.GOLD))
+	forge_words.add_child(UiKit.label("Two identical pieces make one piece of the next quality.", 14, UiKit.DIM))
 	var to_bag := UiKit.button("BACK TO INVENTORY", _close_forge, 260.0)
 	to_bag.custom_minimum_size.y = 44
+	to_bag.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	to_bag.add_theme_font_size_override("font_size", 18)
 	forge_head.add_child(to_bag)
-	var blurb := UiKit.label("Two identical pieces of the same quality can be forged into one piece of the next quality. Choose a pair:", 14, UiKit.DIM)
-	blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_forge_box.add_child(blurb)
+	# FORGE ALL: every pair of one quality at once (only the qualities in Config.GEAR_FORGE_ALL_TIERS).
+	_forge_all_row = HBoxContainer.new()
+	_forge_all_row.add_theme_constant_override("separation", 12)
+	_forge_box.add_child(_forge_all_row)
+	for tier: int in Config.GEAR_FORGE_ALL_TIERS:
+		var all_button := UiKit.button("", func() -> void: _on_forge_all_pressed(tier), 0.0)
+		all_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		all_button.custom_minimum_size.y = 42
+		all_button.add_theme_font_size_override("font_size", 16)
+		all_button.mouse_entered.connect(func() -> void: _describe_forge_all(tier))
+		all_button.focus_entered.connect(func() -> void: _describe_forge_all(tier))
+		_forge_all_row.add_child(all_button)
+		_forge_all[tier] = all_button
 	var forge_scroll := ScrollContainer.new()
-	forge_scroll.custom_minimum_size = Vector2(0, 150)
+	forge_scroll.custom_minimum_size = Vector2(0, 2.0 * TILE_SIZE + 10.0)
 	forge_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_forge_box.add_child(forge_scroll)
 	var forge_inner := VBoxContainer.new()
@@ -321,6 +339,7 @@ func _on_slot_pressed(slot: String) -> void:
 func _open_forge() -> void:
 	_forging = true
 	_armed = false
+	_armed_all = 0
 	_banner.text = ""
 	if not SaveData.can_forge(_forge_item, _forge_tier):
 		_forge_item = ""
@@ -330,6 +349,7 @@ func _open_forge() -> void:
 func _close_forge() -> void:
 	_forging = false
 	_armed = false
+	_armed_all = 0
 	_refresh()
 	_forge_open_button.grab_focus()
 
@@ -339,6 +359,7 @@ func _choose_forge(key: String) -> void:
 	_forge_item = Config.gear_item_of(key)
 	_forge_tier = Config.gear_tier_of(key) + 1
 	_armed = false
+	_armed_all = 0
 	_banner.text = ""
 	_focus_on = key
 	_refresh()
@@ -374,6 +395,51 @@ func _on_forge_pressed() -> void:
 			Sfx.play("ui_deny")
 	_focus_on = made
 	_refresh()
+
+
+## FORGE ALL for pieces of quality `tier`: every pair of identical pieces of that quality
+## is forged, each with the usual chance.
+func _on_forge_all_pressed(tier: int) -> void:
+	var pairs := SaveData.forge_all_pairs(tier)
+	if pairs <= 0:
+		Sfx.play("ui_deny")
+		return
+	var def := Config.gear_tier_def(tier + 1)
+	# Anything that can fail asks once before it is done.
+	if float(def["chance"]) < 1.0 and _armed_all != tier:
+		_armed_all = tier
+		_armed = false
+		Sfx.play("ui_click", -4.0, 0.0)
+		_refresh()
+		(_forge_all[tier] as Button).grab_focus()
+		return
+	_armed_all = 0
+	_armed = false
+	var done := SaveData.forge_all(tier)
+	var made := int(done["made"])
+	var failed := int(done["failed"])
+	_banner.text = "FORGED:  %d %s piece%s" % [made, String(def["name"]), "" if made == 1 else "s"]
+	if failed > 0:
+		_banner.text += "   -   %d forging%s failed (a piece lost each)" % [failed, "" if failed == 1 else "s"]
+	_banner.add_theme_color_override("font_color", def["color"] if made > 0 else Color(1.0, 0.5, 0.4))
+	Sfx.play("forge_ok" if made > 0 else "forge_fail")
+	if not SaveData.can_forge(_forge_item, _forge_tier):
+		_forge_item = ""
+	_refresh()
+	if (_forge_all[tier] as Button).visible and not (_forge_all[tier] as Button).disabled:
+		(_forge_all[tier] as Button).grab_focus()
+
+
+## The strip at the bottom says what a FORGE ALL button does.
+func _describe_forge_all(tier: int) -> void:
+	var def := Config.gear_tier_def(tier + 1)
+	var chance := int(round(float(def["chance"]) * 100.0))
+	_clear(_strip_icon)
+	_strip_name.text = "FORGE ALL %s PAIRS" % String(Config.gear_tier_def(tier)["name"])
+	_strip_name.add_theme_color_override("font_color", def["color"])
+	_strip_stats.text = "Every two identical %s pieces in your bag become one %s piece." % [String(Config.gear_tier_def(tier)["name"]), String(def["name"])]
+	_strip_line.text = "This always works." if chance >= 100 else "Each forging works %d times in 100; one that fails costs one of its two pieces." % chance
+	_strip_hint.text = ""
 
 
 # ----------------------------------------------------------------------------
@@ -436,6 +502,23 @@ func _refresh() -> void:
 	_bag_count.text = "%d piece%s" % [pieces, "" if pieces == 1 else "s"]
 	_forge_open_button.text = "FORGE" if pairs == 0 else "FORGE  (%d ready)" % pairs
 	_forge_none.visible = pairs == 0
+
+	# FORGE ALL, one button for each quality it is offered for.
+	var any_all := false
+	for tier: int in _forge_all.keys():
+		var all_button: Button = _forge_all[tier]
+		var all_pairs := SaveData.forge_all_pairs(tier)
+		var all_chance := int(round(float(Config.gear_tier_def(tier + 1)["chance"]) * 100.0))
+		var tier_name := String(Config.gear_tier_def(tier)["name"])
+		all_button.visible = all_pairs > 0
+		any_all = any_all or all_pairs > 0
+		if _armed_all == tier:
+			all_button.text = "SURE?   %d x %d%%   -   PRESS AGAIN" % [all_pairs, all_chance]
+		elif all_chance >= 100:
+			all_button.text = "FORGE ALL %s   (%d pair%s)" % [tier_name, all_pairs, "" if all_pairs == 1 else "s"]
+		else:
+			all_button.text = "FORGE ALL %s   (%d pair%s, %d%% each)" % [tier_name, all_pairs, "" if all_pairs == 1 else "s", all_chance]
+	_forge_all_row.visible = any_all
 
 	# The anvil.
 	_clear(_forge_row)

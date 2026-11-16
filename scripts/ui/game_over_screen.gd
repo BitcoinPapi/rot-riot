@@ -63,6 +63,9 @@ func _init() -> void:
 	_loot = UiKit.heading("", 16, Color(0.75, 0.85, 1.0))
 	_loot.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_loot.custom_minimum_size = Vector2(560, 0)
+	# (However much was found, this never grows: the buttons below must stay on the screen.)
+	_loot.max_lines_visible = Config.RESULTS_GEAR_LINES
+	_loot.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	col.add_child(_loot)
 	_hint = UiKit.heading("", 16, UiKit.GREEN)
 	col.add_child(_hint)
@@ -140,16 +143,14 @@ func show_results(stats: Dictionary, is_best: bool) -> void:
 	else:
 		_onward.visible = false
 
-	var found: Array[String] = []
-	for key: Variant in (stats.get("gear", []) as Array):
-		found.append(Config.gear_name(String(key)))
 	var lines: Array[String] = []
 	var chest_total := int(stats.get("chests_total", 0))
 	if chest_total > 0:
 		lines.append("TREASURE CHESTS OPENED:  %d of %d     MAP EXPLORED:  %d%%" % [
 				int(stats.get("chests", 0)), chest_total, int(floor(float(stats.get("explored", 0.0)) * 100.0))])
-	if not found.is_empty():
-		lines.append("GEAR FOUND:  %s" % ",  ".join(found))
+	var gear_line := gear_summary(stats.get("gear", []) as Array)
+	if gear_line != "":
+		lines.append(gear_line)
 	_loot.text = "\n".join(lines)
 	_loot.visible = not lines.is_empty()
 	if _guest:
@@ -170,6 +171,24 @@ func show_results(stats: Dictionary, is_best: bool) -> void:
 	for b: Button in _buttons:
 		b.disabled = true
 	get_tree().create_timer(0.7, true).timeout.connect(_unlock)
+
+
+## The gear found in a run in one short line: how many pieces, and how many of each
+## quality, the best first ("GEAR FOUND:  31 pieces  -  2 STURDY,  29 COMMON"). The
+## pieces themselves are on the Character page. (It used to name every piece: after a
+## long run the list pushed the buttons off the screen and nobody could get past it.)
+static func gear_summary(found: Array) -> String:
+	if found.is_empty():
+		return ""
+	var per_tier := {}
+	for key: Variant in found:
+		var tier := Config.gear_tier_of(String(key))
+		per_tier[tier] = int(per_tier.get(tier, 0)) + 1
+	var parts: Array[String] = []
+	for tier in range(Config.GEAR_TIERS.size(), 0, -1):
+		if per_tier.has(tier):
+			parts.append("%d %s" % [int(per_tier[tier]), String(Config.gear_tier_def(tier)["name"])])
+	return "GEAR FOUND:  %d piece%s  -  %s" % [found.size(), "" if found.size() == 1 else "s", ",  ".join(parts)]
 
 
 func _put(stat: String, text: String) -> void:
